@@ -5,7 +5,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const COOKIE = "sparring";
-export const COOKIE_MAX_AGE = 2_592_000;
+/** 400 days, the longest a browser keeps a cookie. Every page load renews it, so a device stays logged in. */
+export const COOKIE_MAX_AGE = 34_560_000;
 
 /** Origins that are not a Host on the list but may still talk to the daemon: the Tauri desktop shell. */
 export const EXTRA_ORIGINS = ["tauri://localhost", "http://tauri.localhost"];

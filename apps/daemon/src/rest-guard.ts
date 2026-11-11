@@ -46,7 +46,11 @@ export function restGuard(opts: GuardOptions, next: (req: Request) => Promise<Re
       return json({ ok: true }, 200, { "set-cookie": loginCookie(opts.token, host) });
     }
     if (!authorized(req, opts.token)) return json({ error: "unauthorized" }, 401);
-    if (req.method === "GET" && path === "/api/me") return json({ ok: true });
+    // The client asks /api/me on every page load: renewing the cookie there keeps a device logged in for as
+    // long as it is used at least once in 400 days.
+    if (req.method === "GET" && path === "/api/me") {
+      return json({ ok: true }, 200, { "set-cookie": loginCookie(opts.token, host) });
+    }
     return next(req);
   };
 }

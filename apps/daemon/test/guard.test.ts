@@ -22,6 +22,8 @@ describe("rest guard", () => {
     expect((await req("GET", "/api/me", { authorization: `Bearer ${TOKEN}` })).status).toBe(200);
     expect((await req("GET", "/api/me", { cookie: `sparring=${cookieValue(TOKEN)}` })).status).toBe(200);
     expect((await req("GET", "/api/me", { cookie: `sparring=${TOKEN}` })).status).toBe(401);
+    const me = await req("GET", "/api/me", { cookie: `sparring=${cookieValue(TOKEN)}` });
+    expect(me.headers.get("set-cookie")).toContain("Max-Age=34560000");
   });
 
   it("refuses a wrong Host, a foreign Origin and a write that is not JSON", async () => {

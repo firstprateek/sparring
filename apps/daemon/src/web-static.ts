@@ -1,0 +1,235 @@
+// Lifted from firstprateek/i-inc at 274b42b.
+// The web app's build, served from disk.
+//
+// - Hashed files under /assets are immutable: a year, no revalidation. Everything else (index.html, sw.js,
+//   the manifest, the icons) is `no-cache`: the browser keeps it but asks first, and an ETag makes the ask a 304.
+// - Text files go out compressed by `Accept-Encoding`, brotli first. `vite build` writes `<file>.br` and
+//   `<file>.gz` next to each one (vite.config.ts); a file without them (an older build) is compressed on its
+//   first request and kept in memory.
+// - A path under /assets that is not there is a 404, never index.html: a stale tab asking for a chunk a newer
+//   build replaced must get an error it can act on, not HTML where script was expected.
+// - Any other path that is not a file is the app (index.html), for the hash-routed shell.
+import { createHash } from "node:crypto";
+import { readFile, realpath, stat } from "node:fs/promises";
+import { extname, join, normalize, relative, resolve, sep } from "node:path";
+import { brotliCompressSync, constants, gzipSync } from "node:zlib";
+
+const TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".txt": "text/plain; charset=utf-8",
+  ".map": "application/json; charset=utf-8",
+};
+
+/** Text compresses; images and fonts are already compressed. */
+const COMPRESSIBLE = new Set([
+  ".html",
+  ".js",
+  ".mjs",
+  ".css",
+  ".json",
+  ".webmanifest",
+  ".svg",
+  ".txt",
+  ".map",
+]);
+/** Below this, the headers cost more than the bytes saved. */
+const MIN_COMPRESS = 1024;
+
+type Encoding = "br" | "gzip";
+
+/** The best encoding the client accepts (`br;q=0` and `gzip;q=0` mean no), or none. */
+export function chooseEncoding(header: string | null): Encoding | null {
+  if (!header) return null;
+  const q = new Map<string, number>();
+  for (const part of header.split(",")) {
+    const [name, ...params] = part.trim().toLowerCase().split(";");
+    if (!name) continue;
+    const weight = params.map((p) => /^\s*q=([\d.]+)/.exec(p)?.[1]).find((v) => v !== undefined);
+    q.set(name.trim(), weight === undefined ? 1 : Number(weight));
+  }
+  const ok = (e: string) => (q.get(e) ?? q.get("*") ?? 0) > 0;
+  if (ok("br")) return "br";
+  if (ok("gzip")) return "gzip";
+  return null;
+}
+
+/**
+ * The app shell's Content-Security-Policy. Scripts, workers, fonts and the manifest come from this origin
+ * only; styles may be inline (Lit's fallback and the templates' style attributes); images may be data: or blob:
+ * (a picked or tool-made image); the page may talk to this origin, including the AHP WebSocket (`host` is the
+ * Host the request came to, which the daemon has already checked). Nothing may frame it or submit a form
+ * elsewhere, and no plugin runs.
+ */
+export function contentSecurityPolicy(host: string | null): string {
+  // The Host header is only a hostname and port; anything else would be a way to widen the policy.
+  const sockets = host && /^[A-Za-z0-9.-]+(:\d{1,5})?$/.test(host) ? ` ws://${host} wss://${host}` : "";
+  return [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    `connect-src 'self'${sockets}`,
+    "worker-src 'self'",
+    "manifest-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+}
+
+export const IMMUTABLE = "public, max-age=31536000, immutable";
+export const REVALIDATE = "no-cache";
+
+export type WebServer = (req: Request) => Promise<Response>;
+
+export function serveWebFrom(root: string): WebServer {
+  const base = resolve(root);
+  /** Files compressed on demand: `<mtime>:<size>:<encoding>:<path>` to the bytes. */
+  const made = new Map<string, Buffer>();
+  /** The build, with any link in its own path resolved (a release folder reached through `current`). */
+  let realBase: Promise<string> | undefined;
+  /** Precompressed copies checked against the build's manifest: `<path>:<mtime>:<size>` to whether to trust it. */
+  const trusted = new Map<string, boolean>();
+  let manifest: { key: string; map: Record<string, { src?: string; br?: string; gz?: string }> } | undefined;
+
+  async function fileAt(urlPath: string): Promise<{ path: string; size: number; mtimeMs: number } | null> {
+    const path = resolve(join(base, normalize(urlPath)));
+    if (path !== base && !path.startsWith(base + sep)) return null;
+    try {
+      const s = await stat(path);
+      if (!s.isFile()) return null;
+      // A link inside the build is never followed, to a file or through a folder: the file must be where its
+      // address says (what `realpath` finds is the build's real folder plus the same relative path).
+      realBase ??= realpath(base);
+      if ((await realpath(path)) !== join(await realBase, relative(base, path))) return null;
+      return { path, size: s.size, mtimeMs: s.mtimeMs };
+    } catch {
+      return null;
+    }
+  }
+
+  const sha = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+
+  /** `precompressed.json`, which `vite build` writes with what each copy was made from and is. */
+  async function readManifest() {
+    const path = join(base, "precompressed.json");
+    try {
+      const s = await stat(path);
+      const key = `${s.mtimeMs}:${s.size}`;
+      if (manifest?.key !== key) manifest = { key, map: JSON.parse(await readFile(path, "utf8")) };
+      return manifest.map;
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * The bytes of a precompressed copy when it is the one the build made from the file as it is now: the copy and
+   * its source both hash to what the manifest says. A date proves nothing (a copy, a restore or a checkout
+   * moves it); a build without a manifest, or a file changed since, is compressed here instead.
+   */
+  async function precompressed(
+    file: { path: string; size: number; mtimeMs: number },
+    encoding: "br" | "gzip",
+  ): Promise<Buffer | null> {
+    const entry = (await readManifest())[relative(base, file.path).split(sep).join("/")];
+    const want = encoding === "br" ? entry?.br : entry?.gz;
+    if (!entry?.src || !want) return null;
+    const copyPath = file.path + (encoding === "br" ? ".br" : ".gz");
+    try {
+      const copy = await stat(copyPath);
+      const key = `${copyPath}:${copy.mtimeMs}:${copy.size}:${file.mtimeMs}:${file.size}`;
+      let ok = trusted.get(key);
+      const bytes = await readFile(copyPath);
+      if (ok === undefined) {
+        ok = sha(bytes) === want && sha(await readFile(file.path)) === entry.src;
+        trusted.set(key, ok);
+      }
+      return ok ? bytes : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return async (req) => {
+    let urlPath: string;
+    try {
+      urlPath = decodeURIComponent(new URL(req.url).pathname);
+    } catch {
+      return new Response("bad request", { status: 400 });
+    }
+    if (urlPath.includes("\0")) return new Response("bad request", { status: 400 });
+    let file = urlPath === "/" ? null : await fileAt(urlPath);
+    if (!file && urlPath.startsWith("/assets/")) {
+      return new Response("not found", {
+        status: 404,
+        headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+      });
+    }
+    file ??= await fileAt("/index.html");
+    if (!file) return new Response("not found", { status: 404 });
+
+    const ext = extname(file.path).toLowerCase();
+    const hashed = file.path.startsWith(join(base, "assets") + sep);
+    const encoding =
+      COMPRESSIBLE.has(ext) && file.size >= MIN_COMPRESS
+        ? chooseEncoding(req.headers.get("accept-encoding"))
+        : null;
+    const headers = new Headers({
+      "content-type": TYPES[ext] ?? "application/octet-stream",
+      "cache-control": hashed ? IMMUTABLE : REVALIDATE,
+    });
+    if (COMPRESSIBLE.has(ext)) headers.set("vary", "Accept-Encoding");
+    // A file is what it says it is (no sniffing a stylesheet into a script), and the document says what it may do.
+    headers.set("x-content-type-options", "nosniff");
+    if (ext === ".html") {
+      headers.set("content-security-policy", contentSecurityPolicy(req.headers.get("host")));
+      headers.set("referrer-policy", "no-referrer");
+      headers.set("x-frame-options", "DENY");
+    }
+    // One ETag per file and encoding, so a 304 is never taken for the wrong representation.
+    const etag = `"${file.size.toString(36)}-${Math.round(file.mtimeMs).toString(36)}${encoding ? `-${encoding}` : ""}"`;
+    headers.set("etag", etag);
+    const match = req.headers.get("if-none-match");
+    if (match?.split(",").some((t) => t.trim().replace(/^W\//, "") === etag)) {
+      return new Response(null, { status: 304, headers });
+    }
+
+    let body: Buffer;
+    if (encoding) {
+      const pre = await precompressed(file, encoding);
+      if (pre) {
+        body = pre;
+      } else {
+        const key = `${file.mtimeMs}:${file.size}:${encoding}:${file.path}`;
+        let hit = made.get(key);
+        if (!hit) {
+          const raw = await readFile(file.path);
+          hit =
+            encoding === "br"
+              ? brotliCompressSync(raw, { params: { [constants.BROTLI_PARAM_QUALITY]: 6 } })
+              : gzipSync(raw, { level: 9 });
+          made.set(key, hit);
+        }
+        body = hit;
+      }
+      headers.set("content-encoding", encoding);
+    } else {
+      body = await readFile(file.path);
+    }
+    headers.set("content-length", String(body.length));
+    return new Response(req.method === "HEAD" ? null : new Uint8Array(body), { headers });
+  };
+}

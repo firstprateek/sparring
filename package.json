@@ -1,0 +1,26 @@
+{
+  "name": "sparring",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @sparring/web build && bun apps/daemon/src/main.ts",
+    "start": "bun apps/daemon/src/main.ts",
+    "build": "pnpm --filter @sparring/web build",
+    "check": "biome check .",
+    "fix": "biome check --write .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "probe": "bun tools/acp-probe.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.6",
+    "@types/bun": "1.4.4",
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}

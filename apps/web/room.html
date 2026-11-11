@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sparring</title>
+<script src="/theme.js"></script>
+</head>
+<body>
+<div class="sp">
+  <header class="mono head">
+    <a href="/" class="muted back">← articles</a>
+    <span id="slug" class="muted"></span>
+    <nav aria-label="Leaves">
+      <button type="button" class="t leaf off" data-leaf="dump">dump</button>
+      <span class="muted">·</span>
+      <button type="button" class="t leaf off" data-leaf="brief">brief</button>
+      <span class="muted">·</span>
+      <button type="button" class="t leaf on" data-leaf="article" aria-current="true">article</button>
+    </nav>
+    <span class="spacer"></span>
+    <span id="stage-word" class="muted stage"></span>
+  </header>
+
+  <div class="body">
+    <main class="page">
+      <div class="col"><div id="paras" class="paras"></div></div>
+    </main>
+    <aside class="margin" aria-label="Coach margin">
+      <div id="letter" class="letter mono muted" hidden></div>
+    </aside>
+  </div>
+
+  <footer class="foot mono muted">
+    <span class="grp"><span id="words">0 words</span><span>·</span><span id="saved">saved</span></span>
+    <span class="grp"></span>
+  </footer>
+</div>
+<script type="module" src="/src/room.ts"></script>
+</body>
+</html>

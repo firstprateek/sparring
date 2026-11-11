@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sparring</title>
+<script src="/theme.js"></script>
+</head>
+<body>
+<div class="sp">
+  <header class="bar mono">
+    <span class="text">sparring</span>
+    <button type="button" id="theme" class="t muted">theme · auto</button>
+  </header>
+  <main class="list">
+    <div class="mono muted">articles</div>
+    <ul id="articles" class="rows"></ul>
+    <form id="new" class="new mono">
+      <label for="new-slug" class="muted">+ new article</label>
+      <input id="new-slug" name="slug" autocomplete="off" spellcheck="false" placeholder="slug, like closed-laptop" aria-describedby="new-error">
+      <span id="new-error" class="muted" role="status"></span>
+    </form>
+  </main>
+</div>
+<script type="module" src="/src/index.ts"></script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 
 A writing coach that lives in the margin. You give it rough ideas, it interviews you, and then it critiques while you write the article yourself. The page is the article. The coach never writes it, with one explicit exception you have to ask for.
 
-**Status: design only.** The UI and the architecture are written down here. No product code exists yet.
+**Status: in progress.** Steps 0 to 3 of the build order in [docs/design.md](docs/design.md) work: the daemon, login, the Articles screen, the room and the interview with a real Claude coach. Notes, passes, "send it" and publishing come next.
 
 ## How it is meant to work
 
@@ -13,6 +13,25 @@ A writing coach that lives in the margin. You give it rough ideas, it interviews
 - "Send it" is the exception: the coach writes one draft, every block it wrote stays marked until you rewrite it, and the page shows how much is yours.
 - A finished article goes out as a pull request to an Astro site.
 
+## Running it
+
+```bash
+pnpm install
+pnpm dev
+```
+
+`pnpm dev` builds the web client and starts the daemon on `http://127.0.0.1:7421`. The login token is in `~/.sparring/config.json`.
+
+### Desktop app
+
+[apps/desktop](apps/desktop) is a Tauri shell around the daemon. It needs Rust (`rustup`). Its launcher page asks for the daemon's address and then loads the daemon's own pages, so the app is the web client in its own window. On the machine that runs the daemon it reads the token from `~/.sparring/config.json` and skips the login form. **Sparring → Change Daemon…** goes back to the launcher.
+
+```bash
+pnpm --filter @sparring/desktop build
+```
+
+The app lands in `apps/desktop/src-tauri/target/release/bundle/macos/Sparring.app`.
+
 ## What is here
 
 | Path                                                             | What                                                                                               |
@@ -20,6 +39,9 @@ A writing coach that lives in the margin. You give it rough ideas, it interviews
 | [docs/design.md](docs/design.md)                                 | The design document: workflow, architecture, drafted mode, data model, build steps, open decisions |
 | [docs/ui-spec.md](docs/ui-spec.md)                               | The UI specification                                                                               |
 | [docs/drafted-mode-mock-spec.md](docs/drafted-mode-mock-spec.md) | The brief the "send it" mocks were built from                                                      |
+| [apps/daemon](apps/daemon)                                       | The daemon: AHP host, REST, coach process, git-backed articles                                     |
+| [apps/web](apps/web)                                             | The web client the daemon serves                                                                   |
+| [apps/desktop](apps/desktop)                                     | The Tauri desktop shell                                                                            |
 | [mocks/](mocks/)                                                 | Clickable HTML mocks: articles, room, publish, phone, phone interview                              |
 
 To try the mocks, open `mocks/index.html` in a browser. They are static pages with sample data and talk to nothing.

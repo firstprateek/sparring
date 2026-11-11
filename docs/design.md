@@ -674,7 +674,7 @@ The total is 28 to 33 evenings. There is a plain editor for one article after st
 - Images in posts, and a headless page check of the built post.
 - A tagged Tailscale service and a separate macOS user for the coach.
 - A native iOS app through Tauri, with a share-sheet "send to inbox", once the owner pays for the Apple developer membership. A free account would mean reinstalling every 7 days and no push, so until then the phone keeps the home-screen web app.
-- A Tauri desktop shell as a thin client of the daemon on the Mac mini, about one evening. Packaging the daemon inside the app as a sidecar is only worth it without phone access.
+- A Tauri desktop shell as a thin client of the daemon on the Mac mini. Built early, in `apps/desktop`: a bundled launcher page picks the daemon's address and the window then loads the daemon's own pages, so login stays the cookie and nothing needs CORS. On the Mac mini the launcher hands over the token from `config.json` in the URL fragment, which the web client spends and drops. Packaging the daemon inside the app as a sidecar is only worth it without phone access.
 
 ## 10. Risks and open decisions
 

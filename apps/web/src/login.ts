@@ -71,6 +71,21 @@ export function showLogin(): Promise<void> {
 }
 
 /**
+ * A token handed over in the fragment, `#token=…`, as the desktop app does on the Mac mini. The fragment never
+ * reaches the server; it is dropped from the address before anything else runs.
+ */
+export function handedToken(): string | undefined {
+  const m = /^#token=([^&]+)$/.exec(location.hash);
+  if (!m?.[1]) return undefined;
+  history.replaceState(null, "", location.pathname + location.search);
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Resolves once the daemon knows this browser: at once when the cookie is good, after the form when it is
  * not. A daemon that cannot be reached is not a login problem, so that resolves too; the page says it is down.
  * `again` runs after every later login, for whatever was refused while logged out.
@@ -79,6 +94,14 @@ export async function ensureLogin(again?: () => void): Promise<void> {
   onUnauthorized(() => {
     void showLogin().then(() => again?.());
   });
+  const handed = handedToken();
+  if (handed) {
+    try {
+      await api.login(handed);
+    } catch {
+      // A stale token falls through to the form below.
+    }
+  }
   try {
     await api.me();
   } catch (e) {

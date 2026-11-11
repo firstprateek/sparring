@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sparring</title>
+    <link rel="stylesheet" href="launcher.css" />
+  </head>
+  <body>
+    <header class="bar">sparring</header>
+    <main>
+      <form id="connect" hidden>
+        <label for="addr" class="muted">daemon</label>
+        <div class="row">
+          <input id="addr" type="url" spellcheck="false" autocomplete="off" required />
+          <button type="submit">connect</button>
+        </div>
+        <p id="status" class="status" role="status"></p>
+        <p class="hint muted">
+          The daemon runs on the Mac mini. On the Mac mini itself use <code>http://127.0.0.1:7421</code>. From
+          another Mac on your tailnet use the <code>tailscale serve</code> address, such as
+          <code>https://mac-mini.your-tailnet.ts.net:7443</code>.
+        </p>
+      </form>
+      <p id="waiting" class="muted">connecting…</p>
+    </main>
+    <script src="launcher.js"></script>
+  </body>
+</html>

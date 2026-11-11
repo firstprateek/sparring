@@ -1,5 +1,6 @@
 // The inbox on Articles: the ideas from `GET /api/inbox`, newest first, each with `→ article`, which asks for a
 // slug in place and makes the article from the idea. Everything is set with textContent.
+import { suggestSlug } from "@sparring/protocol/slug";
 import type { Idea } from "./api.ts";
 
 /** `11-06` from an ISO date or timestamp; anything else is shown as it came. */
@@ -16,6 +17,8 @@ export function sortIdeas(items: readonly Idea[]): Idea[] {
 export interface InboxHooks {
   /** `→ article` was submitted with a slug. Resolves when the article exists; rejects with words to show. */
   article: (idea: Idea, slug: string) => Promise<void>;
+  /** The slug form opened (the guide points at its button). */
+  opened?: () => void;
   /** Checks a slug before it goes out; returns the problem in words, or null. */
   check: (slug: string) => string | null;
 }
@@ -37,25 +40,67 @@ export function inboxRows(items: readonly Idea[], hooks: InboxHooks): HTMLDivEle
       });
       go.replaceWith(form);
       form.querySelector("input")?.focus();
+      hooks.opened?.();
     });
     row.append(span(ideaDate(idea.date), "mono muted date"), span(idea.text, "text"), go);
     return row;
   });
 }
 
+/**
+ * Keeps a slug field tidy as it is typed: lower case, spaces and underscores become hyphens. The rule's
+ * problem, if any, shows in `err` at once, so a bad slug never fails silently.
+ */
+export function wireSlugField(
+  input: HTMLInputElement,
+  err: HTMLElement,
+  check: (slug: string) => string | null,
+): void {
+  input.addEventListener("input", () => {
+    const at = input.selectionStart ?? input.value.length;
+    const tidy = input.value.toLowerCase().replace(/[\s_]+/g, "-");
+    if (tidy !== input.value) {
+      input.value = tidy;
+      input.setSelectionRange(at, at);
+    }
+    const slug = input.value.trim();
+    err.textContent = slug === "" ? "" : (check(slug) ?? "");
+  });
+}
+
 function buildForm(idea: Idea, hooks: InboxHooks, cancel: () => void): HTMLFormElement {
   const form = document.createElement("form");
-  form.className = "slug mono";
+  form.className = "slug";
+  const id = `slug-${idea.id}`;
+  const label = document.createElement("label");
+  label.className = "help";
+  label.htmlFor = id;
+  label.textContent = "name the article · lowercase words and hyphens · it becomes the folder and the URL";
   const input = document.createElement("input");
+  input.id = id;
+  input.className = "mono";
   input.name = "slug";
   input.autocomplete = "off";
   input.spellcheck = false;
   input.setAttribute("autocapitalize", "off");
-  input.placeholder = "slug";
-  input.setAttribute("aria-label", `Slug for the article from: ${idea.text}`);
-  const err = span("", "muted err");
-  err.setAttribute("role", "status");
-  form.append(input, err);
+  input.placeholder = "like agents-forget-sockets";
+  input.value = suggestSlug(idea.text);
+  const create = document.createElement("button");
+  create.type = "submit";
+  create.className = "btn primary";
+  create.textContent = "create article";
+  const back = document.createElement("button");
+  back.type = "button";
+  back.className = "btn";
+  back.textContent = "cancel";
+  back.addEventListener("click", cancel);
+  const line = document.createElement("div");
+  line.className = "slug-row";
+  line.append(input, create, back);
+  const err = span("", "mono err");
+  err.setAttribute("role", "alert");
+  form.append(label, line, err);
+  wireSlugField(input, err, hooks.check);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       e.preventDefault();
@@ -63,20 +108,27 @@ function buildForm(idea: Idea, hooks: InboxHooks, cancel: () => void): HTMLFormE
       cancel();
     }
   });
+  queueMicrotask(() => input.select());
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const slug = input.value.trim();
     const problem = hooks.check(slug);
     if (problem) {
       err.textContent = problem;
+      input.focus();
       return;
     }
     input.disabled = true;
+    create.disabled = true;
+    create.textContent = "creating…";
+    err.textContent = "";
     try {
       await hooks.article(idea, slug);
     } catch (x) {
-      err.textContent = x instanceof Error ? x.message : String(x);
+      err.textContent = `not created · ${x instanceof Error ? x.message : String(x)}`;
       input.disabled = false;
+      create.disabled = false;
+      create.textContent = "create article";
       input.focus();
     }
   });

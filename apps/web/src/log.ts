@@ -75,7 +75,7 @@ export const INTERVIEW_DONE = "interview done · brief.md is yours";
  * The interview turns (the dump leaf's margin, the phone interview's sheet): writer and coach lines, host lines
  * as dividers, and `interview done · brief.md is yours` last once every topic is covered.
  */
-export function renderTurns(el: HTMLElement, lines: readonly Line[], done = false): void {
+export function renderTurns(el: HTMLElement, lines: readonly Line[], done = false, empty = ""): void {
   keepBottom(el, () => {
     const rows: HTMLElement[] = [];
     for (const l of lines) {
@@ -94,6 +94,12 @@ export function renderTurns(el: HTMLElement, lines: readonly Line[], done = fals
     }
     if (done && !lines.some((l) => l.kind === "host" && l.text === INTERVIEW_DONE)) {
       rows.push(divider(INTERVIEW_DONE));
+    }
+    if (empty && !rows.some((r) => r.classList.contains("turn"))) {
+      const p = document.createElement("p");
+      p.className = "empty";
+      p.textContent = empty;
+      rows.unshift(p);
     }
     el.replaceChildren(...rows);
   });

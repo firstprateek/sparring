@@ -33,6 +33,11 @@ export class Outbox {
   private memory: OutboxLine[] = [];
   private broken = false;
 
+  /** True once storage refused the lines: they then survive only while this tab is open. */
+  get memoryOnly(): boolean {
+    return this.broken;
+  }
+
   constructor(
     readonly key: string,
     private readonly send: Send,

@@ -24,8 +24,8 @@ function build(onDone: () => void): HTMLElement {
   button.className = "t text";
   button.textContent = "log in";
   const status = document.createElement("span");
-  status.className = "muted status";
-  status.setAttribute("role", "status");
+  status.className = "err status";
+  status.setAttribute("role", "alert");
   form.append(label, input, button, status);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -95,16 +95,24 @@ export async function ensureLogin(again?: () => void): Promise<void> {
     void showLogin().then(() => again?.());
   });
   const handed = handedToken();
+  let refused = "";
   if (handed) {
     try {
       await api.login(handed);
-    } catch {
-      // A stale token falls through to the form below.
+    } catch (e) {
+      refused = `the desktop app's saved token was refused (${e instanceof ApiError ? e.message : "no answer"}) · paste the token or a one-time code`;
     }
   }
   try {
     await api.me();
   } catch (e) {
-    if (e instanceof ApiError && e.status === 401) await (showing ?? showLogin());
+    if (e instanceof ApiError && e.status === 401) {
+      const form = showing ?? showLogin();
+      if (refused) {
+        const status = document.querySelector<HTMLElement>(".login .status");
+        if (status) status.textContent = refused;
+      }
+      await form;
+    }
   }
 }

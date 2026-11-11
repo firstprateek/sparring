@@ -1,0 +1,104 @@
+/* The guide card sits in the page's flow (a slot under the header), so it never covers what it points at. */
+.guide {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--subtle);
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.guide.small {
+  flex-direction: row;
+  padding: 0;
+  border-radius: 999px;
+  align-self: flex-start;
+  max-width: 100%;
+}
+.guide .pill-btn {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 6px 14px;
+  color: var(--accent);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.g-head {
+  display: flex;
+  gap: 12px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.g-fill {
+  flex: 1;
+}
+.g-x {
+  color: var(--muted);
+  padding: 2px 0;
+}
+.g-x:hover {
+  color: var(--text);
+}
+.g-passed {
+  color: var(--accent);
+}
+.g-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.g-tag {
+  font-weight: 400;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.g-body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  max-width: 80ch;
+}
+.g-where {
+  margin: 0;
+  color: var(--bad);
+}
+.g-link {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.g-nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.g-wait {
+  color: var(--muted);
+}
+.guide-target {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+  animation: guide-pulse 1.6s ease-in-out infinite;
+}
+@keyframes guide-pulse {
+  50% {
+    outline-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-target {
+    animation: none;
+  }
+}

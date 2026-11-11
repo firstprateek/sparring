@@ -5,12 +5,14 @@ import "@fontsource/source-serif-4/400.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "./base.css";
 import "./index.css";
+import "./guide.css";
 import type { SessionSummary } from "@microsoft/agent-host-protocol";
 import { slugProblem } from "@sparring/protocol/slug";
 import { ahp, useAhp } from "./ahp/hub.ts";
 import { ApiError, api, type Idea } from "./api.ts";
 import { daemonHost } from "./config.ts";
-import { inboxRows } from "./inbox.ts";
+import { Guide } from "./guide.ts";
+import { inboxRows, wireSlugField } from "./inbox.ts";
 import { ensureLogin } from "./login.ts";
 import { headLine, rowSub, rowTail } from "./rows.ts";
 import { ArticleList, metaOf } from "./session.ts";
@@ -23,6 +25,7 @@ wireTheme($<HTMLButtonElement>("theme"));
 const els = {
   rows: $("articles"),
   empty: $("empty"),
+  listError: $("list-error"),
   headLine: $("head-line"),
   headSep: $("head-sep"),
   conn: $("conn"),
@@ -30,6 +33,8 @@ const els = {
   newForm: $<HTMLFormElement>("new"),
   newInput: $<HTMLInputElement>("new-slug"),
   newError: $("new-error"),
+  newGo: $<HTMLButtonElement>("new-go"),
+  newCancel: $<HTMLButtonElement>("new-cancel"),
   ideaForm: $<HTMLFormElement>("idea-form"),
   idea: $<HTMLInputElement>("idea"),
   ideaError: $("idea-error"),
@@ -39,6 +44,16 @@ const els = {
 
 const roomUrl = (slug: string, leaf?: "dump") =>
   `/room.html?slug=${encodeURIComponent(slug)}${leaf ? `&leaf=${leaf}` : ""}`;
+
+/** Warnings from making an article, handed to its Room to show (sessionStorage; lost only on a refused store). */
+function handWarnings(slug: string, warnings: string[] | undefined): void {
+  if (!warnings?.length) return;
+  try {
+    sessionStorage.setItem(`sparring-warnings:${slug}`, JSON.stringify(warnings));
+  } catch {
+    // The Room still notices a missing session on its own.
+  }
+}
 
 const failed = (err: unknown) => (err instanceof ApiError ? err.message : "could not reach the daemon");
 
@@ -75,6 +90,7 @@ function render(): void {
   // Rebuild only when something a row shows has changed, so a focused or hovered row is left alone.
   const key = JSON.stringify([
     list.loaded,
+    list.error,
     sessions.map((s) => {
       const m = metaOf(s);
       return m ? [s.title, m.slug, rowTail(m), rowSub(m), m.provider, m.tokens] : null;
@@ -86,6 +102,9 @@ function render(): void {
   els.rows.replaceChildren(...sessions.map(row).filter((r): r is HTMLAnchorElement => r !== null));
   if (focused) els.rows.querySelector<HTMLElement>(`[data-slug="${CSS.escape(focused)}"]`)?.focus();
   els.empty.hidden = !list.loaded || sessions.length > 0;
+  els.listError.textContent = list.error
+    ? `could not list articles · ${list.error} · it tries again on reconnect`
+    : "";
   const head = headLine(sessions.map(metaOf).filter((m) => m !== undefined));
   els.headLine.textContent = head;
   els.headSep.hidden = head === "";
@@ -110,6 +129,11 @@ function closeNew(): void {
   els.newError.textContent = "";
 }
 els.newBtn.addEventListener("click", openNew);
+els.newCancel.addEventListener("click", () => {
+  closeNew();
+  els.newBtn.focus();
+});
+wireSlugField(els.newInput, els.newError, slugProblem);
 els.newInput.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     e.preventDefault();
@@ -123,27 +147,42 @@ els.newForm.addEventListener("submit", async (e) => {
   const problem = slugProblem(slug);
   if (problem) {
     els.newError.textContent = problem;
+    els.newInput.focus();
     return;
   }
+  els.newGo.disabled = true;
+  els.newGo.textContent = "creating…";
   try {
-    await api.createArticle(slug);
-    location.href = roomUrl(slug);
+    handWarnings(slug, (await api.createArticle(slug)).warnings);
+    location.href = roomUrl(slug, "dump");
   } catch (err) {
-    els.newError.textContent = failed(err);
+    els.newError.textContent = `not created · ${failed(err)}`;
+    els.newGo.disabled = false;
+    els.newGo.textContent = "create article";
+    els.newInput.focus();
   }
 });
 
 // ───────────────────────────── ideas ─────────────────────────────
 
+/** Made once the writer is logged in, so the card never sits over the login form. */
+let guide: Guide | undefined;
+let ideaCount = 0;
+
 function renderInbox(items: Idea[]): void {
+  ideaCount = items.length;
   // Leave the list alone while a slug is being typed into one of its rows.
-  if (els.inbox.querySelector("form.slug")) return;
+  if (els.inbox.querySelector("form.slug")) {
+    guide?.update({ where: "articles", ideas: ideaCount });
+    return;
+  }
   els.inbox.replaceChildren(
     ...inboxRows(items, {
       check: slugProblem,
+      opened: () => guide?.retarget(),
       article: async (idea, slug) => {
         try {
-          await api.createArticle(slug, idea.id);
+          handWarnings(slug, (await api.createArticle(slug, idea.id)).warnings);
         } catch (err) {
           throw new Error(failed(err));
         }
@@ -152,6 +191,8 @@ function renderInbox(items: Idea[]): void {
     }),
   );
   els.inboxSec.hidden = items.length === 0;
+  guide?.update({ where: "articles", ideas: ideaCount });
+  guide?.retarget();
 }
 
 async function loadInbox(): Promise<void> {
@@ -225,6 +266,8 @@ async function main(): Promise<void> {
     ahp().retryNow();
     void loadInbox();
   });
+  guide = new Guide("articles", $<HTMLButtonElement>("guide-btn"), $("guide-slot"));
+  guide.update({ where: "articles", ideas: ideaCount });
   void loadInbox();
   useAhp();
   const conn = ahp();

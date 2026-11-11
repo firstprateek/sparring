@@ -61,14 +61,22 @@ export function restHandler(articles: Articles) {
             undefined,
             idea ? { dump: `${idea.text}\n` } : {},
           );
-          if (idea) await articles.takeIdea(idea.id).catch(() => undefined);
+          const warnings: string[] = [];
+          if (idea) {
+            await articles.takeIdea(idea.id).catch((e: unknown) => {
+              warnings.push(`the idea is still in inbox.md · ${e instanceof Error ? e.message : e}`);
+            });
+          }
+          const sessionError = articles.sessionErrors.get(row.slug);
+          if (sessionError) warnings.push(`the coach session did not start · ${sessionError}`);
           return json(
             {
               id: row.id,
               slug: row.slug,
-              commit: row.last_commit,
+              commit: articles.row(row.slug).last_commit,
               session: sessionUri(row.id),
-              chat: row.chat,
+              chat: articles.row(row.slug).chat,
+              ...(warnings.length > 0 ? { warnings } : {}),
             },
             201,
           );
@@ -105,6 +113,18 @@ export function restHandler(articles: Articles) {
               return json(res);
             }
             throw new HttpError(400, { error: "action is dismiss or restore" });
+          }
+          if (parts.length === 4 && parts[3] === "session" && m === "POST") {
+            articles.row(slug);
+            try {
+              await articles.ensureSession(slug);
+              articles.sessionErrors.delete(slug);
+            } catch (e) {
+              throw new HttpError(500, {
+                error: `the coach session did not start · ${e instanceof Error ? e.message : e}`,
+              });
+            }
+            return json({ ok: true });
           }
           if (parts.length === 4 && parts[3] === "stash" && m === "POST") {
             const b = await body(req);

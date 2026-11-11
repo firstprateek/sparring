@@ -11,3 +11,25 @@ export function slugProblem(slug: string): string | null {
   if (slug === "index") return "slug cannot be index";
   return null;
 }
+
+/**
+ * A slug to offer for an idea: its first few words, lowercase, joined by hyphens. `What if agents forget
+ * their sockets?` becomes `what-if-agents-forget-their`. Empty when the text has no letters or digits.
+ */
+export function suggestSlug(text: string, maxWords = 5, maxLength = 40): string {
+  const words = text
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  let out = "";
+  for (const w of words.slice(0, maxWords)) {
+    const next = out ? `${out}-${w}` : w;
+    if (next.length > maxLength) break;
+    out = next;
+  }
+  if (!out && words[0]) out = words[0].slice(0, maxLength);
+  return out === "index" ? "index-1" : out;
+}

@@ -233,9 +233,25 @@ export class Articles {
       at,
     );
     this.lastCommitAt.set(slug, Date.now());
-    // The session comes with the article; if making it fails, the next start makes it.
-    await this.onCreated?.(this.row(slug)).catch((e: unknown) => console.error(e));
-    return this.row(slug);
+    // The session comes with the article. If making it fails the article still stands: `sessionError` says so,
+    // the Room offers `start it` (POST /api/articles/<slug>/session), and the next start makes it too.
+    const row = this.row(slug);
+    try {
+      await this.ensureSession(slug);
+      this.sessionErrors.delete(slug);
+    } catch (e) {
+      console.error(e);
+      this.sessionErrors.set(slug, e instanceof Error ? e.message : String(e));
+    }
+    return row;
+  }
+
+  /** Why the last try to make an article's coach session failed, if it did. */
+  readonly sessionErrors = new Map<string, string>();
+
+  /** Makes the article's AHP session and chat if it has none. Throws when that fails. */
+  async ensureSession(slug: string): Promise<void> {
+    await this.onCreated?.(this.row(slug));
   }
 
   private path(slug: string, file: FileName) {

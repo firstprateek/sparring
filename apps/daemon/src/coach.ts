@@ -17,7 +17,7 @@ import {
   type SessionConfigState,
 } from "@microsoft/agent-host-protocol";
 import { wordCount } from "@sparring/protocol/blocks";
-import { STAGES, STRICTNESS, type Stage } from "@sparring/protocol/commands";
+import { BUILT_COMMANDS, STAGES, STRICTNESS, type Stage } from "@sparring/protocol/commands";
 import { META_KEY } from "@sparring/protocol/meta";
 import { AcpConnection, EXITED, type RpcReply, TIMED_OUT } from "./ahp/acp-connection.ts";
 import { promptBlocks, TurnMapper } from "./ahp/acp-mapper.ts";
@@ -348,6 +348,8 @@ export class Coach implements AgentBackend {
   }
 
   // ───────────────────────────── host-only input ─────────────────────────────
+  // Commands the daemon can act on in this build. Any other listed command gets a host line saying it is not
+  // built yet, rather than reaching the coach as plain text and seeming to do nothing.
 
   /** A command the host answers itself, with one host line and no agent. False: it goes to the coach as text. */
   private async hostCommand(
@@ -387,6 +389,10 @@ export class Coach implements AgentBackend {
     }
     if (command.kind === "client") {
       this.line(row, chat, `/${command.name} opens in the web client · nothing changed`);
+      return true;
+    }
+    if (!BUILT_COMMANDS.has(command.name)) {
+      this.line(row, chat, `/${command.name} arrives in a later build step · nothing was sent to the coach`);
       return true;
     }
     return false;

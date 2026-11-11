@@ -28,11 +28,13 @@ export class Page {
     root.addEventListener("keydown", (e) => this.key(e));
   }
 
-  /** Shows a file, one block per textarea. */
-  show(text: string, label: string): void {
+  /** Shows a file, one block per textarea. The placeholder shows in the first block while it is empty. */
+  show(text: string, label: string, placeholder = ""): void {
     this.root.replaceChildren(
       ...splitBlocks(text).map((b, i) => this.row(this.block(b, `${label} block ${i + 1}`))),
     );
+    const first = this.blocks()[0];
+    if (first && placeholder) first.placeholder = placeholder;
     for (const ta of this.blocks()) autosize(ta);
     this.markAll();
   }

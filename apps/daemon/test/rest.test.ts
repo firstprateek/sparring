@@ -56,6 +56,23 @@ describe("articles", () => {
     expect((await call("POST", "/api/articles", { slug: "closed-laptop" })).status).toBe(409);
   });
 
+  it("makes the article even when its coach session fails, says so, and starts it on request", async () => {
+    let fail = true;
+    articles.onCreated = async () => {
+      if (fail) throw new Error("agent host is down");
+    };
+    const res = await call("POST", "/api/articles", { slug: "no-coach" });
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as { warnings?: string[] }).warnings).toEqual([
+      "the coach session did not start · agent host is down",
+    ]);
+    expect((await call("POST", "/api/articles/no-coach/session", {})).status).toBe(500);
+    fail = false;
+    expect((await call("POST", "/api/articles/no-coach/session", {})).status).toBe(200);
+    expect(articles.sessionErrors.has("no-coach")).toBe(false);
+    expect((await call("POST", "/api/articles/nope/session", {})).status).toBe(404);
+  });
+
   it("refuses a bad slug", async () => {
     for (const slug of ["Closed", "a--b", "index", "../x", "x".repeat(65)]) {
       const res = await call("POST", "/api/articles", { slug });

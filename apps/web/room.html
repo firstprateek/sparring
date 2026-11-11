@@ -10,49 +10,59 @@
 <div class="sp" id="room">
   <header class="mono head">
     <a href="/" class="muted back">← articles</a>
-    <span id="slug" class="muted"></span>
-    <nav aria-label="Leaves">
-      <button type="button" class="t leaf off" data-leaf="dump">dump</button>
-      <span class="muted">·</span>
-      <button type="button" class="t leaf off" data-leaf="brief">brief</button>
-      <span class="muted">·</span>
-      <button type="button" class="t leaf on" data-leaf="article" aria-current="true">article</button>
-    </nav>
+    <span id="slug" class="title"></span>
     <span class="spacer"></span>
-    <button type="button" id="stage-btn" class="t mono muted stage" aria-haspopup="true" aria-expanded="false" aria-controls="stage-menu"><span id="stage-word"></span> ▾</button>
+    <button type="button" id="guide-btn" class="t muted guide-btn">guide</button>
+    <button type="button" id="stage-btn" class="btn stage" aria-haspopup="true" aria-expanded="false" aria-controls="stage-menu">stage · <span id="stage-word"></span> ▾</button>
     <div id="stage-menu" class="menu mono" hidden></div>
   </header>
 
+  <div id="guide-slot" class="guide-slot"></div>
+
   <div class="body" id="body">
     <main class="page">
-      <div class="col"><div id="paras" class="paras"></div></div>
-    </main>
-    <aside class="margin" aria-label="Coach margin">
-      <div id="letter" class="letter mono muted" hidden></div>
-      <div id="aside-dump" class="aleaf" hidden>
-        <div id="turns" class="turns" aria-live="polite"></div>
+      <nav class="tabs mono" aria-label="Pages of this article">
+        <button type="button" class="tab off" data-leaf="dump">dump</button>
+        <button type="button" class="tab off" data-leaf="brief">brief</button>
+        <button type="button" class="tab on" data-leaf="article" aria-current="true">article</button>
+      </nav>
+      <p id="leaf-help" class="help leaf-help"></p>
+      <div class="scroll" id="page-scroll">
+        <div class="col">
+          <div id="paras" class="paras"></div>
+          <section id="quotes" class="quotes-sec" hidden>
+            <h3 class="help">quoted from your dump</h3>
+            <div id="aside-brief"></div>
+          </section>
+        </div>
       </div>
-      <div id="aside-brief" class="aleaf" hidden></div>
+    </main>
+
+    <aside class="coach" aria-label="Coach">
+      <div class="coach-head mono"><span>coach</span><span id="coach-stage" class="muted"></span></div>
+      <div id="letter" class="letter mono" hidden></div>
+      <div id="turns" class="turns" aria-live="polite"></div>
       <div class="comp-wrap">
         <div id="queued" class="queued mono muted" hidden></div>
-        <div id="comp-note" class="mono muted note-line" role="status" hidden></div>
-        <div class="comp">
+        <div id="comp-note" class="mono err note-line" role="alert" hidden></div>
+        <form class="comp" id="comp-form">
           <div id="slash" class="slash mono" role="listbox" aria-label="Commands" hidden></div>
-          <label for="composer" class="mono muted prompt">&gt;</label>
-          <textarea id="composer" rows="1" aria-label="Reply to the coach or type a slash command" aria-controls="slash" aria-autocomplete="list" spellcheck="true"></textarea>
-        </div>
+          <textarea id="composer" rows="2" placeholder="Talk to the coach · / for commands" aria-label="Reply to the coach or type a slash command" aria-controls="slash" aria-autocomplete="list" spellcheck="true"></textarea>
+          <button type="submit" class="btn primary send">send</button>
+        </form>
+        <p class="help comp-help">Enter sends · Shift+Enter for a new line</p>
       </div>
     </aside>
 
     <div id="log" class="log" role="dialog" aria-label="Transcript" hidden>
-      <div class="mono muted bar"><span>transcript</span><button type="button" id="log-esc" class="t act text">esc</button></div>
+      <div class="mono muted bar"><span>full transcript, with tool calls</span><button type="button" id="log-esc" class="t act text">close</button></div>
       <div id="log-list" class="log-list" aria-live="polite"></div>
     </div>
   </div>
 
   <footer class="foot mono muted">
     <span class="grp"><span id="words">0 words</span><span>·</span><span id="saved">saved</span></span>
-    <span class="grp"><button type="button" id="log-btn" class="t" aria-label="Open the transcript" aria-expanded="false" aria-controls="log">⋯</button></span>
+    <span class="grp"><button type="button" id="log-btn" class="t" aria-expanded="false" aria-controls="log">transcript</button></span>
   </footer>
 </div>
 <div id="iv" class="iv" hidden>
@@ -65,8 +75,8 @@
   <div class="imenu mono" id="iv-menu" hidden>
     <ul id="iv-stages" aria-label="Stages"></ul>
     <button type="button" class="t muted sendit" id="iv-sendit" aria-expanded="false" aria-controls="iv-sendit-line">send it</button>
-    <p class="muted pend" id="iv-sendit-line" role="status" hidden></p>
-    <p class="muted pend" id="iv-menu-error" role="status" hidden></p>
+    <p class="err pend" id="iv-sendit-line" role="alert" hidden></p>
+    <p class="err pend" id="iv-menu-error" role="alert" hidden></p>
   </div>
 
   <main class="iv-page" aria-label="dump.md"><div id="iv-paras" class="paras"></div></main>
@@ -79,7 +89,7 @@
     <div class="sheet-body" id="iv-sheet-body">
       <div class="thread" id="iv-thread" aria-live="polite"></div>
       <div id="iv-queued" class="queued mono muted" hidden></div>
-      <div id="iv-note" class="mono muted note-line" role="status" hidden></div>
+      <div id="iv-note" class="mono err note-line" role="alert" hidden></div>
       <form class="comp" id="iv-form">
         <div id="iv-slash" class="slash mono" role="listbox" aria-label="Commands" hidden></div>
         <label for="iv-composer" class="mono muted prompt">&gt;</label>

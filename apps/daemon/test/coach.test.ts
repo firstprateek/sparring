@@ -141,15 +141,19 @@ describe("the scripted coach", () => {
     expect(t.host.chatState(a.chat)?.turns.at(-1)?.responseParts[0]).toMatchObject({ content: NO_MORE });
   });
 
-  it("sends any other command to the coach as text", async () => {
+  it("answers a listed command this build cannot run, without waking the coach", async () => {
     const t = await rig();
     const a = await t.article("a");
     const c = new TestClient(t.host);
     await c.init([ROOT, a.chat]);
-    c.dispatch(a.chat, turnStarted("/critique"));
-    await t.host.idle();
-    expect(t.launches()).toBe(1);
-    expect(t.host.chatState(a.chat)?.turns[0]?.responseParts[0]).toMatchObject({ content: QUESTIONS[0] });
+    for (const [i, cmd] of ["/critique", "/strict normal", "/queue"].entries()) {
+      c.dispatch(a.chat, turnStarted(cmd, `t${i}`));
+      await t.host.idle();
+      expect(t.host.chatState(a.chat)?.turns[i]?.responseParts).toEqual([
+        expect.objectContaining({ content: expect.stringMatching(/arrives in a later build step/) }),
+      ]);
+    }
+    expect(t.launches()).toBe(0);
   });
 
   it("runs any ACP agent the same way, and a cancel reaches it as session/cancel", async () => {

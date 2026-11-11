@@ -1,7 +1,7 @@
 // The composer at the foot of the margin: `>`, one textarea. Enter sends, Shift+Enter is a new line. Typing `/`
 // opens the slash list (the listed commands with their hints); arrow keys move in it, Tab or Enter completes.
 // `/log`, `/sendit` and `/publish` are the client's own and send no turn; everything else is a chat line.
-import { type Command, parseCommand } from "@sparring/protocol/commands";
+import { BUILT_COMMANDS, type Command, parseCommand } from "@sparring/protocol/commands";
 import { autosize } from "./page.ts";
 import { completion, slashMatches } from "./slash.ts";
 
@@ -14,7 +14,10 @@ export interface ComposerHooks {
   escape: () => void;
 }
 
-export const LATER = "arrives in a later step";
+export const LATER = "arrives in a later build step";
+
+/** The note for a listed command this build cannot run yet. */
+export const notBuilt = (name: string) => `/${name} is not built yet · it arrives in a later build step`;
 
 export class Composer {
   private matches: Command[] = [];
@@ -98,7 +101,7 @@ export class Composer {
         name.dataset.i = String(i);
         const hint = document.createElement("span");
         hint.className = "hint muted";
-        hint.textContent = c.hint;
+        hint.textContent = BUILT_COMMANDS.has(c.name) ? c.hint : `${c.hint} · not built yet`;
         hint.dataset.i = String(i);
         opt.append(name, hint);
         return opt;
@@ -160,10 +163,14 @@ export class Composer {
     const text = this.ta.value.trim();
     if (!text) return;
     const cmd = parseCommand(text);
+    // A command this build cannot run stays in the box with a note saying so, instead of vanishing.
+    if (cmd && !BUILT_COMMANDS.has(cmd.command.name)) {
+      this.note(notBuilt(cmd.command.name));
+      return;
+    }
     this.clear();
-    if (cmd?.command.kind === "client") {
-      if (cmd.command.name === "log") this.hooks.log();
-      else this.note(LATER);
+    if (cmd?.command.name === "log") {
+      this.hooks.log();
       return;
     }
     this.hooks.line(text);

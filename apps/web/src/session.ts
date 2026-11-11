@@ -50,10 +50,32 @@ export function stageOf(
   return fallback;
 }
 
-/** Asks the host to move the article to a stage. Returns an error in words, or null when it went out. */
-export function setStage(conn: AhpConnection, session: string, stage: Stage): string | null {
+/**
+ * Asks the host to move the article to a stage. Returns an error in words, or null when it went out. A refusal
+ * that comes back later (the host's own checks) reaches `onRefused` with the host's reason.
+ */
+export function setStage(
+  conn: AhpConnection,
+  session: string,
+  stage: Stage,
+  onRefused?: (reason: string) => void,
+): string | null {
   const r = conn.dispatch(session, setConfig({ stage }));
-  return r.ok ? null : r.error;
+  if (!r.ok) return r.error;
+  if (onRefused) {
+    const release = conn.onRejected((x) => {
+      if (x.clientSeq !== r.clientSeq) return;
+      release();
+      onRefused(x.reason);
+    });
+    // The echo settles it either way; stop listening once accepted.
+    const accepted = conn.onAccepted((seq) => {
+      if (seq !== r.clientSeq) return;
+      accepted();
+      release();
+    });
+  }
+  return null;
 }
 
 // ───────────────────────────── the article list ─────────────────────────────
@@ -90,6 +112,9 @@ export class ArticleList {
     return [...this.rows.values()].sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
   }
 
+  /** Why the last listing failed, or "" after one worked. */
+  error = "";
+
   bySlug(slug: string): SessionSummary | undefined {
     return this.list().find((s) => metaOf(s)?.slug === slug);
   }
@@ -110,9 +135,12 @@ export class ArticleList {
       this.rows.clear();
       for (const s of items) if (metaOf(s)) this.rows.set(s.resource, s);
       this.loaded = true;
+      this.error = "";
       this.changed();
     } catch (e) {
-      console.info(`ahp: listSessions failed: ${e instanceof Error ? e.message : e}`);
+      this.error = e instanceof Error ? e.message : String(e);
+      console.info(`ahp: listSessions failed: ${this.error}`);
+      this.changed();
     }
   }
 

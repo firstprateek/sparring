@@ -155,14 +155,14 @@ describe("the interview screen", () => {
     expect(document.body.textContent).not.toContain("advance to");
   });
 
-  it("answers `send it` with `arrives in a later step`", () => {
+  it("answers `send it` with `arrives in a later build step`", () => {
     const { iv, $ } = screen();
     iv.set({ slug: "a", stage: "interview", covered: [], offline: false, lines: [] });
     iv.show(true);
     $<HTMLButtonElement>("btn").click();
     $<HTMLButtonElement>("sendit").click();
     expect($("line").hidden).toBe(false);
-    expect($("line").textContent).toBe("arrives in a later step");
+    expect($("line").textContent).toBe("arrives in a later build step");
   });
 
   it("reads `offline` while the article is offline", () => {

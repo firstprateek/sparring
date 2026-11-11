@@ -10,15 +10,16 @@
 <div class="sp">
   <header class="bar mono">
     <span>sparring</span>
-    <span class="muted"><span id="head-line"></span><span id="head-sep" hidden> · </span><button type="button" id="theme" class="t">theme · auto</button></span>
+    <span class="muted"><span id="head-line"></span><span id="head-sep" hidden> · </span><button type="button" id="guide-btn" class="t">guide</button><span> · </span><button type="button" id="theme" class="t">theme · auto</button></span>
   </header>
 
   <main>
+    <div id="guide-slot" class="guide-slot"></div>
     <form id="idea-form" class="ideaform">
       <label for="idea" class="mono muted">&gt;</label>
-      <input id="idea" class="idea" type="text" autocomplete="off" aria-label="Write down an idea" aria-describedby="idea-error">
+      <input id="idea" class="idea" type="text" autocomplete="off" placeholder="an idea in one line · Enter keeps it in the inbox" aria-label="Write down an idea" aria-describedby="idea-error">
     </form>
-    <span id="idea-error" class="mono muted idea-error" role="status" hidden></span>
+    <span id="idea-error" class="mono err idea-error" role="alert" hidden></span>
 
     <section id="inbox-sec" class="list" aria-labelledby="inbox-h" hidden>
       <h2 id="inbox-h" class="mono muted">inbox</h2>
@@ -30,12 +31,17 @@
     <section class="list" aria-labelledby="articles-h">
       <h2 id="articles-h" class="mono muted">articles</h2>
       <div id="articles"></div>
-      <p id="empty" class="mono muted" hidden>no articles yet</p>
+      <p id="empty" class="mono muted" hidden>no articles yet · catch an idea above, or + new article</p>
+      <p id="list-error" class="mono err" role="alert"></p>
       <button type="button" id="new-btn" class="t pill">+ new article</button>
-      <form id="new" class="new mono" hidden>
-        <label for="new-slug" class="muted">+ new article</label>
-        <input id="new-slug" name="slug" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="slug, like closed-laptop" aria-describedby="new-error">
-        <span id="new-error" class="muted" role="status"></span>
+      <form id="new" class="slug new" hidden>
+        <label for="new-slug" class="help">new article · name it in lowercase words and hyphens · it becomes the folder and the URL</label>
+        <div class="slug-row">
+          <input id="new-slug" class="mono" name="slug" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="like closed-laptop" aria-describedby="new-error">
+          <button type="submit" id="new-go" class="btn primary">create article</button>
+          <button type="button" id="new-cancel" class="btn">cancel</button>
+        </div>
+        <span id="new-error" class="mono err" role="alert"></span>
       </form>
     </section>
   </main>

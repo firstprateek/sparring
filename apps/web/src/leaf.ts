@@ -6,7 +6,7 @@ import { ApiError, api, type FileName } from "./api.ts";
 export type SaveState =
   | { kind: "saved"; at: number }
   | { kind: "saving" }
-  | { kind: "retrying" }
+  | { kind: "retrying"; reason: string; tries: number }
   | { kind: "diskFull" }
   | { kind: "conflict"; diskSha: string; diskText: string };
 
@@ -42,6 +42,11 @@ export class Leaf {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private inFlight: Promise<void> | null = null;
   private again: { commit: boolean } | null = null;
+  /** A Cmd+S whose save failed: the retry still commits. */
+  private commitOwed = false;
+  private failures = 0;
+  /** False once localStorage refused the unsent text: it then lives only in this tab. */
+  storageOk = true;
 
   constructor(
     readonly slug: string,
@@ -105,9 +110,14 @@ export class Leaf {
       this.baseSha = res.sha;
       if (this.text === sent) this.dirty = false;
       this.state = { kind: "saved", at: Date.now() };
+      this.commitOwed = false;
+      this.failures = 0;
       this.persist();
       this.onChange(this, res.commit ?? undefined);
     } catch (e) {
+      if (commit) this.commitOwed = true;
+      this.failures++;
+      const tries = this.failures;
       if (e instanceof ApiError && e.status === 409) {
         this.state = {
           kind: "conflict",
@@ -116,10 +126,11 @@ export class Leaf {
         };
       } else if (e instanceof ApiError && e.status === 507) {
         this.state = { kind: "diskFull" };
-        this.timer = setTimeout(() => void this.saveNow(false), RETRY_MS);
+        this.timer = setTimeout(() => void this.saveNow(this.commitOwed), RETRY_MS);
       } else {
-        this.state = { kind: "retrying" };
-        this.timer = setTimeout(() => void this.saveNow(false), RETRY_MS);
+        const reason = e instanceof ApiError ? e.message : "could not reach the daemon";
+        this.state = { kind: "retrying", reason, tries };
+        this.timer = setTimeout(() => void this.saveNow(this.commitOwed), RETRY_MS);
       }
       this.onChange(this);
     }
@@ -164,6 +175,9 @@ export class Leaf {
     try {
       const s: Stored = { text: this.text, base_sha: this.baseSha, dirty: this.dirty };
       localStorage.setItem(storeKey(this.slug, this.file), JSON.stringify(s));
-    } catch {}
+      this.storageOk = true;
+    } catch {
+      this.storageOk = false;
+    }
   }
 }

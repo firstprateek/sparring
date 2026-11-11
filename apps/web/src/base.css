@@ -5,6 +5,7 @@
   --muted: #6b6660;
   --rule: #e2dfd8;
   --accent: #35697c;
+  --bad: #a3392a;
   --serif: "Source Serif 4", Georgia, serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
 }
@@ -16,6 +17,7 @@
     --muted: #99958d;
     --rule: #2c2b29;
     --accent: #7fb0be;
+    --bad: #e2917f;
     color-scheme: dark;
   }
 }
@@ -26,6 +28,7 @@
   --muted: #99958d;
   --rule: #2c2b29;
   --accent: #7fb0be;
+  --bad: #e2917f;
   color-scheme: dark;
 }
 html,
@@ -119,4 +122,41 @@ textarea:focus-visible {
 }
 .login .status {
   flex-basis: 100%;
+}
+.err {
+  color: var(--bad);
+}
+.err:empty {
+  display: none;
+}
+/* A real button: bordered, so it reads as something to press. */
+.btn {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+.btn.primary {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.help {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
 }

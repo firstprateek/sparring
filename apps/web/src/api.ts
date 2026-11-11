@@ -65,7 +65,12 @@ export const api = {
   me: () => call<{ ok: true }>("GET", "/api/me"),
   login: (token: string) => call<{ ok: true }>("POST", "/api/login", { token }),
   createArticle: (slug: string, inboxId?: string) =>
-    call<{ id: string; slug: string }>("POST", "/api/articles", inboxId ? { slug, inboxId } : { slug }),
+    call<{ id: string; slug: string; warnings?: string[] }>(
+      "POST",
+      "/api/articles",
+      inboxId ? { slug, inboxId } : { slug },
+    ),
+  startSession: (slug: string) => call<{ ok: true }>("POST", `/api/articles/${enc(slug)}/session`, {}),
   inbox: () => call<Idea[]>("GET", "/api/inbox"),
   addIdea: (text: string) => call<unknown>("POST", "/api/inbox", { text }),
   letter: (slug: string, id: string, action: "dismiss" | "restore") =>

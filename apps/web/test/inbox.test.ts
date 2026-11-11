@@ -82,3 +82,46 @@ describe("the inbox calls", () => {
     expect(JSON.parse(String(calls[2]?.[1].body))).toEqual({ slug: "cache-lied", inboxId: "i2" });
   });
 });
+
+describe("the slug form", () => {
+  it("offers a slug from the idea and shows the rule's problem in red as it is typed", async () => {
+    const { inboxRows } = await import("../src/inbox.ts");
+    const { slugProblem } = await import("@sparring/protocol/slug");
+    const [row] = inboxRows([{ id: "i1", date: "2026-11-11", text: "Why agents forget sockets" }], {
+      check: slugProblem,
+      article: async () => {},
+    });
+    document.body.append(row as HTMLElement);
+    if (!row) throw new Error("no row");
+    (row.querySelector(".go") as HTMLButtonElement).click();
+    const input = row.querySelector("input") as HTMLInputElement;
+    expect(input.value).toBe("why-agents-forget-sockets");
+    input.value = "Has Space";
+    input.dispatchEvent(new Event("input"));
+    expect(input.value).toBe("has-space");
+    input.value = "bad!";
+    input.dispatchEvent(new Event("input"));
+    const err = row?.querySelector(".err") as HTMLElement;
+    expect(err.textContent).toContain("lowercase");
+    expect(row?.querySelector("button.primary")?.textContent).toBe("create article");
+    row?.remove();
+  });
+
+  it("says why when the daemon refuses", async () => {
+    const { inboxRows } = await import("../src/inbox.ts");
+    const [row] = inboxRows([{ id: "i2", date: "2026-11-11", text: "taken" }], {
+      check: () => null,
+      article: async () => {
+        throw new Error("taken already exists");
+      },
+    });
+    document.body.append(row as HTMLElement);
+    if (!row) throw new Error("no row");
+    (row.querySelector(".go") as HTMLButtonElement).click();
+    const form = row.querySelector("form") as HTMLFormElement;
+    form.dispatchEvent(new Event("submit", { cancelable: true }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(row?.querySelector(".err")?.textContent).toBe("not created · taken already exists");
+    row?.remove();
+  });
+});

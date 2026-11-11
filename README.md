@@ -32,6 +32,14 @@ pnpm --filter @sparring/desktop build
 
 The app lands in `apps/desktop/src-tauri/target/release/bundle/macos/Sparring.app`.
 
+For another Mac, such as a laptop on the tailnet, build a universal app that opens on the daemon's tailnet address, then log in once with the token:
+
+```bash
+SPARRING_DAEMON_URL=https://<mac-mini>.<tailnet>.ts.net:7443 pnpm --filter @sparring/desktop build:universal
+```
+
+That build lands under `target/universal-apple-darwin/`. It is signed ad hoc, so copy it with `scp` rather than through a browser, or clear the quarantine flag with `xattr -dr com.apple.quarantine`.
+
 ## What is here
 
 | Path                                                             | What                                                                                               |

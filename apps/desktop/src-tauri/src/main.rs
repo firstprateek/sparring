@@ -1,6 +1,7 @@
 // Sparring desktop: a window onto the daemon. The bundled launcher page picks the daemon's address and then
 // the window loads the daemon's own pages, so the desktop app is the web app with the same login cookie.
 // On the Mac mini itself the launcher reads the token from ~/.sparring/config.json, so there is no login step.
+// Elsewhere, build with SPARRING_DAEMON_URL set to the daemon's tailnet address and log in once with the token.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
@@ -28,6 +29,13 @@ fn local_daemon() -> Option<LocalDaemon> {
     Some(LocalDaemon { url: format!("http://127.0.0.1:{port}"), token })
 }
 
+/// The daemon address this build was made for, from `SPARRING_DAEMON_URL` at build time, so a laptop build
+/// opens straight onto the Mac mini's tailnet address. A saved address and the local daemon come first.
+#[tauri::command]
+fn default_daemon() -> Option<&'static str> {
+    option_env!("SPARRING_DAEMON_URL").filter(|s| !s.is_empty())
+}
+
 /// The bundled launcher page. `change` keeps it from connecting straight away.
 fn launcher_url(change: bool) -> Url {
     let base = if cfg!(windows) { "http://tauri.localhost/" } else { "tauri://localhost/" };
@@ -37,7 +45,7 @@ fn launcher_url(change: bool) -> Url {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![local_daemon])
+        .invoke_handler(tauri::generate_handler![local_daemon, default_daemon])
         .setup(|app| {
             let menu = Menu::default(app.handle())?;
             let change = MenuItem::with_id(app, "change-daemon", "Change Daemon…", true, None::<&str>)?;

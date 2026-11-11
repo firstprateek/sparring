@@ -25,9 +25,9 @@ function save(origin) {
   }
 }
 
-async function localDaemon() {
+async function command(name) {
   try {
-    return (await window.__TAURI__?.core.invoke("local_daemon")) ?? undefined;
+    return (await window.__TAURI__?.core.invoke(name)) ?? undefined;
   } catch {
     return undefined;
   }
@@ -79,8 +79,8 @@ async function connect(raw, local) {
 }
 
 async function start() {
-  const local = await localDaemon();
-  const address = saved() ?? local?.url ?? DEFAULT;
+  const local = await command("local_daemon");
+  const address = saved() ?? local?.url ?? (await command("default_daemon")) ?? DEFAULT;
   input.value = address;
   form.addEventListener("submit", (e) => {
     e.preventDefault();

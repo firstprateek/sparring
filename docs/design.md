@@ -137,7 +137,7 @@ Codex, OpenCode and Gemini are Later (section 9).
 
 **Spawn.** `node:child_process.spawn(cmd, args, {cwd: articleDir, stdio: ["pipe","pipe","pipe"], env})`. The wire is newline-delimited JSON-RPC through the lifted `acp-connection.ts`, which answers any agent request the host has not registered with -32601. The child's env is an allow-list: `PATH`, `HOME`, `LANG`, `TMPDIR`, `CLAUDE_CONFIG_DIR`, the model credential and `CLAUDE_AGENT_ACP_PROTOCOL=v1`. It never gets `SSH_AUTH_SOCK`, `GH_TOKEN`, `GITHUB_TOKEN` or the Sparring token. Every path is absolute; the host expands `~` before spawn.
 
-**Credentials.** The model credential is a subscription token from `claude setup-token`, stored in `~/.sparring/config.json` as `claude_oauth_token` and passed as `CLAUDE_CODE_OAUTH_TOKEN` (open decision, section 10). Without a credential `session/new` still succeeds; the adapter sends `_auth/status_update {kind: "none"}` and the first `session/prompt` fails with -32000 (probe, 0.101.0). Either one makes the Room show `sign-in needed · claude`, and the article behaves as if `/offline` were on.
+**Credentials.** The model credential is a subscription token from `claude setup-token`, stored in `~/.sparring/config.json` as `claude_oauth_token` and passed as `CLAUDE_CODE_OAUTH_TOKEN` (open decision, section 10). Without a credential `session/new` still succeeds and the first `session/prompt` fails with -32000 (probe, 0.101.0). That -32000 makes the Room show `sign-in needed · claude`, and the article behaves as if `/offline` were on. `_auth/status_update` is not a signal: a setup-token carries no subscription type, so the adapter reports `kind: "none"` even while its CLI is logged in.
 
 **Handshake.**
 

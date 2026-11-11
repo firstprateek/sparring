@@ -19,6 +19,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
@@ -460,13 +461,17 @@ async function run(): Promise<void> {
   await waitFor(() => seen.authStatus.length > 0, 3_000);
   const authEvidence = `_auth/status_update ${show(seen.authStatus)}`;
   if (session) {
-    const loggedOut = seen.authStatus.some((status) => (status as Json | null)?.kind === "none");
+    // A setup-token carries no subscription type, so on 0.101.0 the adapter maps a logged-in CLI to
+    // `kind: "none"` (auth-status.js mapAuthFields). Its own CLI's `auth status` is the real answer.
+    const cli = TOKEN ? cliAuthStatus() : undefined;
     rows.push({
       id: "A1",
       question: "Does login work under the isolated config dir?",
-      result: TOKEN ? (loggedOut ? "fail" : "pass") : "partial",
+      result: TOKEN ? (cli?.loggedIn === true ? "pass" : "fail") : "partial",
       evidence: TOKEN
-        ? `session/new ok with CLAUDE_CONFIG_DIR=${CLAUDE_DIR} and the token; sessionId ${show(session.sessionId)}; ${authEvidence}`
+        ? `session/new ok with CLAUDE_CONFIG_DIR=${CLAUDE_DIR} and the token; sessionId ${show(session.sessionId)}; ` +
+          `the adapter's CLI says auth status ${show(cli)}; ${authEvidence} (a setup-token reads as "none" ` +
+          "there because it carries no subscription type, so the daemon must not treat it as signed out)"
         : `no token: session/new did NOT fail, it returned sessionId ${show(session.sessionId)}; ${authEvidence}. ` +
           "The design's -32000 on session/new does not happen; by the adapter source the -32000 " +
           '"Authentication required" comes on the first session/prompt (not sent in phase A). ' +
@@ -689,3 +694,33 @@ await waitFor(() => exitCode !== undefined, 3_000);
 if (exitCode === undefined) child.kill();
 daemon.close();
 process.exit(rows.some((row) => row.result === "fail") ? 1 : 0);
+
+/** `claude auth status --json` from the adapter's bundled CLI, run with the coach's env. Secrets are dropped. */
+function cliAuthStatus(): Json | undefined {
+  const sdkDir = join(ADAPTER_DIR, "node_modules", "@anthropic-ai");
+  const pkg = existsSync(sdkDir)
+    ? readdirSync(sdkDir).find((d) => d.startsWith("claude-agent-sdk-"))
+    : undefined;
+  if (!pkg) return undefined;
+  const env = {
+    PATH: process.env.PATH ?? "",
+    HOME: homedir(),
+    CLAUDE_CONFIG_DIR: CLAUDE_DIR,
+    CLAUDE_CODE_OAUTH_TOKEN: TOKEN ?? "",
+  };
+  let stdout = "";
+  try {
+    stdout = execFileSync(join(sdkDir, pkg, "claude"), ["auth", "status", "--json"], {
+      env,
+      encoding: "utf8",
+    });
+  } catch (e) {
+    stdout = String((e as { stdout?: unknown }).stdout ?? "");
+  }
+  try {
+    const d = JSON.parse(stdout) as Json;
+    return { loggedIn: d.loggedIn, authMethod: d.authMethod, apiProvider: d.apiProvider };
+  } catch {
+    return undefined;
+  }
+}

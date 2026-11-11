@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sparring, room on a phone, interview stage</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400&display=swap">
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem('sparring-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    var a = localStorage.getItem('sparring-accent');
+    if (a && a !== '#35697c') document.documentElement.style.setProperty('--accent', a);
+  } catch (e) {}
+})();
+</script>
+<style>
+:root { --bg:#fdfcfa; --subtle:#f4f2ee; --text:#1f1d1a; --muted:#6b6660; --rule:#e2dfd8; --accent:#35697c; --serif:"Source Serif 4",Georgia,serif; --mono:"JetBrains Mono",ui-monospace,monospace }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#17181a; --subtle:#1e1f22; --text:#e4e1db; --muted:#99958d; --rule:#2c2b29; --accent:#7fb0be; color-scheme: dark } }
+:root[data-theme="dark"] { --bg:#17181a; --subtle:#1e1f22; --text:#e4e1db; --muted:#99958d; --rule:#2c2b29; --accent:#7fb0be; color-scheme: dark }
+body { background: var(--bg); color: var(--text) }
+
+*, *::before, *::after { box-sizing: border-box }
+html, body { margin: 0; min-height: 100% }
+body { font-family: var(--serif); font-size: 17px; line-height: 1.65; -webkit-font-smoothing: antialiased }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important } }
+
+/* page: the phone frame sits centred on the subtle page background */
+.stage { --proto-h: 46px; min-height: 100dvh; background: var(--subtle); display: grid; place-items: center; padding-block: 24px; padding-bottom: calc(var(--proto-h) + 24px + env(safe-area-inset-bottom, 0px)); overflow-x: hidden }
+
+.sp { background: var(--bg); color: var(--text); font-family: var(--serif); font-size: 17px; line-height: 1.65; -webkit-font-smoothing: antialiased }
+.mono { font-family: var(--mono); font-size: 12px; line-height: 1.4 }
+.muted { color: var(--muted) }
+.text { color: var(--text) }
+a { color: inherit; text-decoration: none }
+.t { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left }
+.turn { display: grid; grid-template-columns: 40px 1fr; gap: 10px; font-size: 15px; line-height: 1.5 }
+.turn .who { font-family: var(--mono); font-size: 12px; line-height: 1.4; color: var(--muted); padding-top: 3px }
+.turn .what { white-space: pre-line; min-width: 0 }
+.divider { display: flex; align-items: center; gap: 8px; color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: center }
+.divider::before, .divider::after { content: ""; flex: 1; border-top: 1px solid var(--rule) }
+.comp { display: flex; gap: 8px; align-items: flex-start; border-top: 1px solid var(--rule); padding: 12px 1.5rem 14px; flex: none }
+.comp textarea { flex: 1; min-width: 0; background: none; border: 0; outline: 0; resize: none; font-family: var(--serif); font-size: 15px; line-height: 1.5; color: var(--text); padding: 0; margin: 0; min-height: 22px; max-height: 88px; field-sizing: content }
+.comp textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.dump { font-size: 17px; line-height: 1.65; color: var(--text); margin: 0 0 1.25rem }
+
+/* device frame */
+.frame { width: 390px; height: 844px; position: relative; overflow: hidden; display: grid; grid-template-rows: 40px 1fr; border: 1px solid var(--rule); border-radius: 28px }
+.frame > header { display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem; border-bottom: 1px solid var(--rule); min-width: 0 }
+.frame > header .back { padding: 12px 8px 12px 0; display: inline-flex; align-items: center; min-height: 40px }
+.frame > header .stage-count { white-space: nowrap; min-height: 40px; padding: 0 6px 0 8px; margin: 0 -6px 0 -8px }
+.frame > header .stage-count:focus-visible { outline-offset: -3px }
+.frame > main { overflow: hidden; padding: 24px 1.5rem 0; min-height: 0; position: relative }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; height: min(700px, calc(100% - 40px)); background: var(--bg); border-top: 1px solid var(--rule); display: flex; flex-direction: column }
+.sheet-head { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem; flex: none; min-width: 0 }
+.sheet-head .topics { display: flex; gap: 8px; flex-wrap: wrap; min-width: 0 }
+.thread { flex: 1; min-height: 0; overflow: auto; padding: 4px 1.5rem 16px; display: flex; flex-direction: column; gap: 14px }
+.comp .send { padding: 4px 0 4px 10px; min-height: 22px }
+
+/* stage menu: the six stages (read-only on this page) and "send it" */
+[hidden] { display: none !important }
+.imenu { position: absolute; top: 39px; right: 1.5rem; width: min(280px, calc(100% - 3rem)); max-height: calc(100% - 48px); overflow-y: auto; background: var(--bg); border: 1px solid var(--rule); padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; z-index: 3 }
+.imenu ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px }
+.imenu li { padding: 6px 0 }
+.imenu .sendit { border-top: 1px solid var(--rule); margin-top: 4px; min-height: 44px }
+.imenu .pend { margin: 0; display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px }
+.imenu .pend .line { flex: 1 1 100%; min-width: 0 }
+.imenu .pend button { min-width: 44px; min-height: 44px; text-align: center }
+/* touch Safari only sends an outside tap to the document when the target counts as clickable */
+@media (hover: none) { .stage.menu-open { cursor: pointer } }
+
+/* proto strip: scaffolding for trying the mocks */
+.proto { position: fixed; bottom: env(safe-area-inset-bottom, 0px); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 50; display: flex; align-items: center; background: var(--bg); border: 1px solid var(--rule); font-family: var(--mono); font-size: 12px; line-height: 1.4; color: var(--muted); max-width: calc(100vw - 24px); overflow-x: auto; overflow-y: hidden }
+.proto a, .proto button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; padding: 0 8px; background: none; border: 0; font: inherit; color: inherit; cursor: pointer; white-space: nowrap; flex: none }
+.proto a:hover, .proto button:hover { color: var(--text) }
+.proto .here { color: var(--text) }
+.proto .sep { color: var(--rule); flex: none }
+.proto .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid var(--rule) }
+.proto .swatch[aria-pressed="true"] .dot { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--text) }
+
+@media (max-width: 900px) {
+  .proto { left: 0; right: 0; bottom: 0; max-width: none; border-left: 0; border-right: 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom, 0px) }
+  .stage { --proto-h: calc(46px + env(safe-area-inset-bottom, 0px)); padding-bottom: calc(var(--proto-h) + 24px) }
+}
+@media (max-width: 480px) {
+  .stage { padding-block: 0; padding-bottom: var(--proto-h); min-height: 100dvh; display: block }
+  .frame { width: 100%; height: calc(100dvh - var(--proto-h)); border: 0; border-radius: 0 }
+}
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="sp frame" id="frame">
+
+  <header class="mono">
+    <a href="index.html" class="muted back" aria-label="Back to articles">←</a>
+    <span class="muted">closed-laptop · dump</span>
+    <button type="button" class="t stage-count" id="stage-btn" aria-expanded="false" aria-controls="stage-menu">interview <span id="covered-count">4</span>/6 ▾</button>
+  </header>
+
+  <div class="imenu mono" id="stage-menu" hidden>
+    <ul aria-label="Stages">
+      <li class="muted">ideas</li>
+      <li class="text" aria-current="step">interview <span id="menu-count">4</span>/6</li>
+      <li class="muted">outline</li>
+      <li class="muted">draft</li>
+      <li class="muted">critique</li>
+      <li class="muted">polish</li>
+    </ul>
+    <button type="button" class="t muted sendit" id="sendit" aria-expanded="false" aria-controls="sendit-confirm">send it</button>
+    <p class="muted pend" id="sendit-confirm" hidden><span class="line" id="sendit-line">the coach writes the draft from dump.md and brief.md · what is on the page moves to the shelf <span aria-hidden="true">·</span></span><button type="button" class="t text" id="sendit-yes" aria-describedby="sendit-line">yes</button><span aria-hidden="true">·</span><button type="button" class="t text" id="sendit-no">no</button></p>
+  </div>
+
+  <main aria-label="dump.md">
+    <p class="dump">ok so the thing that keeps biting me. I close the laptop with the agent mid task and when I open it the thing is just sitting there confident. not crashed. confident. the socket is dead, it just dropped, the test runner child got stopped and its timers are garbage, and the model finished its turn into nothing so the tool call never came back. none of that is an error. that is what makes it bad.</p>
+    <p class="dump">this is the same bug as the framework. the between frames bug. we had the rule never trust state you did not compute this frame and people hated it and it was right. agents keep a transcript and the transcript is just a cache.</p>
+  </main>
+
+  <div class="sheet" id="sheet">
+    <div class="sheet-head mono muted">
+      <span class="topics"><span>interview</span><span>·</span><span class="text">thesis</span><span class="text">reader</span><span class="text">evidence</span><span class="text">counter</span><span class="muted" id="topic-uncertainty">uncertainty</span><span class="muted" id="topic-scar">scar</span></span>
+      <span>▾</span>
+    </div>
+
+    <div class="thread" id="thread" aria-live="polite"></div>
+
+    <form class="comp" id="composer-form">
+      <label for="icomposer" class="mono muted" style="padding-top: 4px">&gt;</label>
+      <textarea id="icomposer" rows="1" aria-label="Answer the coach" placeholder=""></textarea>
+      <button type="submit" class="t mono text send" id="send">send</button>
+    </form>
+  </div>
+</div>
+</div>
+
+<nav class="proto" aria-label="Prototype screens">
+  <a href="index.html">articles</a><span class="sep">·</span><a href="room.html">room</a><span class="sep">·</span><a href="publish.html">publish</a><span class="sep">·</span><a href="phone.html">phone</a><span class="sep">·</span><span class="here" style="display:inline-flex;align-items:center;min-height:44px;padding:0 8px">interview</span>
+  <button type="button" id="theme-toggle" aria-label="Theme: auto">theme auto</button>
+  <button type="button" class="swatch" id="accent-teal" data-accent="#35697c" aria-label="accent teal" aria-pressed="true"><span class="dot" style="background:#35697c"></span></button>
+  <button type="button" class="swatch" id="accent-orange" data-accent="#b4521a" aria-label="accent orange" aria-pressed="false"><span class="dot" style="background:#b4521a"></span></button>
+  <button type="button" class="swatch" id="accent-grey" data-accent="#6b6660" aria-label="accent grey" aria-pressed="false"><span class="dot" style="background:#6b6660"></span></button>
+</nav>
+
+<script>
+(function () {
+  'use strict';
+
+  var TURNS = [
+    { who: 'coach', text: 'Read the dump. Your words, not mine:\n· "not crashed. confident."\n· "the transcript is just a cache"\n· "I sat through a whole standup watching it spin"\n· "daemon owns the session, agent is a child"\n· "I want to close the lid and not think about it"\nWhich of these is the thing you want to say?' },
+    { who: 'you', text: 'the confident one. not crashed, confident.' },
+    { who: 'coach', text: 'Say the claim in one sentence, your words.' },
+    { who: 'you', text: 'closing the lid doesn\'t break the agent, it leaves it sure about a world that\'s gone, and the runtime should assume that on wake.' },
+    { who: 'coach', text: 'You wrote "the runtime should assume that on wake." Who exactly reads this, and what do they lose if they don\'t?' },
+    { who: 'you', text: 'people building agent runtimes. they lose the week I lost blaming the model for a dead socket.' },
+    { who: 'coach', text: '"the week I lost." What did you see first-hand? Name the incident.' },
+    { who: 'you', text: 'tuesday. closed the lid for standup, came back, the test runner was "running" for eleven minutes. nothing was running.' },
+    { who: 'coach', text: 'You wrote "the transcript is just a cache." What would the smartest person who disagrees say?' }
+  ];
+  var NEXT = [
+    { who: 'coach', text: 'Which part are you least sure of?' },
+    { who: 'coach', text: 'What did you get wrong along the way?' },
+    { who: 'coach', text: 'I can restate thesis, reader and arc in your sentences. Interview done. brief.md is yours.' }
+  ];
+
+  var state = { turns: TURNS.slice(), step: 0 };
+
+  var thread = document.getElementById('thread');
+  var countEl = document.getElementById('covered-count');
+  var menuCountEl = document.getElementById('menu-count');
+  var topic5 = document.getElementById('topic-uncertainty');
+  var topic6 = document.getElementById('topic-scar');
+  var form = document.getElementById('composer-form');
+  var ta = document.getElementById('icomposer');
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function renderThread(scrollToEnd) {
+    var html = '';
+    for (var i = 0; i < state.turns.length; i++) {
+      var t = state.turns[i];
+      if (t.divider) {
+        html += '<div class="divider"><span>' + esc(t.divider) + '</span></div>';
+      } else {
+        html += '<div class="turn"><span class="who">' + esc(t.who) + '</span><span class="what ' + (t.who === 'you' ? 'text' : 'muted') + '">' + esc(t.text) + '</span></div>';
+      }
+    }
+    thread.innerHTML = html;
+    if (scrollToEnd) thread.scrollTop = thread.scrollHeight;
+  }
+
+  function updateCovered() {
+    var covered = Math.min(6, 4 + state.step);
+    countEl.textContent = String(covered);
+    menuCountEl.textContent = String(covered);
+    topic5.className = covered >= 5 ? 'text' : 'muted';
+    topic6.className = covered >= 6 ? 'text' : 'muted';
+  }
+
+  /* field-sizing: content fallback (Safari) */
+  function autosize(el) {
+    el.style.height = 'auto';
+    var h = Math.max(22, Math.min(88, el.scrollHeight));
+    el.style.height = h + 'px';
+    el.style.overflowY = el.scrollHeight > 88 ? 'auto' : 'hidden';
+  }
+
+  function send() {
+    var text = ta.value.trim();
+    if (!text) return;
+    var step = state.step;
+    var turns = state.turns.slice();
+    turns.push({ who: 'you', text: text });
+    if (step < NEXT.length) turns.push(NEXT[step]);
+    if (step === NEXT.length - 1) turns.push({ divider: 'interview done · brief.md is yours' });
+    state.turns = turns;
+    state.step = step + 1;
+    ta.value = '';
+    autosize(ta);
+    renderThread(true);
+    updateCovered();
+    ta.focus();
+  }
+
+  form.addEventListener('submit', function (e) { e.preventDefault(); send(); });
+  ta.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  ta.addEventListener('input', function () { autosize(ta); });
+
+  renderThread(false);
+  updateCovered();
+  autosize(ta);
+
+  /* stage menu: stages are read-only here; "send it" hands over to the phone draft */
+  var stageBtn = document.getElementById('stage-btn');
+  var stageMenu = document.getElementById('stage-menu');
+  var senditBtn = document.getElementById('sendit');
+  var senditConfirm = document.getElementById('sendit-confirm');
+  var senditYes = document.getElementById('sendit-yes');
+  var senditNo = document.getElementById('sendit-no');
+  var stageWrap = document.querySelector('.stage');
+  var menu = { open: false, confirm: false };
+
+  function renderMenu() {
+    stageMenu.hidden = !menu.open;
+    stageWrap.classList.toggle('menu-open', menu.open);
+    stageBtn.setAttribute('aria-expanded', String(menu.open));
+    senditConfirm.hidden = !menu.confirm;
+    senditBtn.setAttribute('aria-expanded', String(menu.confirm));
+    senditBtn.classList.toggle('text', menu.confirm);
+    senditBtn.classList.toggle('muted', !menu.confirm);
+  }
+  function closeMenu(keepFocus) {
+    if (!menu.open) return;
+    menu.open = false;
+    menu.confirm = false;
+    renderMenu();
+    if (!keepFocus) stageBtn.focus();
+  }
+
+  stageBtn.addEventListener('click', function () {
+    if (menu.open) { closeMenu(); return; }
+    menu.open = true;
+    menu.confirm = false;
+    renderMenu();
+  });
+  senditBtn.addEventListener('click', function () {
+    menu.confirm = true;
+    renderMenu();
+    senditYes.focus();
+  });
+  senditNo.addEventListener('click', function () {
+    menu.confirm = false;
+    renderMenu();
+    senditBtn.focus();
+  });
+  senditYes.addEventListener('click', function () {
+    try { localStorage.setItem('sparring-mode', 'drafted'); } catch (e) {}
+    try { localStorage.removeItem('sparring-draft'); } catch (e) {}
+    menu.open = false;
+    menu.confirm = false;
+    renderMenu();
+    window.location.href = 'phone.html#drafted';
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && menu.open) { e.preventDefault(); closeMenu(); }
+  });
+  document.addEventListener('click', function (e) {
+    if (!menu.open) return;
+    if (stageMenu.contains(e.target) || stageBtn.contains(e.target)) return;
+    /* a tap on the composer (or another control) keeps the focus it just took; otherwise focus returns to the button */
+    var a = document.activeElement;
+    var elsewhere = !!a && a !== document.body && a !== document.documentElement && a !== stageBtn && !stageMenu.contains(a);
+    closeMenu(elsewhere);
+  });
+
+  /* proto strip: theme + accent */
+  var root = document.documentElement;
+  var themeBtn = document.getElementById('theme-toggle');
+  var ORDER = ['auto', 'light', 'dark'];
+
+  function currentTheme() {
+    var t = root.dataset.theme;
+    return t === 'light' || t === 'dark' ? t : 'auto';
+  }
+  function applyTheme(t) {
+    if (t === 'auto') delete root.dataset.theme; else root.dataset.theme = t;
+    try { if (t === 'auto') localStorage.removeItem('sparring-theme'); else localStorage.setItem('sparring-theme', t); } catch (e) {}
+    themeBtn.textContent = 'theme ' + t;
+    themeBtn.setAttribute('aria-label', 'Theme: ' + t);
+  }
+  themeBtn.addEventListener('click', function () {
+    var i = ORDER.indexOf(currentTheme());
+    applyTheme(ORDER[(i + 1) % ORDER.length]);
+  });
+  themeBtn.textContent = 'theme ' + currentTheme();
+  themeBtn.setAttribute('aria-label', 'Theme: ' + currentTheme());
+
+  var DEFAULT_ACCENT = '#35697c';
+  var swatches = document.querySelectorAll('.proto .swatch');
+  function currentAccent() {
+    var v = root.style.getPropertyValue('--accent').trim();
+    return v || DEFAULT_ACCENT;
+  }
+  function applyAccent(hex) {
+    if (hex === DEFAULT_ACCENT) root.style.removeProperty('--accent'); else root.style.setProperty('--accent', hex);
+    try { if (hex === DEFAULT_ACCENT) localStorage.removeItem('sparring-accent'); else localStorage.setItem('sparring-accent', hex); } catch (e) {}
+    for (var i = 0; i < swatches.length; i++) {
+      swatches[i].setAttribute('aria-pressed', swatches[i].dataset.accent === hex ? 'true' : 'false');
+    }
+  }
+  for (var i = 0; i < swatches.length; i++) {
+    swatches[i].addEventListener('click', function (e) { applyAccent(e.currentTarget.dataset.accent); });
+  }
+  (function syncAccent() {
+    var hex = currentAccent();
+    for (var j = 0; j < swatches.length; j++) {
+      swatches[j].setAttribute('aria-pressed', swatches[j].dataset.accent === hex ? 'true' : 'false');
+    }
+  })();
+
+  /* reserve the strip's real height so it never covers the composer */
+  var proto = document.querySelector('.proto');
+  var stage = document.querySelector('.stage');
+  function fitProto() {
+    var h = proto.offsetHeight;
+    if (h > 0) stage.style.setProperty('--proto-h', h + 'px');
+  }
+  fitProto();
+  window.addEventListener('resize', fitProto);
+  if (window.ResizeObserver) new ResizeObserver(fitProto).observe(proto);
+})();
+</script>
+</body>
+</html>

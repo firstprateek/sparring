@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sparring, room on a phone, draft stage</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400&display=swap">
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem('sparring-theme');
+    if (t === 'light' || t === 'dark') { document.documentElement.dataset.theme = t; }
+    var a = localStorage.getItem('sparring-accent');
+    if (a && /^#[0-9a-f]{6}$/i.test(a) && a.toLowerCase() !== '#35697c') {
+      document.documentElement.style.setProperty('--accent', a);
+    }
+  } catch (e) {}
+})();
+</script>
+<style>
+:root { --bg:#fdfcfa; --subtle:#f4f2ee; --text:#1f1d1a; --muted:#6b6660; --rule:#e2dfd8; --accent:#35697c; --serif:"Source Serif 4",Georgia,serif; --mono:"JetBrains Mono",ui-monospace,monospace }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#17181a; --subtle:#1e1f22; --text:#e4e1db; --muted:#99958d; --rule:#2c2b29; --accent:#7fb0be; color-scheme: dark } }
+:root[data-theme="dark"] { --bg:#17181a; --subtle:#1e1f22; --text:#e4e1db; --muted:#99958d; --rule:#2c2b29; --accent:#7fb0be; color-scheme: dark }
+body { background: var(--bg); color: var(--text) }
+
+html{margin:0;padding:0}
+body{margin:0;padding:0;min-height:100dvh;font-family:var(--serif);font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+[hidden]{display:none !important}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.para:focus-visible,.comp textarea:focus-visible{outline:0}
+
+/* device frame */
+.sp{position:relative;overflow:hidden;display:grid;grid-template-rows:40px 1fr 44px;box-sizing:border-box;width:390px;height:844px;background:var(--bg);color:var(--text);font-family:var(--serif);font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;border:1px solid var(--rule);border-radius:28px}
+@media (min-width:481px){
+  /* reserve the fixed proto strip's height below the centred frame so it never covers the composer */
+  body{background:var(--subtle);display:flex;justify-content:center;align-items:center;box-sizing:border-box;padding-block:24px;padding-bottom:calc(var(--proto-h,46px) + 24px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+}
+@media (max-width:480px){
+  .sp{width:100%;height:calc(100dvh - var(--proto-h,46px));border:0;border-radius:0}
+}
+
+.mono{font-family:var(--mono);font-size:12px;line-height:1.4}
+.muted{color:var(--muted)}
+.text{color:var(--text)}
+a{color:inherit;text-decoration:none}
+.t{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
+.t:disabled{cursor:default}
+.act{font-family:var(--mono);font-size:12px;line-height:1.4;padding:14px 0;margin:-14px 0}
+.para{display:block;width:100%;min-width:0;box-sizing:border-box;resize:none;border:0;outline:0;background:transparent;font:inherit;color:inherit;padding:0;margin:0 0 1.25rem;overflow:hidden;field-sizing:content}
+.tickbtn{width:44px;align-self:stretch;margin-bottom:1.25rem;display:flex;justify-content:flex-end;align-items:flex-start;padding-top:2px}
+.tick{font-family:var(--mono);font-size:14px;color:var(--accent);width:16px;text-align:center}
+.tick.seen{color:var(--muted)}
+.note{display:flex;flex-direction:column;gap:8px;padding:16px 0;border-top:1px solid var(--rule);min-width:0}
+.note:first-child{border-top:0;padding-top:0}
+.note .span{font-size:15px;line-height:1.5;margin:0;color:var(--muted);font-style:italic}
+.note .body{font-size:15px;line-height:1.5;margin:0;color:var(--muted)}
+.note .meta{display:flex;gap:6px;flex-wrap:wrap}
+.note .v2{border-left:1px solid var(--rule);padding-left:12px}
+.acts{display:flex;gap:18px;align-items:baseline}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:calc(100% - 40px);background:var(--bg);border-top:1px solid var(--rule);display:flex;flex-direction:column;transition:height 200ms ease-out;z-index:2}
+.handle{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;flex:none}
+.handlebtn{padding:14px 0;display:flex;gap:10px}
+.replybtn{padding:14px 0 14px 14px}
+.sheet-body{position:relative;flex:1;min-height:0;overflow:auto;padding:0 1.5rem 16px;display:flex;flex-direction:column;gap:12px}
+.sheet-body .row-sb{display:flex;justify-content:space-between;padding-bottom:4px;gap:12px}
+.sheet-body .row-sb span{min-width:0}
+.filters{display:flex;gap:12px;flex-wrap:wrap}
+.notes{display:flex;flex-direction:column}
+.shelf{display:flex;align-items:center;gap:8px}
+.shelf .line{flex:1;border-top:1px solid var(--rule)}
+.comp{display:flex;gap:8px;align-items:flex-start;border-top:1px solid var(--rule);padding:12px 1.5rem;flex:none}
+.comp textarea{flex:1;min-width:0;background:none;border:0;outline:0;resize:none;font-family:var(--mono);font-size:12px;line-height:1.4;color:var(--text);padding:0;margin:0;min-height:17px;field-sizing:content;overflow:hidden}
+.comp label{padding-top:1px}
+.menu{position:absolute;left:0;right:0;top:40px;background:var(--bg);border-bottom:1px solid var(--rule);padding:8px 1.5rem 12px;display:flex;flex-direction:column;gap:2px;z-index:3}
+.menu .it{padding:10px 0}
+.menu .crumbs{display:flex;gap:12px;padding:6px 0 10px;border-bottom:1px solid var(--rule);margin-bottom:6px}
+.menu .pub{border-top:1px solid var(--rule);margin-top:4px}
+.edit{position:absolute;inset:40px 0 0 0;background:var(--bg);display:flex;flex-direction:column;z-index:4}
+.edit-hd{padding:12px 1.5rem;display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--rule)}
+.edit-hd span{min-width:0}
+.edit-bd{padding:24px 1.5rem;flex:1;overflow:auto;min-height:0}
+.edit-span{margin:0 0 12px;font-style:normal}
+.edit-ta{background:var(--subtle);padding:12px;box-sizing:border-box}
+.edit-ft{padding:14px 1.5rem;display:flex;gap:24px;border-top:1px solid var(--rule)}
+.edit-ft .t{padding:12px 0;margin:-12px 0}
+
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;border-bottom:1px solid var(--rule)}
+.hdr .back{padding:12px 8px 12px 0}
+.hdr .stagebtn{padding:12px 0}
+.page{overflow:auto;padding:24px 0 24px 1.5rem;min-height:0;min-width:0;border-right:16px solid transparent;background:linear-gradient(to right,transparent calc(100% - 1px),var(--rule) calc(100% - 1px)) no-repeat;background-size:100% 100%;background-clip:padding-box}
+.row{display:grid;grid-template-columns:1fr 44px;min-width:0}
+.ftr{display:flex;align-items:center;justify-content:space-between;padding:0 1.5rem;border-top:1px solid var(--rule);gap:12px}
+.ftr span{min-width:0}
+
+/* drafted mode: provenance bars, menu confirm, quiet block */
+.prov{width:2px;align-self:stretch;flex:none;background:repeating-linear-gradient(to bottom,var(--accent) 0 3px,transparent 3px 6px)}
+.prov.mixed{background:repeating-linear-gradient(to bottom,var(--muted) 0 3px,transparent 3px 6px)}
+.row{position:relative}
+.row>.prov{position:absolute;left:-12px;top:0;bottom:1.25rem}
+.menu .send{border-top:1px solid var(--rule);margin-top:4px;min-width:0}
+.menu .send .it{display:block;width:100%}
+.menu .confirm{padding:10px 0;overflow-wrap:anywhere}
+/* yes / no: the tap area is a pseudo-element so the focus ring hugs the word instead of cutting through the line above */
+.menu .confirm .t{position:relative;padding:0 4px;margin:0 -4px}
+.menu .confirm .t::after{content:"";position:absolute;inset:-14px -6px}
+.nb{white-space:nowrap}
+.quiet{display:flex;flex-direction:column;gap:8px;min-width:0}
+.quiet p{margin:0}
+.legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.legend .lg{display:inline-flex;align-items:center;gap:6px}
+.legend .prov{height:12px;align-self:center}
+
+/* proto strip: scaffolding for trying the mocks */
+.proto{position:fixed;bottom:env(safe-area-inset-bottom,0px);right:max(12px,env(safe-area-inset-right,0px));z-index:50;display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-end;gap:0 2px;padding:0 8px;box-sizing:border-box;background:var(--bg);border:1px solid var(--rule);font-family:var(--mono);font-size:12px;line-height:1.4;color:var(--muted)}
+.proto a,.proto button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:28px;padding:0 6px;background:none;border:0;font:inherit;color:var(--muted);cursor:pointer;white-space:nowrap}
+.proto .cur{color:var(--text);min-width:28px;padding:0 6px;display:inline-flex;align-items:center;min-height:44px}
+.proto .sep{padding:0 2px}
+.proto .swbtn{min-width:44px;padding:0}
+.proto .sw{display:block;width:14px;height:14px;border-radius:50%;border:1px solid var(--rule)}
+.proto .swbtn[aria-pressed="true"] .sw{outline:2px solid var(--text);outline-offset:2px}
+@media (max-width:480px){
+  .proto{left:0;right:0;bottom:0;border-width:1px 0 0;justify-content:center;padding-bottom:env(safe-area-inset-bottom,0px)}
+}
+
+@media (prefers-reduced-motion: reduce){
+  .sheet{transition:none}
+}
+</style>
+</head>
+<body>
+
+<div class="sp" id="frame">
+
+  <header class="mono hdr">
+    <a href="index.html" class="muted back" aria-label="Back to articles">←</a>
+    <span class="muted">closed-laptop</span>
+    <button class="t stagebtn" id="stage-btn" type="button" aria-expanded="false" aria-controls="stage-menu"><span id="stage-word">draft</span> ▾</button>
+  </header>
+
+  <div class="menu mono" id="stage-menu" hidden>
+    <div class="muted crumbs"><span>dump</span><span>·</span><span>brief</span><span>·</span><span class="text">article</span></div>
+    <button class="t it muted" type="button" data-stage="ideas">ideas</button>
+    <button class="t it muted" type="button" data-stage="interview">interview 6/6</button>
+    <button class="t it muted" type="button" data-stage="outline">outline</button>
+    <button class="t it text" type="button" data-stage="draft">draft</button>
+    <button class="t it muted" type="button" data-stage="critique">critique</button>
+    <button class="t it muted" type="button" data-stage="polish">polish</button>
+    <div class="send">
+      <button class="t it muted" type="button" id="mode-item">send it</button>
+      <div class="confirm muted" id="mode-confirm" role="group" aria-label="Confirm" hidden><span id="mode-confirm-text">the coach writes the draft from dump.md and brief.md · what is on the page moves to the shelf</span> · <button class="t text" type="button" id="mode-yes" aria-describedby="mode-confirm-text">yes</button> · <button class="t text" type="button" id="mode-no">no</button></div>
+    </div>
+    <a href="publish.html" class="it muted pub">publish →</a>
+  </div>
+
+  <main class="page" id="page"></main>
+
+  <div class="sheet" id="sheet" style="height: 44px">
+    <div class="handle mono muted">
+      <button class="t handlebtn" id="sheet-toggle" type="button" aria-expanded="false" aria-controls="sheet-body"><span>612w</span><span>·</span><span id="saved">saved</span><span>·</span><span class="text" id="handle-notes"><span id="open-count">5</span> notes</span><span class="text" id="handle-yours" hidden>0% yours</span><span id="chevron" aria-hidden="true">▴</span></button>
+      <button class="t text replybtn" id="open-composer" type="button" aria-label="Reply to the coach">&gt;</button>
+    </div>
+
+    <div class="sheet-body" id="sheet-body" hidden>
+      <div class="mono muted row-sb" id="strip-coached"><span>write refused · the coach tried to edit article.md</span><span>log</span></div>
+      <div class="mono muted row-sb" id="strip-drafted" hidden><span>drafted · the coach wrote article.md · <span class="nb">never-write</span> is off for this article</span></div>
+      <div class="mono muted quiet" id="quiet" hidden>
+        <p class="text">the coach is quiet. this review is yours.</p>
+        <p>/critique when you want notes</p>
+        <p id="quiet-counts">13 ¶ · 13 coach · 0 edited · 0 yours</p>
+        <p id="quiet-yours">0% of the words are yours</p>
+        <div class="legend"><span class="lg"><span class="prov" aria-hidden="true"></span>coach</span><span class="lg"><span class="prov mixed" aria-hidden="true"></span>edited</span><span>no bar: yours</span></div>
+      </div>
+      <div class="mono filters" id="filters"><span class="text">all 6</span><span class="muted">open <span id="open-count-filter">5</span></span><span class="muted">critique 4</span><span class="muted">filler 1</span><span class="muted">voice 1</span></div>
+      <div class="notes" id="notes"></div>
+      <div class="mono muted shelf" id="shelf"><span class="line"></span><span>shelf</span><span class="line"></span></div>
+    </div>
+    <div class="comp" id="comp" hidden>
+      <label for="pcomposer" class="mono muted">&gt;</label>
+      <textarea id="pcomposer" rows="1" aria-label="Reply to the coach or type a slash command"></textarea>
+    </div>
+  </div>
+
+  <div class="edit" id="edit" hidden role="dialog" aria-modal="true" aria-labelledby="edit-title">
+    <div class="mono muted edit-hd"><span id="edit-title"><span id="edit-kind"></span> · <span id="edit-id"></span></span><span>edit the span</span></div>
+    <div class="edit-bd">
+      <p class="mono muted edit-span" id="edit-span"></p>
+      <textarea class="para edit-ta" id="edit-para" rows="3" spellcheck="false" aria-label="Edit this paragraph"></textarea>
+    </div>
+    <div class="mono edit-ft"><button class="t text" id="edit-save" type="button">save</button><button class="t muted" id="edit-back" type="button">back</button></div>
+  </div>
+
+  <footer class="mono muted ftr">
+    <span id="ftr-tells">em 0 · ¶1 1 · not-x-but-y 1</span>
+    <span id="ftr-mode" hidden>drafted · 0% yours</span>
+    <span>tailnet · connected</span>
+  </footer>
+</div>
+
+<nav class="proto" id="proto" aria-label="Prototype screens and look">
+  <a href="index.html">articles</a><span class="sep" aria-hidden="true">·</span>
+  <a href="room.html">room</a><span class="sep" aria-hidden="true">·</span>
+  <a href="publish.html">publish</a><span class="sep" aria-hidden="true">·</span>
+  <span class="cur" aria-current="page">phone</span><span class="sep" aria-hidden="true">·</span>
+  <a href="phone-interview.html">interview</a>
+  <button type="button" id="proto-theme" aria-label="Theme: auto. Cycles auto, light, dark">theme · auto</button>
+  <button type="button" id="proto-mode">mode · coached</button>
+  <button type="button" class="swbtn" data-accent="#35697c" aria-label="accent teal" aria-pressed="true"><span class="sw" style="background: #35697c"></span></button>
+  <button type="button" class="swbtn" data-accent="#b4521a" aria-label="accent orange" aria-pressed="false"><span class="sw" style="background: #b4521a"></span></button>
+  <button type="button" class="swbtn" data-accent="#6b6660" aria-label="accent grey" aria-pressed="false"><span class="sw" style="background: #6b6660"></span></button>
+</nav>
+
+<script>
+(function () {
+  'use strict';
+
+  var ARTICLE = [
+    '## The lid is the first failure you meet',
+    'I spent six years on a UI framework where the hardest bug was always the one between two renders. Nothing was wrong in either frame; the wrong thing was the gap. Agents have the same gap, and the lid of a laptop is where you find it.',
+    'The setup is ordinary. You start a coding agent on a task that will take twenty minutes, you close the lid to walk to a meeting, you open it on the other side of the building. What you expect is the agent where you left it. What you get depends on about six things nobody wrote down.',
+    '## What actually dies',
+    'The process does not die. macOS suspends it, and when the lid opens it is still there with its stack intact. What dies is everything the process believed about the outside world. Its WebSocket to the model is gone; the server dropped it after thirty seconds of silence and the client will not know until it tries to write. Its child process, the one running the test suite, got SIGSTOP and SIGCONT and now has a wall-clock timer that thinks nineteen minutes passed in zero. The file watcher missed every event. And the model, which was mid-stream when the socket went, has finished its turn into a void. The tool call it emitted was never acknowledged, so from the model\'s side the turn is complete and from the agent\'s side it never happened.',
+    'It is important to note that none of this is a crash. Every component is healthy. The agent is not broken, it is very confident about a world that stopped existing.',
+    '## The frame between two frames',
+    'In the framework we had a rule: never trust state you did not compute this frame. It was expensive and we argued about it for a year, but it was the only rule that survived contact with a tab being backgrounded for six hours. I think agent runtimes need the same rule and mostly do not have it. The agent keeps a transcript, and a transcript is a cache of what the world was. When the lid opens, the honest move is to treat the transcript as stale and re-derive: is the socket alive, did the child exit, what is on disk now versus what I think I wrote.',
+    'The runtimes I have read do something cheaper. They retry the socket and carry on. The transcript says the test suite is running, so the agent waits for a result that will never come, and the user watches a spinner for eleven minutes before killing it.',
+    '## What I did about it',
+    'I built a small daemon that owns the session instead of the agent owning it. The agent is a child the daemon can lose. On wake, the daemon reconciles: it reopens the socket, asks the model to replay from the last acknowledged turn, diffs the working tree against the last commit it made, and only then lets the agent see anything. The agent\'s first message after a lid-close is a system line it did not write: what changed while you were out.',
+    'It is not elegant. The replay costs tokens and the diff is sometimes noisy. But it is the first version where closing the lid stopped being a thing I had to remember not to do, which is actually the whole point of a tool that is supposed to work while I am not looking at it.',
+    'That is the test I want for every agent runtime now.'
+  ];
+  var NOTES = [
+    { id: 'c07', kind: 'unclear', para: 2, brief: 'brief: arc', span: 'about six things nobody wrote down', body: 'You then name four: socket, child, watcher, model. Six is a count the reader will check. Which are the other two, or is the number wrong?', status: 'open' },
+    { id: 'c08', kind: 'unsupported', para: 4, brief: 'brief: evidence', span: 'the server dropped it after thirty seconds of silence', body: 'Which server, and did you measure the thirty seconds or assume them? The dump says "it just dropped". The reader you named will want the number or the admission.', status: 'open' },
+    { id: 'c11', kind: 'filler', para: 5, brief: 'no brief line', span: 'It is important to note that', body: 'Six words before the sentence starts. The sentence after them is the strongest in the section.', status: 'dismissed' },
+    { id: 'c09', kind: 'counter', para: 8, brief: 'brief: counter', span: 'The runtimes I have read do something cheaper.', body: 'The smartest person who disagrees says retry-and-continue is right for nearly every wake and your reconcile taxes all of them for the rare one. The brief names this counter. The draft does not answer it.', status: 'disagreed', v2: 'Sharpened. You say that in dump.md ("only when the socket was actually gone"). The draft says "on wake, the daemon reconciles" with no condition. Put the condition in the sentence or the counter stands.' },
+    { id: 'c10', kind: 'detail', para: 8, brief: 'brief: scar', span: 'the user watches a spinner for eleven minutes', body: 'Was this you? The dump says "I sat through a whole standup watching it." That is the lived moment; the draft has an anonymous user.', status: 'open' },
+    { id: 'c12', kind: 'voice', para: 11, brief: 'brief: thesis', span: 'which is actually the whole point of a tool that is supposed to work while I am not looking at it', body: 'The dump says "I want to close the lid and not think about it." Eleven words. The draft explains the same thing in twenty-two. Which one sounds like you?', status: 'open' }
+  ];
+  var STAGES = ['ideas', 'interview 6/6', 'outline', 'draft', 'critique', 'polish'];
+  var HEIGHTS = { peek: '44px', half: '420px', full: '760px' };
+  var ORDER = { open: 0, disagreed: 0, dismissed: 1, done: 2 };
+
+  var state = {
+    stage: 'draft', stageOpen: false,
+    sheet: 'peek',
+    edited: { 11: true },
+    statuses: {},
+    muted: {},
+    composer: '',
+    editing: null,
+    saved: 'saved',
+    mode: 'coached',   /* 'coached' | 'drafted' */
+    quiet: false,      /* drafted and the writer has not asked for notes yet */
+    pending: false,    /* the send it / coached again confirm is showing in the stage menu */
+    drafting: false    /* the draft is streaming in */
+  };
+  NOTES.forEach(function (n) { state.statuses[n.id] = n.status; });
+
+  var byPara = {};
+  NOTES.forEach(function (n) { (byPara[n.para] = byPara[n.para] || []).push(n); });
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function noteById(id) {
+    for (var i = 0; i < NOTES.length; i++) { if (NOTES[i].id === id) { return NOTES[i]; } }
+    return null;
+  }
+
+  /* textarea autosize: field-sizing: content in CSS, scrollHeight fallback here */
+  function autosize(ta) {
+    if (!ta || !ta.getClientRects().length) { return; }
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+  function autosizeAll() {
+    var tas = document.querySelectorAll('textarea');
+    for (var i = 0; i < tas.length; i++) { autosize(tas[i]); }
+  }
+
+  /* ---------- article page ---------- */
+  function paintProv(bar, ta, st) {
+    bar.hidden = st === 'yours';
+    bar.classList.toggle('mixed', st === 'mixed');
+    if (st === 'yours') { ta.removeAttribute('aria-description'); }
+    else { ta.setAttribute('aria-description', st === 'mixed' ? 'written by the coach, edited by you' : 'written by the coach'); }
+  }
+  function makeRow(i, text) {
+    var row = document.createElement('div');
+    row.className = 'row';
+    var ta = document.createElement('textarea');
+    ta.className = 'para';
+    ta.id = 'para-' + (i + 1);
+    ta.rows = text.indexOf('## ') === 0 ? 1 : Math.max(1, Math.ceil(text.length / 38));
+    ta.spellcheck = false;
+    ta.setAttribute('aria-label', 'Paragraph ' + (i + 1));
+    ta.value = text;
+    ta.addEventListener('input', function () {
+      autosize(ta);
+      if (!state.edited[i]) {
+        state.edited[i] = true;
+        state.saved = 'unsaved';
+        renderSaved();
+        renderNotes();
+      }
+      if (state.mode === 'drafted') { provEdit(i, ta.value); }
+    });
+    if (state.mode === 'drafted') {
+      /* dotted provenance bar: sits in the left gutter, out of the grid flow, so the text column does not move */
+      var bar = document.createElement('span');
+      bar.className = 'prov';
+      bar.id = 'prov-' + (i + 1);
+      bar.setAttribute('aria-hidden', 'true');
+      paintProv(bar, ta, prov.st[i]);
+      row.appendChild(bar);
+    }
+    row.appendChild(ta);
+    if (byPara[i]) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 't tickbtn';
+      b.setAttribute('aria-label', 'Open the note on this paragraph');
+      b.dataset.para = String(i);
+      var tick = document.createElement('span');
+      tick.className = 'tick';
+      tick.setAttribute('aria-hidden', 'true');
+      tick.textContent = '╂';
+      b.appendChild(tick);
+      b.addEventListener('click', function () { openNoteFor(i); });
+      row.appendChild(b);
+    } else {
+      row.appendChild(document.createElement('span'));
+    }
+    return row;
+  }
+  function buildPage() {
+    var texts = state.mode === 'drafted' ? prov.text : ARTICLE;
+    var frag = document.createDocumentFragment();
+    texts.forEach(function (text, i) { frag.appendChild(makeRow(i, text)); });
+    $('page').appendChild(frag);
+  }
+
+  function updateMarks() {
+    var btns = document.querySelectorAll('#page .tickbtn');
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i];
+      var ns = byPara[b.dataset.para];
+      var live = ns.some(function (n) { return state.statuses[n.id] !== 'done'; });
+      var seen = ns.every(function (n) { return state.statuses[n.id] !== 'open'; });
+      b.hidden = !live || (state.mode === 'drafted' && state.quiet);
+      b.firstElementChild.classList.toggle('seen', seen);
+    }
+  }
+
+  function openNoteFor(para) {
+    setSheet('half');
+    var body = $('sheet-body');
+    var note = body.querySelector('.note[data-para="' + para + '"]');
+    if (!note) { return; }
+    var go = function () { body.scrollTop = note.offsetTop; };
+    go();
+    window.setTimeout(go, 230);
+  }
+
+  /* ---------- stage menu ---------- */
+  function renderStage() {
+    if (!state.stageOpen) { state.pending = false; }
+    $('mode-item').hidden = state.pending;
+    $('mode-confirm').hidden = !state.pending;
+    $('stage-word').textContent = state.drafting ? 'drafting…' : state.stage;
+    $('stage-menu').hidden = !state.stageOpen;
+    $('stage-btn').setAttribute('aria-expanded', String(state.stageOpen));
+    var items = document.querySelectorAll('#stage-menu [data-stage]');
+    for (var i = 0; i < items.length; i++) {
+      var cur = items[i].dataset.stage === state.stage;
+      items[i].classList.toggle('text', cur);
+      items[i].classList.toggle('muted', !cur);
+    }
+  }
+  $('stage-btn').addEventListener('click', function () {
+    state.stageOpen = !state.stageOpen;
+    renderStage();
+  });
+  $('stage-menu').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-stage]');
+    if (!b) { return; }
+    state.stage = b.dataset.stage;
+    state.stageOpen = false;
+    renderStage();
+  });
+
+  /* ---------- bottom sheet ---------- */
+  function openCount() {
+    return NOTES.filter(function (n) {
+      var st = state.statuses[n.id];
+      return st === 'open' || st === 'disagreed';
+    }).length;
+  }
+  function renderSaved() { $('saved').textContent = state.saved; }
+  function renderCounts() {
+    var c = String(openCount());
+    $('open-count').textContent = c;
+    $('open-count-filter').textContent = c;
+  }
+  function setSheet(v) { state.sheet = v; renderSheet(); }
+  function renderSheet() {
+    var open = state.sheet !== 'peek';
+    $('sheet').style.height = HEIGHTS[state.sheet];
+    $('sheet-body').hidden = !open;
+    $('comp').hidden = !open;
+    $('chevron').textContent = open ? '▾' : '▴';
+    $('sheet-toggle').setAttribute('aria-expanded', String(open));
+    if (open) { autosize($('pcomposer')); }
+  }
+  $('sheet-toggle').addEventListener('click', function () {
+    setSheet(state.sheet === 'peek' ? 'half' : state.sheet === 'half' ? 'full' : 'peek');
+  });
+  $('open-composer').addEventListener('click', function () { setSheet('full'); });
+  $('pcomposer').addEventListener('input', function (e) {
+    state.composer = e.target.value;
+    autosize(e.target);
+  });
+  /* Enter submits only the commands the drafted mode needs; any other Enter stays a newline as before */
+  $('pcomposer').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing) { return; }
+    var cmd = e.target.value.trim();
+    var send = cmd === '/sendit';
+    var ask = state.mode === 'drafted' && /^\/(critique|pass)(\s|$)/.test(cmd);
+    if (!send && !ask) { return; }
+    e.preventDefault();
+    state.composer = '';
+    e.target.value = '';
+    autosize(e.target);
+    if (send) { openModeConfirm(); } else { askCoach(); }
+  });
+
+  /* ---------- notes ---------- */
+  function noteHTML(n) {
+    var st = n.status;
+    var edited = !!state.edited[n.para];
+    var showBody = st === 'open' || st === 'disagreed';
+    var opacity = (st === 'done' || st === 'dismissed') ? 0.7 : 1;
+    var id = esc(n.id);
+    var h = '<div class="note" data-id="' + id + '" data-para="' + n.para + '" style="opacity: ' + opacity + '">';
+    h += '<div class="mono muted meta"><span>' + esc(n.kind) + '</span><span>·</span><span>' + id + '</span><span>·</span><span>' + esc(n.brief) + '</span>';
+    if (st === 'disagreed') { h += '<span>·</span><span>disagreed · sharpened</span>'; }
+    if (st === 'done') { h += '<span>·</span><span>done</span>'; }
+    if (st === 'dismissed') { h += '<span>·</span><span>dismissed</span>'; }
+    h += '</div>';
+    if (showBody) {
+      h += '<p class="span">"' + esc(n.span) + '"</p>';
+      h += '<p class="body">' + esc(n.body) + '</p>';
+    }
+    if (st === 'disagreed') {
+      h += '<p class="body v2">' + esc(n.v2) + ' <span class="mono">' + id + ' v2</span></p>';
+    }
+    if (showBody) {
+      h += '<div class="acts">';
+      h += '<button class="t act ' + (edited ? 'text' : 'muted') + '" type="button" data-act="done" data-id="' + id + '"' + (edited ? '' : ' disabled') + '>done</button>';
+      h += '<button class="t act text" type="button" data-act="disagree" data-id="' + id + '">disagree</button>';
+      h += '<button class="t act text" type="button" data-act="dismiss" data-id="' + id + '">dismiss</button>';
+      h += '<button class="t act text" type="button" data-act="edit" data-id="' + id + '">edit</button>';
+      h += '</div>';
+      if (!edited) { h += '<div class="mono muted">·edit the span first</div>'; }
+    }
+    if (st === 'dismissed') {
+      var label = state.muted[n.id] ? 'muted · STYLE.md ← do not flag' : 'on purpose, stop flagging this';
+      h += '<button class="t act muted" type="button" data-act="mute" data-id="' + id + '">' + esc(label) + '</button>';
+    }
+    h += '</div>';
+    return h;
+  }
+  function renderNotes() {
+    var list = NOTES.map(function (n) {
+      var copy = {};
+      for (var k in n) { copy[k] = n[k]; }
+      copy.status = state.statuses[n.id];
+      return copy;
+    }).sort(function (a, b) {
+      return (ORDER[a.status] - ORDER[b.status]) || (a.para - b.para);
+    });
+    $('notes').innerHTML = list.map(noteHTML).join('');
+    renderCounts();
+    updateMarks();
+  }
+  $('notes').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]');
+    if (!b || b.disabled) { return; }
+    var id = b.dataset.id;
+    switch (b.dataset.act) {
+      case 'done':
+        state.statuses[id] = 'done';
+        renderNotes();
+        break;
+      case 'dismiss':
+        state.statuses[id] = 'dismissed';
+        renderNotes();
+        break;
+      case 'disagree':
+        state.composer = 're ' + id + ': ';
+        $('pcomposer').value = state.composer;
+        setSheet('full');
+        break;
+      case 'edit':
+        openEdit(id);
+        break;
+      case 'mute':
+        state.muted[id] = true;
+        renderNotes();
+        break;
+    }
+  });
+
+  /* ---------- focused edit overlay ---------- */
+  function openEdit(id) {
+    var n = noteById(id);
+    if (!n) { return; }
+    state.editing = id;
+    var src = $('para-' + (n.para + 1));
+    var text = src ? src.value : ARTICLE[n.para];
+    $('edit-kind').textContent = n.kind;
+    $('edit-id').textContent = n.id;
+    $('edit-span').textContent = '"' + n.span + '"';
+    var ta = $('edit-para');
+    ta.rows = Math.max(3, Math.ceil(text.length / 36));
+    ta.value = text;
+    $('edit').hidden = false;
+    autosize(ta);
+    ta.focus();
+  }
+  function closeEdit() {
+    state.editing = null;
+    $('edit').hidden = true;
+    $('sheet-toggle').focus();
+  }
+  $('edit-para').addEventListener('input', function (e) {
+    autosize(e.target);
+    var n = state.editing ? noteById(state.editing) : null;
+    if (n && !state.edited[n.para]) {
+      state.edited[n.para] = true;
+      renderNotes();
+    }
+  });
+  $('edit-save').addEventListener('click', function () {
+    var n = state.editing ? noteById(state.editing) : null;
+    if (n) {
+      var src = $('para-' + (n.para + 1));
+      if (src) { src.value = $('edit-para').value; autosize(src); }
+      if (state.mode === 'drafted') { provEdit(n.para, $('edit-para').value); }
+    }
+    closeEdit();
+    state.saved = 'saved';
+    renderSaved();
+    setSheet('half');
+  });
+  $('edit-back').addEventListener('click', closeEdit);
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') { return; }
+    if (state.editing) { closeEdit(); }
+    else if (state.stageOpen) {
+      var inMenu = $('stage-menu').contains(document.activeElement);
+      state.stageOpen = false;
+      renderStage();
+      if (inMenu) { $('stage-btn').focus(); }
+    }
+  });
+
+  /* ---------- drafted mode ("send it") ---------- */
+  var CONFIRM_SEND = 'the coach writes the draft from dump.md and brief.md · what is on the page moves to the shelf';
+  var CONFIRM_BACK = 'discard the coach\'s draft · your page comes back from the shelf';
+  /* the sample article is 13 blocks (4 headings, 9 paragraphs); every count below follows ARTICLE.length */
+  var prov = { text: ARTICLE.slice(), st: [], yours: 0 };
+  var persistTimer = null;
+  var streamTimer = null;
+
+  function words(s) { return String(s).replace(/^## /, '').toLowerCase().match(/[a-z0-9'’]+/g) || []; }
+  function newWords(orig, cur) {
+    var bag = {}, n = 0, cw = words(cur);
+    words(orig).forEach(function (w) { bag[w] = (bag[w] || 0) + 1; });
+    cw.forEach(function (w) { if (bag[w] > 0) { bag[w]--; } else { n++; } });
+    return { n: n, total: cw.length };
+  }
+  function blockState(orig, cur) {
+    if (cur === orig) { return 'agent'; }
+    var r = newWords(orig, cur);
+    return r.total > 0 && r.n / r.total >= 0.5 ? 'yours' : 'mixed';
+  }
+  function provCompute() {
+    var n = 0, total = 0;
+    for (var i = 0; i < ARTICLE.length; i++) {
+      var r = newWords(ARTICLE[i], prov.text[i]);
+      prov.st[i] = blockState(ARTICLE[i], prov.text[i]);
+      n += r.n;
+      total += r.total;
+    }
+    prov.yours = Math.round(100 * n / Math.max(1, total));
+  }
+  provCompute();
+
+  function readDraft() {
+    try {
+      var d = JSON.parse(localStorage.getItem('sparring-draft'));
+      if (d && d.v === 1 && Array.isArray(d.text) && Array.isArray(d.state) && d.text.length === ARTICLE.length && d.state.length === ARTICLE.length) { return d; }
+    } catch (e) {}
+    return null;
+  }
+  function persistDraft() {
+    persistTimer = null;
+    if (state.mode !== 'drafted') { return; }
+    try {
+      localStorage.setItem('sparring-draft', JSON.stringify({ v: 1, text: prov.text.slice(), state: prov.st.slice(), yours: prov.yours }));
+    } catch (e) {}
+  }
+  function schedulePersist() {
+    if (persistTimer) { window.clearTimeout(persistTimer); }
+    persistTimer = window.setTimeout(persistDraft, 200);
+  }
+  function clearPersist() {
+    if (persistTimer) { window.clearTimeout(persistTimer); persistTimer = null; }
+  }
+  window.addEventListener('pagehide', function () {
+    if (persistTimer) { window.clearTimeout(persistTimer); persistDraft(); }
+  });
+
+  function renderYours() {
+    var a = 0, m = 0, y = 0;
+    prov.st.forEach(function (s) { if (s === 'agent') { a++; } else if (s === 'mixed') { m++; } else { y++; } });
+    $('handle-yours').textContent = prov.yours + '% yours';
+    $('ftr-mode').textContent = 'drafted · ' + prov.yours + '% yours';
+    $('quiet-counts').textContent = ARTICLE.length + ' ¶ · ' + a + ' coach · ' + m + ' edited · ' + y + ' yours';
+    $('quiet-yours').textContent = prov.yours + '% of the words are yours';
+  }
+  /* a block's text changed (typed inline, or saved from the edit overlay): targeted updates only */
+  function provEdit(i, value) {
+    prov.text[i] = value;
+    provCompute();
+    var ta = $('para-' + (i + 1));
+    var bar = $('prov-' + (i + 1));
+    if (ta && bar) { paintProv(bar, ta, prov.st[i]); }
+    renderYours();
+    schedulePersist();
+  }
+  function renderMode() {
+    var drafted = state.mode === 'drafted';
+    var quiet = drafted && state.quiet;
+    $('proto-mode').textContent = 'mode · ' + state.mode;
+    $('mode-item').textContent = drafted ? 'coached again' : 'send it';
+    $('mode-confirm-text').textContent = drafted ? CONFIRM_BACK : CONFIRM_SEND;
+    $('handle-notes').hidden = quiet;
+    $('handle-yours').hidden = !quiet;
+    $('ftr-tells').hidden = drafted;
+    $('ftr-mode').hidden = !drafted;
+    $('strip-coached').hidden = drafted;
+    $('strip-drafted').hidden = !drafted;
+    $('filters').hidden = quiet;
+    $('notes').hidden = quiet;
+    $('shelf').hidden = quiet;
+    $('quiet').hidden = !quiet;
+    renderYours();
+    updateMarks();
+    reserveProto();
+  }
+
+  function stopStream() {
+    if (streamTimer) { window.clearTimeout(streamTimer); streamTimer = null; }
+    state.drafting = false;
+  }
+  function rebuildPage() {
+    var page = $('page');
+    page.textContent = '';
+    page.scrollTop = 0;
+    buildPage();
+    var tas = page.querySelectorAll('textarea');
+    for (var i = 0; i < tas.length; i++) { autosize(tas[i]); }
+    updateMarks();
+  }
+  /* the coach's draft lands one block every 220ms; all at once under reduced motion */
+  function streamDraft() {
+    stopStream();
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      rebuildPage();
+      renderStage();
+      return;
+    }
+    var page = $('page');
+    page.textContent = '';
+    page.scrollTop = 0;
+    var i = 0;
+    state.drafting = true;
+    renderStage();
+    (function step() {
+      var row = makeRow(i, prov.text[i]);
+      page.appendChild(row);
+      autosize(row.querySelector('textarea'));
+      updateMarks();
+      i++;
+      if (i < ARTICLE.length) { streamTimer = window.setTimeout(step, 220); }
+      else { streamTimer = null; state.drafting = false; renderStage(); }
+    })();
+  }
+
+  function resetNotes() {
+    NOTES.forEach(function (n) { state.statuses[n.id] = n.status; });
+    state.muted = {};
+  }
+  function dropEdit() {
+    if (state.editing) { state.editing = null; $('edit').hidden = true; }
+  }
+  function enterDrafted(stream) {
+    stopStream();
+    clearPersist();
+    dropEdit();
+    state.mode = 'drafted';
+    state.quiet = true;
+    state.pending = false;
+    state.edited = {};
+    state.stage = 'draft';
+    state.saved = 'saved';
+    resetNotes();
+    prov.text = ARTICLE.slice();
+    provCompute();
+    try { localStorage.removeItem('sparring-draft'); } catch (e) {}
+    try { localStorage.setItem('sparring-mode', 'drafted'); } catch (e) {}
+    if (stream) { streamDraft(); } else { rebuildPage(); }
+    renderStage();
+    renderSaved();
+    renderNotes();
+    renderMode();
+  }
+  function enterCoached() {
+    stopStream();
+    clearPersist();
+    dropEdit();
+    state.mode = 'coached';
+    state.quiet = false;
+    state.pending = false;
+    state.edited = { 11: true };
+    state.saved = 'saved';
+    resetNotes();
+    prov.text = ARTICLE.slice();
+    provCompute();
+    try { localStorage.removeItem('sparring-draft'); } catch (e) {}
+    try { localStorage.removeItem('sparring-mode'); } catch (e) {}
+    rebuildPage();
+    renderStage();
+    renderSaved();
+    renderNotes();
+    renderMode();
+  }
+
+  /* stage menu: send it / coached again, each with its confirm line */
+  $('mode-item').addEventListener('click', function () {
+    state.pending = true;
+    renderStage();
+    $('mode-yes').focus();
+  });
+  $('mode-no').addEventListener('click', function () {
+    state.pending = false;
+    renderStage();
+    $('mode-item').focus();
+  });
+  $('mode-yes').addEventListener('click', function () {
+    state.stageOpen = false;
+    if (state.mode === 'drafted') { enterCoached(); }
+    else {
+      state.sheet = 'peek';   /* get the sheet out of the way so the draft is seen landing */
+      renderSheet();
+      enterDrafted(true);
+    }
+    $('stage-btn').focus();
+  });
+  /* /sendit from the composer: open the stage menu with the confirm showing */
+  function openModeConfirm() {
+    state.stageOpen = true;
+    state.pending = state.mode !== 'drafted';
+    renderStage();
+    (state.pending ? $('mode-yes') : $('mode-item')).focus();
+  }
+  /* /critique or /pass while drafted: the coach is no longer quiet, the notes come back */
+  function askCoach() {
+    state.quiet = false;
+    renderMode();
+    $('sheet-body').scrollTop = 0;
+  }
+  $('proto-mode').addEventListener('click', function () {
+    if (state.mode === 'drafted') { enterCoached(); } else { enterDrafted(false); }
+  });
+  /* #drafted is a one-shot hand-over from the interview page: drop it so a reload does not draft again */
+  function stripHash() {
+    try { history.replaceState(null, '', location.pathname + location.search); }
+    catch (e) { try { location.replace('#'); } catch (e2) {} }
+  }
+  window.addEventListener('hashchange', function () {
+    if (location.hash !== '#drafted') { return; }
+    stripHash();
+    state.stageOpen = false;
+    enterDrafted(true);
+  });
+
+  /* ---------- proto strip: theme + accent ---------- */
+  var THEMES = ['auto', 'light', 'dark'];
+  var DEFAULT_ACCENT = '#35697c';
+  function currentTheme() { return document.documentElement.dataset.theme || 'auto'; }
+  function renderTheme() {
+    var t = currentTheme();
+    var b = $('proto-theme');
+    b.textContent = 'theme · ' + t;
+    b.setAttribute('aria-label', 'Theme: ' + t + '. Cycles auto, light, dark');
+  }
+  function applyTheme(t) {
+    if (t === 'auto') { delete document.documentElement.dataset.theme; }
+    else { document.documentElement.dataset.theme = t; }
+    try {
+      if (t === 'auto') { localStorage.removeItem('sparring-theme'); }
+      else { localStorage.setItem('sparring-theme', t); }
+    } catch (e) {}
+    renderTheme();
+  }
+  $('proto-theme').addEventListener('click', function () {
+    applyTheme(THEMES[(THEMES.indexOf(currentTheme()) + 1) % THEMES.length]);
+  });
+  function currentAccent() {
+    var v = document.documentElement.style.getPropertyValue('--accent').trim().toLowerCase();
+    return v || DEFAULT_ACCENT;
+  }
+  function renderAccent() {
+    var cur = currentAccent();
+    var sw = document.querySelectorAll('.proto .swbtn');
+    for (var i = 0; i < sw.length; i++) {
+      sw[i].setAttribute('aria-pressed', String(sw[i].dataset.accent.toLowerCase() === cur));
+    }
+  }
+  function applyAccent(c) {
+    c = c.toLowerCase();
+    if (c === DEFAULT_ACCENT) { document.documentElement.style.removeProperty('--accent'); }
+    else { document.documentElement.style.setProperty('--accent', c); }
+    try {
+      if (c === DEFAULT_ACCENT) { localStorage.removeItem('sparring-accent'); }
+      else { localStorage.setItem('sparring-accent', c); }
+    } catch (e) {}
+    renderAccent();
+  }
+  $('proto').addEventListener('click', function (e) {
+    var b = e.target.closest('.swbtn');
+    if (b) { applyAccent(b.dataset.accent); }
+  });
+
+  /* the strip's measured height: at phone widths the frame shrinks by it, at laptop widths the body reserves it below the frame */
+  var smallQuery = window.matchMedia('(max-width: 480px)');
+  function reserveProto() {
+    var h = $('proto').offsetHeight;
+    if (h > 0) { document.documentElement.style.setProperty('--proto-h', h + 'px'); }
+  }
+  if ('ResizeObserver' in window) { new ResizeObserver(reserveProto).observe($('proto')); }
+  window.addEventListener('resize', function () { reserveProto(); autosizeAll(); });
+  if (smallQuery.addEventListener) { smallQuery.addEventListener('change', reserveProto); }
+
+  /* ---------- boot ---------- */
+  var streamOnBoot = false;
+  (function () {
+    var drafted = false;
+    try { drafted = localStorage.getItem('sparring-mode') === 'drafted'; } catch (e) {}
+    if (location.hash === '#drafted') {
+      /* handed over from the interview page: fresh draft, streamed once */
+      drafted = true;
+      streamOnBoot = true;
+      try { localStorage.removeItem('sparring-draft'); } catch (e) {}
+      try { localStorage.setItem('sparring-mode', 'drafted'); } catch (e) {}
+      stripHash();
+    }
+    if (!drafted) { return; }
+    state.mode = 'drafted';
+    state.quiet = true;
+    state.edited = {};
+    if (!streamOnBoot) {
+      var d = readDraft();
+      if (d) {
+        prov.text = d.text.map(String);
+        prov.text.forEach(function (t, i) { if (t !== ARTICLE[i]) { state.edited[i] = true; } });
+      }
+    }
+    provCompute();
+  })();
+  if (streamOnBoot) { streamDraft(); } else { buildPage(); }
+  renderStage();
+  renderSaved();
+  renderNotes();
+  renderSheet();
+  renderTheme();
+  renderAccent();
+  renderMode();
+  reserveProto();
+  autosizeAll();
+  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(autosizeAll); }
+  window.addEventListener('load', autosizeAll);
+})();
+</script>
+</body>
+</html>

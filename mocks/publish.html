@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sparring, publish sheet</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400&display=swap">
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem('sparring-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    var a = localStorage.getItem('sparring-accent');
+    if (a && a !== '#35697c') document.documentElement.style.setProperty('--accent', a);
+  } catch (e) {}
+})();
+</script>
+<style>
+:root { --bg:#fdfcfa; --subtle:#f4f2ee; --text:#1f1d1a; --muted:#6b6660; --rule:#e2dfd8; --accent:#35697c; --serif:"Source Serif 4",Georgia,serif; --mono:"JetBrains Mono",ui-monospace,monospace }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#17181a; --subtle:#1e1f22; --text:#e4e1db; --muted:#99958d; --rule:#2c2b29; --accent:#7fb0be; color-scheme: dark } }
+:root[data-theme="dark"] { --bg:#17181a; --subtle:#1e1f22; --text:#e4e1db; --muted:#99958d; --rule:#2c2b29; --accent:#7fb0be; color-scheme: dark }
+body { background: var(--bg); color: var(--text) }
+
+body{margin:0;padding-bottom:max(52px, var(--strip-h, 0px))}
+.sp{background:var(--bg);color:var(--text);font-family:var(--serif);font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;min-height:calc(100dvh - max(52px, var(--strip-h, 0px)));display:grid;grid-template-rows:40px 1fr 32px}
+.mono{font-family:var(--mono);font-size:12px;line-height:1.4}
+.muted{color:var(--muted)}
+.text{color:var(--text)}
+a{color:inherit;text-decoration:none}
+.t{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
+.t:disabled{cursor:default}
+.ro p{margin:0 0 1.25rem}
+.ro h2{font-size:17px;font-weight:400;margin:0 0 1.25rem}
+.ro h2::before{content:"## ";color:var(--muted)}
+.kv{display:grid;grid-template-columns:104px 1fr;gap:8px 16px;align-items:baseline}
+.kv .v{font-family:var(--serif);font-size:15px;line-height:1.5;color:var(--text);background:none;border:0;border-bottom:1px solid transparent;outline:0;padding:0;width:100%;box-sizing:border-box;min-width:0}
+.kv .v:focus{border-bottom-color:var(--rule)}
+.kv textarea.v{resize:none;font-family:var(--serif);overflow:hidden}
+.grp{display:flex;flex-direction:column;gap:10px;padding:16px 0;border-top:1px solid var(--rule)}
+.grp.kv{border-top:0;padding-top:0;display:grid}
+.grp.row{flex-direction:row;align-items:center;gap:16px}
+.q{font-size:15px;line-height:1.5;margin:0}
+.q .a{color:var(--text)}
+.btn{font-family:var(--mono);font-size:12px;height:36px;padding:0 16px;border:0;border-radius:2px;background:var(--text);color:var(--bg);cursor:pointer}
+.btn:disabled{background:var(--muted);cursor:default}
+.log{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--rule);padding-top:12px}
+.log a{text-decoration:underline;text-underline-offset:0.15em;overflow-wrap:anywhere}
+.log span{overflow-wrap:anywhere}
+.tick{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.5}
+.tick input{margin:6px 0 0;accent-color:var(--text);width:14px;height:14px;flex:none}
+.tick > span{min-width:0}
+
+.hdr{display:flex;align-items:center;gap:24px;padding-inline:max(1.5rem, env(safe-area-inset-left, 0px)) max(1.5rem, env(safe-area-inset-right, 0px));border-bottom:1px solid var(--rule);min-width:0;min-height:40px}
+.hdr a{padding:12px 0;white-space:nowrap}
+.hdr .sp1{flex:1}
+.body{display:grid;grid-template-columns:1fr 400px;min-height:0}
+.ro{background:var(--subtle);padding-block:40px 48px;padding-inline:max(0px, env(safe-area-inset-left, 0px) - 1.5rem) max(0px, env(safe-area-inset-right, 0px) - 1.5rem);min-width:0;overflow:auto}
+.ro .col{width:min(68ch, 100% - 3rem);margin:0 auto;color:var(--text)}
+.sheet{border-left:1px solid var(--rule);padding:24px max(24px, env(safe-area-inset-right, 0px)) 24px max(24px, env(safe-area-inset-left, 0px));display:flex;flex-direction:column;overflow:auto;min-height:0;min-width:0}
+.sheet .top{display:flex;justify-content:space-between;gap:12px;padding-bottom:16px}
+.ftr{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-inline:max(1.5rem, env(safe-area-inset-left, 0px)) max(1.5rem, env(safe-area-inset-right, 0px));border-top:1px solid var(--rule);min-width:0}
+.ftr span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hidden{display:none}
+
+/* drafted mode: provenance bars in the gutter left of the text column, and the sheet's block list */
+.ro .col > h2,.ro .col > p{position:relative}
+.prov{width:2px;align-self:stretch;flex:none;background:repeating-linear-gradient(to bottom,var(--accent) 0 3px,transparent 3px 6px)}
+.prov.mixed{background:repeating-linear-gradient(to bottom,var(--muted) 0 3px,transparent 3px 6px)}
+.ro .prov{position:absolute;left:-12px;top:0;bottom:0}
+.dgrp{display:flex;flex-direction:column;gap:10px;min-width:0}
+.dgrp.hidden{display:none}
+.ro .col,.dgrp .tick > span{overflow-wrap:anywhere}
+.tickall{align-self:flex-start;min-height:36px}
+#mode-tag{white-space:nowrap}
+.grp.row .btn{flex:none;white-space:nowrap}
+#ship-reason{min-width:0}
+
+@media (max-width: 760px){
+  .sp{grid-template-rows:auto 1fr auto}
+  .body{grid-template-columns:1fr}
+  .sheet{border-left:0;border-top:1px solid var(--rule);padding:24px max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px))}
+  .hdr{gap:12px 16px;flex-wrap:wrap;padding-block:4px}
+  .hdr a{padding:8px 0}
+  .hdr #stage-word{margin-left:auto}
+  .ftr{flex-wrap:wrap;min-height:32px;padding-block:6px;row-gap:2px}
+  .ftr span{white-space:normal;overflow:visible}
+}
+
+/* proto strip: scaffolding for trying the mocks */
+.proto{position:fixed;bottom:env(safe-area-inset-bottom, 0px);right:max(12px, env(safe-area-inset-right, 0px));z-index:50;display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-end;background:var(--bg);border:1px solid var(--rule);border-bottom:0;font-family:var(--mono);font-size:12px;line-height:1.4;color:var(--muted);padding:0 6px}
+.proto a,.proto button,.proto .cur{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 8px;background:none;border:0;font:inherit;color:inherit;cursor:pointer}
+.proto .cur{color:var(--text);cursor:default}
+.proto .dot{display:inline-flex;align-items:center;justify-content:center;width:44px;padding:0}
+.proto .dot i{display:block;width:14px;height:14px;border-radius:50%;border:1px solid var(--rule);background:var(--sw)}
+.proto .dot[aria-pressed="true"] i{outline:2px solid var(--text);outline-offset:2px}
+.proto .sep{opacity:.6}
+@media (max-width: 480px){
+  .proto{left:0;right:0;bottom:0;border-left:0;border-right:0;justify-content:center}
+  body{padding-bottom:max(96px, var(--strip-h, 0px))}
+  .sp{min-height:calc(100dvh - max(96px, var(--strip-h, 0px)))}
+}
+
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.kv .v:focus-visible{outline:0;border-bottom-color:var(--accent)}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+<div class="sp">
+
+  <header class="mono hdr">
+    <a href="index.html" class="muted">← articles</a>
+    <span class="muted">closed-laptop</span>
+    <a href="room.html" class="muted">dump · brief · article</a>
+    <span class="sp1"></span>
+    <span id="mode-tag" class="muted hidden"></span>
+    <span id="stage-word" aria-live="polite">publish</span>
+  </header>
+
+  <div class="body">
+    <main class="ro" aria-label="The article, read-only while publishing">
+      <div class="col">
+        <h2>The lid is the first failure you meet</h2>
+        <p>I spent six years on a UI framework where the hardest bug was always the one between two renders. Nothing was wrong in either frame; the wrong thing was the gap. Agents have the same gap, and the lid of a laptop is where you find it.</p>
+        <p>The setup is ordinary. You start a coding agent on a task that will take twenty minutes, you close the lid to walk to a meeting, you open it on the other side of the building. What you expect is the agent where you left it. What you get depends on about six things nobody wrote down.</p>
+        <h2>What actually dies</h2>
+        <p>The process does not die. macOS suspends it, and when the lid opens it is still there with its stack intact. What dies is everything the process believed about the outside world. Its WebSocket to the model is gone; the server dropped it after thirty seconds of silence and the client will not know until it tries to write. Its child process, the one running the test suite, got SIGSTOP and SIGCONT and now has a wall-clock timer that thinks nineteen minutes passed in zero. The file watcher missed every event. And the model, which was mid-stream when the socket went, has finished its turn into a void. The tool call it emitted was never acknowledged, so from the model's side the turn is complete and from the agent's side it never happened.</p>
+        <p>None of this is a crash. Every component is healthy. The agent is not broken, it is very confident about a world that stopped existing.</p>
+        <h2>The frame between two frames</h2>
+        <p>In the framework we had a rule: never trust state you did not compute this frame. It was expensive and we argued about it for a year, but it was the only rule that survived contact with a tab being backgrounded for six hours. I think agent runtimes need the same rule and mostly do not have it. The agent keeps a transcript, and a transcript is a cache of what the world was. When the lid opens, the honest move is to treat the transcript as stale and re-derive: is the socket alive, did the child exit, what is on disk now versus what I think I wrote.</p>
+        <p>The runtimes I have read do something cheaper. They retry the socket and carry on. The transcript says the test suite is running, so the agent waits for a result that will never come, and I watched a spinner for eleven minutes through a whole standup before killing it.</p>
+        <h2>What I did about it</h2>
+        <p>I built a small daemon that owns the session instead of the agent owning it. The agent is a child the daemon can lose. On wake, and only when the socket was actually gone, the daemon reconciles: it reopens the socket, asks the model to replay from the last acknowledged turn, diffs the working tree against the last commit it made, and only then lets the agent see anything. The agent's first message after a lid-close is a system line it did not write: what changed while you were out.</p>
+        <p>It is not elegant. The replay costs tokens and the diff is sometimes noisy. But it is the first version where I close the lid and do not think about it.</p>
+        <p>That is the test I want for every agent runtime now.</p>
+      </div>
+    </main>
+
+    <aside class="mono muted sheet" aria-label="Publish sheet">
+      <div class="top"><span class="text">publish</span><span>origin/main · clean</span></div>
+
+      <div class="grp kv">
+        <label for="f-title">title</label><input id="f-title" class="v" type="text" value="The laptop lid is a chaos monkey">
+        <label for="f-slug">slug</label><input id="f-slug" class="v" type="text" value="closed-laptop">
+        <label for="f-desc">description</label><textarea id="f-desc" class="v" rows="2">Closing a laptop does not crash a coding agent; it leaves one confident about a world that stopped.</textarea>
+        <label for="f-date">date</label><input id="f-date" class="v" type="text" value="2026-11-07">
+        <span>draft</span><span class="v" style="color: var(--text)">false</span>
+      </div>
+
+      <div class="grp">
+        <span>before you ship, three questions (stored, not published)</span>
+        <p class="q">what did you learn writing this?<br><span class="a">&gt; that the bug was never the suspend, it was my trust in the transcript</span></p>
+        <p class="q">would you say this to a friend?<br><span class="a">&gt; yes, I said most of it to Dev on Tuesday</span></p>
+        <p class="q">who is this for and what do they lose?<br><span class="a">&gt; people building agent runtimes; they lose a week to a spinner</span></p>
+      </div>
+
+      <div class="grp">
+        <span>provenance</span>
+        <span class="text" data-coached>questions asked 11 · comments 19 · done 12 · dismissed 3</span>
+        <span class="text" data-coached>disagreed 1 · violations 0 · pasted words 0</span>
+        <span style="padding-top: 6px" data-coached>agent-word spans in the text <span class="text">1</span></span>
+        <label class="tick" for="f-tick" data-coached><input type="checkbox" id="f-tick"><span><span class="text">"treat the transcript as stale"</span> <span>(¶9, from interview q6)</span><br><span class="mono">I chose these words</span></span></label>
+        <div class="dgrp hidden" id="prov-drafted">
+          <span class="text">drafted by the coach · never-write was off for this article</span>
+          <span class="text" id="d-counts"></span>
+          <span class="text" id="d-pct"></span>
+          <span style="padding-top: 6px">blocks still entirely the coach's words <span class="text" id="d-agent-n">0</span></span>
+          <div class="dgrp hidden" id="d-rows"></div>
+          <button type="button" class="t text tickall hidden" id="d-tick-all">tick all</button>
+          <span class="text hidden" id="d-none">every block has your words in it</span>
+        </div>
+        <span>disclosure line: none. Type one into the body if you want one.</span>
+      </div>
+
+      <div class="grp">
+        <span>checks</span>
+        <span class="text">✓ site.config has no placeholders</span>
+        <span class="text">✓ headings start at ##</span>
+        <span class="text">✓ no ![ in body</span>
+        <span class="text">✓ slug is new on origin/main</span>
+      </div>
+
+      <div class="grp row">
+        <button class="btn" id="ship-btn" type="button" disabled>build and open PR</button>
+        <span id="ship-reason">disabled: 1 span unticked</span>
+      </div>
+
+      <div class="log hidden" id="log" aria-live="polite"></div>
+    </aside>
+  </div>
+
+  <footer class="mono muted ftr">
+    <span>598 words · read-only while publishing</span>
+    <span id="foot-right">the host runs this sheet, not the coach</span>
+  </footer>
+</div>
+
+<nav class="proto" aria-label="Prototype screens and look">
+  <a href="index.html">articles</a><span class="sep">·</span>
+  <a href="room.html">room</a><span class="sep">·</span>
+  <span class="cur" aria-current="page">publish</span><span class="sep">·</span>
+  <a href="phone.html">phone</a><span class="sep">·</span>
+  <a href="phone-interview.html">interview</a>
+  <button type="button" id="theme-btn">theme: auto</button>
+  <button type="button" id="proto-mode">mode · coached</button>
+  <button type="button" class="dot" data-accent="#35697c" aria-label="accent teal" style="--sw:#35697c"><i></i></button>
+  <button type="button" class="dot" data-accent="#b4521a" aria-label="accent orange" style="--sw:#b4521a"><i></i></button>
+  <button type="button" class="dot" data-accent="#6b6660" aria-label="accent grey" style="--sw:#6b6660"><i></i></button>
+</nav>
+
+<script>
+(function () {
+  var STEPS = [
+    '$ git worktree add ~/.sparring/worktrees/closed-laptop -b post/closed-laptop origin/main',
+    '$ npm ci',
+    '$ npm run build',
+    '✓ built 41 pages in 6.2s · dist/writing/closed-laptop/index.html · rss ok',
+    '$ git commit -m "Add post: The laptop lid is a chaos monkey"',
+    '$ git push -u origin post/closed-laptop',
+    '$ gh pr create --fill',
+    'https://github.com/firstprateek/personal-website-astro/pull/5'
+  ];
+
+  var state = { ticked: false, running: false, lines: [], done: false };
+  var timer = null;
+
+  var tick = document.getElementById('f-tick');
+  var btn = document.getElementById('ship-btn');
+  var reason = document.getElementById('ship-reason');
+  var log = document.getElementById('log');
+  var stageWord = document.getElementById('stage-word');
+  var footRight = document.getElementById('foot-right');
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function updateControls() {
+    var s = state;
+    var left = mode === 'drafted' ? unticked() : (s.ticked ? 0 : 1);
+    btn.disabled = left > 0 || s.running || s.done;
+    btn.textContent = s.done ? 'PR #5 is open' : s.running ? 'building…' : 'build and open PR';
+    reason.textContent = mode === 'drafted'
+      ? 'disabled: ' + (left === 1 ? '1 block unticked' : left + ' blocks unticked')
+      : 'disabled: 1 span unticked';
+    reason.classList.toggle('hidden', left === 0);
+    stageWord.textContent = s.done ? 'published' : 'publish';
+    footRight.textContent = s.done ? 'PR #5 · merging is your click' : 'the host runs this sheet, not the coach';
+  }
+
+  function renderLog() {
+    var lines = state.lines;
+    log.classList.toggle('hidden', lines.length === 0);
+    log.innerHTML = lines.map(function (text) {
+      if (text.indexOf('https://') === 0) {
+        return '<a class="text" href="' + esc(text) + '" target="_blank" rel="noopener noreferrer">' + esc(text) + '</a>';
+      }
+      var cls = text.charAt(0) === '✓' ? 'text' : 'muted';
+      return '<span class="' + cls + '">' + esc(text) + '</span>';
+    }).join('');
+  }
+
+  function step(i) {
+    if (i >= STEPS.length) {
+      state.done = true; state.running = false;
+      updateControls();
+      return;
+    }
+    state.lines = STEPS.slice(0, i + 1);
+    renderLog();
+    timer = setTimeout(function () { step(i + 1); }, 600);
+  }
+
+  tick.addEventListener('change', function () {
+    state.ticked = tick.checked;
+    updateControls();
+  });
+
+  btn.addEventListener('click', function () {
+    if (state.running || state.done) return;
+    if (mode === 'drafted' ? unticked() > 0 : !state.ticked) return;
+    if (timer) clearTimeout(timer);
+    state.running = true; state.lines = [];
+    renderLog();
+    updateControls();
+    step(0);
+  });
+
+  /* drafted mode ("send it"): this sheet reads the shared keys the Room and Phone pages write */
+  var STATES = ['agent', 'mixed', 'yours'];
+  var blocks = Array.prototype.slice.call(document.querySelectorAll('.ro .col > h2, .ro .col > p'));
+  var ORIG = blocks.map(function (el) { return el.textContent; });   /* the static sample text */
+  var mode = 'coached';
+  var draft = null;                       /* { text, state, yours } when a valid stored draft exists */
+  var blkTicked = {};                     /* block index -> true */
+  var seen = { mode: null, raw: null };   /* what storage held at the last read */
+
+  var modeBtn = document.getElementById('proto-mode');
+  var modeTag = document.getElementById('mode-tag');
+  var coachedEls = Array.prototype.slice.call(document.querySelectorAll('[data-coached]'));
+  var provDrafted = document.getElementById('prov-drafted');
+  var dCounts = document.getElementById('d-counts');
+  var dPct = document.getElementById('d-pct');
+  var dAgentN = document.getElementById('d-agent-n');
+  var rowsEl = document.getElementById('d-rows');
+  var tickAll = document.getElementById('d-tick-all');
+  var dNone = document.getElementById('d-none');
+  var proto = document.querySelector('.proto');
+  var stripH = '';
+
+  function readStore() {
+    try {
+      return {
+        mode: localStorage.getItem('sparring-mode') === 'drafted' ? 'drafted' : 'coached',
+        raw: localStorage.getItem('sparring-draft')
+      };
+    } catch (e) { return null; }
+  }
+
+  function parseDraft(raw) {
+    var d, i, y;
+    if (!raw) return null;
+    try { d = JSON.parse(raw); } catch (e) { return null; }
+    if (!d || d.v !== 1 || !Array.isArray(d.text) || !Array.isArray(d.state)) return null;
+    if (d.text.length !== blocks.length || d.state.length !== blocks.length) return null;
+    for (i = 0; i < blocks.length; i++) {
+      if (typeof d.text[i] !== 'string' || STATES.indexOf(d.state[i]) < 0) return null;
+    }
+    y = Math.round(Number(d.yours));
+    if (!(y >= 0 && y <= 100)) y = 0;
+    return { text: d.text, state: d.state, yours: y };
+  }
+
+  function stateOf(i) { return draft ? draft.state[i] : 'agent'; }
+  function textOf(i) {
+    if (!draft) return ORIG[i];
+    return blocks[i].tagName === 'H2' ? draft.text[i].replace(/^## /, '') : draft.text[i];
+  }
+  function agentRows() {
+    var out = [];
+    if (mode !== 'drafted') return out;
+    blocks.forEach(function (el, i) { if (stateOf(i) === 'agent') out.push(i); });
+    return out;
+  }
+  function unticked() {
+    return agentRows().filter(function (i) { return !blkTicked[i]; }).length;
+  }
+  function firstSix(text) {
+    var w = text.trim().split(/\s+/);
+    return w.length > 6 ? w.slice(0, 6).join(' ') + '…' : w.join(' ');
+  }
+
+  function resetBuild() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    state.running = false; state.done = false; state.lines = [];
+    renderLog();
+  }
+
+  /* the read-only article: text from the stored draft (or the static sample) and a dotted bar per coach block */
+  function renderArticle() {
+    var drafted = mode === 'drafted';
+    blocks.forEach(function (el, i) {
+      var st = drafted ? stateOf(i) : 'yours';
+      var bar;
+      el.textContent = drafted ? textOf(i) : ORIG[i];
+      if (st === 'agent' || st === 'mixed') {
+        bar = document.createElement('span');
+        bar.className = st === 'mixed' ? 'prov mixed' : 'prov';
+        bar.setAttribute('aria-hidden', 'true');
+        el.appendChild(bar);
+        el.setAttribute('aria-description', st === 'mixed' ? 'written by the coach, edited by you' : 'written by the coach');
+      } else {
+        el.removeAttribute('aria-description');
+      }
+    });
+  }
+
+  /* the provenance group, the header tag and the strip label */
+  function renderProv() {
+    var drafted = mode === 'drafted';
+    var rows, a = 0, m = 0, y = 0, yours, focusId;
+    coachedEls.forEach(function (el) { el.classList.toggle('hidden', drafted); });
+    provDrafted.classList.toggle('hidden', !drafted);
+    modeTag.classList.toggle('hidden', !drafted);
+    modeBtn.textContent = 'mode · ' + mode;
+    if (!drafted) { modeTag.textContent = ''; rowsEl.innerHTML = ''; return; }
+
+    blocks.forEach(function (el, i) {
+      var st = stateOf(i);
+      if (st === 'agent') a++; else if (st === 'mixed') m++; else y++;
+    });
+    yours = draft ? draft.yours : 0;
+    rows = agentRows();
+    Object.keys(blkTicked).forEach(function (k) { if (rows.indexOf(Number(k)) < 0) delete blkTicked[k]; });
+
+    modeTag.textContent = 'drafted · ' + yours + '% yours';
+    dCounts.textContent = blocks.length + ' ¶ · ' + a + ' coach · ' + m + ' edited · ' + y + ' yours';
+    dPct.textContent = yours + '% of the words are yours';
+    dAgentN.textContent = String(rows.length);
+
+    focusId = document.activeElement && rowsEl.contains(document.activeElement) ? document.activeElement.id : '';
+    rowsEl.innerHTML = rows.map(function (i) {
+      var n = i + 1;
+      return '<label class="tick" for="f-blk-' + n + '"><input type="checkbox" id="f-blk-' + n + '" data-blk="' + i + '"' +
+        (blkTicked[i] ? ' checked' : '') + '><span><span>¶' + n + '</span> <span class="text">"' + esc(firstSix(textOf(i))) +
+        '"</span><br><span class="mono">I chose these words</span></span></label>';
+    }).join('');
+    if (focusId && document.getElementById(focusId)) document.getElementById(focusId).focus();
+    rowsEl.classList.toggle('hidden', rows.length === 0);
+    tickAll.classList.toggle('hidden', rows.length < 2);
+    dNone.classList.toggle('hidden', rows.length > 0);
+  }
+
+  /* the strip grew a button: reserve more room under the page when it wraps taller than the CSS allows for */
+  function fitStrip() {
+    var h = proto.offsetHeight + 'px';
+    if (h === stripH) return;
+    stripH = h;
+    document.documentElement.style.setProperty('--strip-h', h);   /* the CSS takes max(its own reserve, this) */
+  }
+
+  function applyMode() {
+    renderArticle();
+    renderProv();
+    updateControls();
+    fitStrip();
+  }
+
+  /* read both keys; returns true when what storage holds changed since the last read */
+  function loadFromStore() {
+    var s = readStore();
+    if (!s || (s.mode === seen.mode && s.raw === seen.raw)) return false;
+    seen = s;
+    if (s.mode !== mode) {
+      mode = s.mode;
+      blkTicked = {};
+      state.ticked = false; tick.checked = false;
+      resetBuild();
+    }
+    draft = mode === 'drafted' ? parseDraft(s.raw) : null;
+    return true;
+  }
+
+  rowsEl.addEventListener('change', function (e) {
+    var t = e.target;
+    if (!t || t.type !== 'checkbox' || !t.hasAttribute('data-blk')) return;
+    if (t.checked) blkTicked[t.getAttribute('data-blk')] = true; else delete blkTicked[t.getAttribute('data-blk')];
+    updateControls();
+  });
+
+  tickAll.addEventListener('click', function () {
+    Array.prototype.forEach.call(rowsEl.querySelectorAll('input[type="checkbox"]'), function (cb) {
+      cb.checked = true;
+      blkTicked[cb.getAttribute('data-blk')] = true;
+    });
+    updateControls();
+  });
+
+  /* strip toggle: to drafted is a fresh draft, to coached removes both keys and restores the sample page */
+  modeBtn.addEventListener('click', function () {
+    var next = mode === 'drafted' ? 'coached' : 'drafted';
+    try {
+      localStorage.removeItem('sparring-draft');
+      if (next === 'drafted') localStorage.setItem('sparring-mode', 'drafted'); else localStorage.removeItem('sparring-mode');
+    } catch (e) {}
+    seen = readStore() || seen;
+    mode = next;
+    draft = null;
+    blkTicked = {};
+    state.ticked = false; tick.checked = false;
+    resetBuild();
+    applyMode();
+  });
+
+  /* another tab (the Room, the Phone) changed the draft, or this page came back from the back-forward cache */
+  window.addEventListener('storage', function (e) {
+    if (e.key !== null && e.key !== 'sparring-mode' && e.key !== 'sparring-draft') return;
+    if (loadFromStore()) applyMode();
+  });
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted && loadFromStore()) applyMode();
+  });
+  window.addEventListener('resize', fitStrip);
+
+  tick.checked = state.ticked;
+  updateControls();
+  renderLog();
+
+  /* textarea autosize fallback (Safari lacks field-sizing) */
+  var desc = document.getElementById('f-desc');
+  function autosize(ta) {
+    ta.style.height = 'auto';
+    ta.style.height = (ta.scrollHeight + ta.offsetHeight - ta.clientHeight) + 'px';
+  }
+  desc.addEventListener('input', function () { autosize(desc); });
+  autosize(desc);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { autosize(desc); });
+
+  /* proto strip: theme + accent */
+  var root = document.documentElement;
+  var themeBtn = document.getElementById('theme-btn');
+  var ORDER = ['auto', 'light', 'dark'];
+  function currentTheme() { return root.dataset.theme === 'light' || root.dataset.theme === 'dark' ? root.dataset.theme : 'auto'; }
+  function applyTheme(t) {
+    if (t === 'auto') delete root.dataset.theme; else root.dataset.theme = t;
+    try { if (t === 'auto') localStorage.removeItem('sparring-theme'); else localStorage.setItem('sparring-theme', t); } catch (e) {}
+    themeBtn.textContent = 'theme: ' + t;
+    fitStrip();
+  }
+  themeBtn.textContent = 'theme: ' + currentTheme();
+  themeBtn.addEventListener('click', function () {
+    applyTheme(ORDER[(ORDER.indexOf(currentTheme()) + 1) % ORDER.length]);
+  });
+
+  var DEFAULT_ACCENT = '#35697c';
+  var dots = Array.prototype.slice.call(document.querySelectorAll('.proto .dot'));
+  function currentAccent() {
+    var v = root.style.getPropertyValue('--accent').trim();
+    return v || DEFAULT_ACCENT;
+  }
+  function markAccent() {
+    var cur = currentAccent();
+    dots.forEach(function (d) { d.setAttribute('aria-pressed', d.getAttribute('data-accent') === cur ? 'true' : 'false'); });
+  }
+  function applyAccent(a) {
+    if (a === DEFAULT_ACCENT) root.style.removeProperty('--accent'); else root.style.setProperty('--accent', a);
+    try { if (a === DEFAULT_ACCENT) localStorage.removeItem('sparring-accent'); else localStorage.setItem('sparring-accent', a); } catch (e) {}
+    markAccent();
+  }
+  dots.forEach(function (d) {
+    d.addEventListener('click', function () { applyAccent(d.getAttribute('data-accent')); });
+  });
+  markAccent();
+
+  /* on load: honour sparring-mode and sparring-draft (storage that throws or is empty means coached) */
+  loadFromStore();
+  applyMode();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitStrip);
+})();
+</script>
+</body>
+</html>

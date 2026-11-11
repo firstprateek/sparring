@@ -1,0 +1,238 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Sparring</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400&display=swap">
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem('sparring-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+  } catch (e) {}
+  try {
+    var a = localStorage.getItem('sparring-accent');
+    if (a && a !== '#35697c') document.documentElement.style.setProperty('--accent', a);
+  } catch (e) {}
+})();
+</script>
+<style>
+:root { --bg:#fdfcfa; --subtle:#f4f2ee; --text:#1f1d1a; --muted:#6b6660; --rule:#e2dfd8; --accent:#35697c; --serif:"Source Serif 4",Georgia,serif; --mono:"JetBrains Mono",ui-monospace,monospace }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#17181a; --subtle:#1e1f22; --text:#e4e1db; --muted:#99958d; --rule:#2c2b29; --accent:#7fb0be; color-scheme: dark } }
+:root[data-theme="dark"] { --bg:#17181a; --subtle:#1e1f22; --text:#e4e1db; --muted:#99958d; --rule:#2c2b29; --accent:#7fb0be; color-scheme: dark }
+body { margin:0; background: var(--bg); color: var(--text) }
+*,*::before,*::after{box-sizing:border-box}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{transition:none !important;animation:none !important}}
+
+.sp{--gl:max(16px, env(safe-area-inset-left, 0px));--gr:max(16px, env(safe-area-inset-right, 0px));background:var(--bg);color:var(--text);font-family:var(--serif);font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column;padding-left:var(--gl);padding-right:var(--gr);padding-block:0 44px;overflow-x:hidden}
+.mono{font-family:var(--mono);font-size:12px;line-height:1.4}
+.muted{color:var(--muted)}
+a{color:inherit;text-decoration:none}
+a:hover{color:var(--text)}
+
+.bar{height:40px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-left:calc(-1 * var(--gl));margin-right:calc(-1 * var(--gr));padding-left:calc(var(--gl) + 0.5rem);padding-right:calc(var(--gr) + 0.5rem)}
+.bar>*{min-width:0}
+header.bar{border-bottom:1px solid var(--rule)}
+footer.bar{margin-top:auto;height:32px;border-top:1px solid var(--rule)}
+footer.bar span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+main{width:min(68ch, 100% - 3rem);margin:0 auto;padding:24px 0 48px;display:flex;flex-direction:column;gap:24px}
+.ideaform{display:flex;align-items:center;gap:12px;margin:0}
+.ideaform label{padding:12px 0}
+.idea{flex:1;min-width:0;background:none;border:0;outline:none;font-family:var(--serif);font-size:15px;line-height:1.5;color:var(--text);padding:12px 0}
+.idea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.list{display:flex;flex-direction:column;gap:4px}
+.list h2{margin:0 0 8px;font-weight:400}
+.rule{border:0;border-top:1px solid var(--rule);margin:0}
+
+.row{display:flex;flex-direction:column;gap:2px;padding:12px;margin:0 -12px;color:inherit}
+.row:hover,.row:focus-visible{background:var(--subtle)}
+.row .top{display:flex;justify-content:space-between;align-items:baseline;gap:24px}
+.row .top>span:first-child{min-width:0}
+.row .tail{display:flex;gap:12px;white-space:nowrap}
+.row .tok{display:none}
+.row:hover .tok{display:inline}
+.row:hover .save{display:none}
+.row .sub{font-size:15px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.inbox{display:flex;gap:12px;align-items:baseline;padding:6px 0}
+.inbox .date{flex:none}
+.inbox .text{flex:1;min-width:0;font-size:15px;line-height:1.5;overflow-wrap:anywhere}
+.inbox .go{flex:none;padding:12px 0;visibility:hidden}
+.inbox:hover .go,.inbox:focus-within .go{visibility:visible}
+
+.t{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer}
+.pill{font-family:var(--mono);font-size:12px;color:var(--muted);padding:14px 0}
+.pill:hover{color:var(--text)}
+
+.proto{position:fixed;bottom:env(safe-area-inset-bottom, 0px);right:max(12px, env(safe-area-inset-right, 0px));z-index:50;display:flex;align-items:center;gap:2px;height:44px;padding:0 6px;background:var(--bg);border:1px solid var(--rule);border-bottom:0;font-family:var(--mono);font-size:12px;line-height:1.4;color:var(--muted)}
+.proto a,.proto button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:44px;padding:0 6px;background:none;border:0;font:inherit;color:inherit;cursor:pointer}
+.proto a:hover,.proto button:hover{color:var(--text)}
+.proto .here{color:var(--text);cursor:default}
+.proto .sep{padding:0 2px}
+.proto .sw{display:inline-block;width:14px;height:14px;border-radius:50%;border:1px solid var(--rule)}
+.proto .acc[aria-pressed="true"] .sw{box-shadow:0 0 0 2px var(--bg),0 0 0 3px var(--text)}
+@media (max-width: 480px){
+  .proto{left:0;right:0;bottom:0;justify-content:center;border-left:0;border-right:0;padding:0 2px;gap:0}
+  .proto a,.proto button{min-width:40px;padding:0 4px}
+  .proto .sep{display:none}
+}
+</style>
+
+<div class="sp">
+  <header class="bar mono">
+    <span>sparring</span>
+    <span class="muted">claude · 41k tok · <button class="t" id="theme-btn" type="button" aria-label="Theme: auto. Cycle theme">theme · auto</button></span>
+  </header>
+
+  <main>
+    <form class="ideaform" id="idea-form">
+      <label for="idea" class="mono muted">&gt;</label>
+      <input id="idea" class="idea" type="text" autocomplete="off" aria-label="Write down an idea" value="">
+    </form>
+
+    <section class="list">
+      <h2 class="mono muted">inbox</h2>
+      <div id="inbox"></div>
+    </section>
+
+    <hr class="rule">
+
+    <section class="list">
+      <h2 class="mono muted">articles</h2>
+
+      <a class="row" href="room.html">
+        <span class="top">
+          <span>The laptop lid is a chaos monkey</span>
+          <span class="mono muted tail"><span>draft</span><span>612w</span><span>·6</span><span class="save">2h</span><span class="tok">18k tok</span></span>
+        </span>
+        <span class="muted sub">Which number did you actually measure, the thirty seconds or the eleven minutes?</span>
+      </a>
+
+      <a class="row" href="room.html">
+        <span class="top">
+          <span>The interview is the product</span>
+          <span class="mono muted tail"><span>interview 4/6</span><span>·1</span><span class="save">3d</span><span class="tok">6k tok</span></span>
+        </span>
+        <span class="muted sub">Who exactly reads this, and what do they lose if they don't?</span>
+      </a>
+
+      <a class="row" href="room.html">
+        <span class="top">
+          <span>Config is not a feature flag</span>
+          <span class="mono muted tail"><span>polish</span><span>1210w</span><span>·0</span><span class="save">9d</span><span class="tok">31k tok</span></span>
+        </span>
+        <span class="muted sub">nothing in this pass · cut</span>
+      </a>
+
+      <a class="row" href="publish.html">
+        <span class="top">
+          <span>Three worktrees, one site</span>
+          <span class="mono muted tail"><span>PR #4</span></span>
+        </span>
+        <span class="muted sub">build finished · PR #4 is open</span>
+      </a>
+
+      <a class="pill" href="room.html">+ new article</a>
+    </section>
+  </main>
+
+  <footer class="bar mono muted">
+    <span>j k move · enter open · n new · i idea</span>
+    <span>sparring.tailnet.ts.net · connected</span>
+  </footer>
+</div>
+
+<nav class="proto" aria-label="Prototype screens">
+  <span class="here" aria-current="page">articles</span><span class="sep">·</span><a href="room.html">room</a><span class="sep">·</span><a href="publish.html">publish</a><span class="sep">·</span><a href="phone.html">phone</a><span class="sep">·</span><a href="phone-interview.html">interview</a><span class="sep">·</span><button type="button" class="acc" id="acc-teal" data-accent="#35697c" aria-label="accent teal"><span class="sw" style="background:#35697c"></span></button><button type="button" class="acc" id="acc-orange" data-accent="#b4521a" aria-label="accent orange"><span class="sw" style="background:#b4521a"></span></button><button type="button" class="acc" id="acc-grey" data-accent="#6b6660" aria-label="accent grey"><span class="sw" style="background:#6b6660"></span></button>
+</nav>
+
+<script>
+(function () {
+  'use strict';
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* ---- state ---- */
+  var state = {
+    ideaText: '',
+    inbox: [
+      { date: '11-06', text: 'the cache lied for three weeks and nobody noticed' },
+      { date: '11-02', text: 'every "AI pair" demo is recorded on a laptop that never sleeps' }
+    ]
+  };
+
+  /* ---- inbox list ---- */
+  var inboxEl = document.getElementById('inbox');
+  function renderInbox() {
+    inboxEl.innerHTML = state.inbox.map(function (it) {
+      return '<div class="inbox">' +
+        '<span class="mono muted date">' + esc(it.date) + '</span>' +
+        '<span class="text">' + esc(it.text) + '</span>' +
+        '<a class="mono muted go" href="room.html">→ article</a>' +
+        '</div>';
+    }).join('');
+  }
+  renderInbox();
+
+  /* ---- idea form ---- */
+  var form = document.getElementById('idea-form');
+  var idea = document.getElementById('idea');
+  idea.addEventListener('input', function (e) { state.ideaText = e.target.value; });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var text = state.ideaText.trim();
+    if (!text) return;
+    state.inbox = [{ date: '11-07', text: text }].concat(state.inbox);
+    state.ideaText = '';
+    idea.value = '';
+    renderInbox();
+  });
+
+  /* ---- theme (header button is the toggle) ---- */
+  var themeBtn = document.getElementById('theme-btn');
+  function currentTheme() {
+    var t = document.documentElement.dataset.theme;
+    return t === 'light' || t === 'dark' ? t : 'auto';
+  }
+  function applyTheme(t) {
+    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    else delete document.documentElement.dataset.theme;
+    try {
+      if (t === 'auto') localStorage.removeItem('sparring-theme');
+      else localStorage.setItem('sparring-theme', t);
+    } catch (e) {}
+    themeBtn.textContent = 'theme · ' + t;
+    themeBtn.setAttribute('aria-label', 'Theme: ' + t + '. Cycle theme');
+  }
+  themeBtn.addEventListener('click', function () {
+    var order = ['auto', 'light', 'dark'];
+    applyTheme(order[(order.indexOf(currentTheme()) + 1) % 3]);
+  });
+  applyTheme(currentTheme());
+
+  /* ---- accent ---- */
+  var DEFAULT_ACCENT = '#35697c';
+  var accBtns = Array.prototype.slice.call(document.querySelectorAll('.proto .acc'));
+  function currentAccent() {
+    return document.documentElement.style.getPropertyValue('--accent').trim() || DEFAULT_ACCENT;
+  }
+  function applyAccent(a) {
+    if (a === DEFAULT_ACCENT) document.documentElement.style.removeProperty('--accent');
+    else document.documentElement.style.setProperty('--accent', a);
+    try {
+      if (a === DEFAULT_ACCENT) localStorage.removeItem('sparring-accent');
+      else localStorage.setItem('sparring-accent', a);
+    } catch (e) {}
+    accBtns.forEach(function (b) {
+      b.setAttribute('aria-pressed', b.dataset.accent === a ? 'true' : 'false');
+    });
+  }
+  accBtns.forEach(function (b) {
+    b.addEventListener('click', function () { applyAccent(b.dataset.accent); });
+  });
+  applyAccent(currentAccent());
+})();
+</script>

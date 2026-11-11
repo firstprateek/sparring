@@ -1,0 +1,1046 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sparring, room on a laptop</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400&display=swap">
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem('sparring-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    var a = localStorage.getItem('sparring-accent');
+    if (a && a !== '#35697c') document.documentElement.style.setProperty('--accent', a);
+  } catch (e) {}
+})();
+</script>
+<style>
+:root { --bg:#fdfcfa; --subtle:#f4f2ee; --text:#1f1d1a; --muted:#6b6660; --rule:#e2dfd8; --accent:#35697c; --serif:"Source Serif 4",Georgia,serif; --mono:"JetBrains Mono",ui-monospace,monospace }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#17181a; --subtle:#1e1f22; --text:#e4e1db; --muted:#99958d; --rule:#2c2b29; --accent:#7fb0be; color-scheme: dark } }
+:root[data-theme="dark"] { --bg:#17181a; --subtle:#1e1f22; --text:#e4e1db; --muted:#99958d; --rule:#2c2b29; --accent:#7fb0be; color-scheme: dark }
+html,body{margin:0}
+body { background: var(--bg); color: var(--text); font-family:var(--serif); font-size:17px; line-height:1.65; -webkit-font-smoothing:antialiased }
+[hidden]{display:none !important}
+
+.sp{min-height:100vh;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 var(--proto-h,46px)}
+.mono{font-family:var(--mono);font-size:12px;line-height:1.4}
+.muted{color:var(--muted)}
+.text{color:var(--text)}
+a{color:inherit;text-decoration:none}
+.t{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left}
+.t:disabled{cursor:default}
+.act{font-family:var(--mono);font-size:12px;line-height:1.4;padding:12px 0;margin:-12px 0}
+.para{display:block;width:100%;box-sizing:border-box;resize:none;border:0;outline:0;background:transparent;font:inherit;color:inherit;padding:0;margin:0 0 1.25rem;overflow:hidden;field-sizing:content}
+.para:focus{outline:0}
+.leaf{font-family:var(--mono);font-size:12px;padding:12px 0;position:relative}
+.leaf.on{color:var(--text)}
+.leaf.off{color:var(--muted)}
+.menu{position:absolute;right:0;top:36px;width:200px;background:var(--bg);border:1px solid var(--rule);padding:8px 12px;display:flex;flex-direction:column;gap:2px;z-index:3}
+.menu .it{padding:6px 0}
+.menu .pend{border-top:1px solid var(--rule);padding-top:6px;margin-top:4px;display:flex;gap:8px;flex-wrap:wrap}
+.note{display:flex;flex-direction:column;gap:8px;padding-bottom:16px}
+.note:focus{outline:0}
+.note .nhead{display:flex;gap:6px;flex-wrap:wrap}
+.note .span{font-size:15px;line-height:1.5;margin:0;color:var(--text)}
+.note .nbody{font-size:15px;line-height:1.5;margin:0;color:var(--muted)}
+.note .nbody q{color:var(--text);quotes:"\201C" "\201D"}
+.note .acts{display:flex;gap:16px;align-items:baseline}
+.note .replyrow{display:flex;gap:8px;align-items:baseline}
+.note .replyrow input{flex:1;min-width:0;background:none;border:0;border-bottom:1px solid var(--rule);outline:0;font:inherit;color:var(--text);padding:2px 0}
+.v2{border-left:1px solid var(--rule);padding-left:12px;margin-top:4px}
+.v2 .acts2{margin-top:6px;display:flex;gap:16px}
+.comp{display:flex;gap:8px;align-items:flex-start;border-top:1px solid var(--rule);padding-top:12px;position:relative}
+.comp textarea{flex:1;min-width:0;background:none;border:0;outline:0;resize:none;font-family:var(--mono);font-size:12px;line-height:1.4;color:var(--text);padding:0;margin:0;min-height:17px;max-height:51px;field-sizing:content}
+.slash{position:absolute;left:0;right:0;bottom:100%;background:var(--bg);border:1px solid var(--rule);padding:8px 12px;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin-bottom:8px}
+.slash span{min-width:0}
+.turn{display:grid;grid-template-columns:44px 1fr;gap:12px;font-size:15px;line-height:1.5}
+.turn .who{font-family:var(--mono);font-size:12px;line-height:1.4;color:var(--muted);padding-top:3px}
+.turn span{min-width:0}
+.divider{display:flex;align-items:center;gap:8px;color:var(--muted);font-family:var(--mono);font-size:12px}
+.divider::before,.divider::after{content:"";flex:1;border-top:1px solid var(--rule)}
+.letter{border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:8px 0;display:flex;gap:8px;flex-wrap:wrap}
+.tells{position:absolute;left:max(24px,calc(50% - 34ch));bottom:0;max-width:calc(100% - 48px);background:var(--bg);border:1px solid var(--rule);border-bottom:0;padding:12px 16px;display:grid;grid-template-columns:auto auto auto;gap:4px 24px;z-index:2}
+.tells span{min-width:0;overflow-wrap:anywhere}
+.mark{width:2px;align-self:stretch;margin-bottom:1.25rem;background:var(--accent)}
+.mark.seen{background:var(--muted)}
+.qmark{font-family:var(--mono);font-size:12px;color:var(--accent);padding-top:4px}
+.foot .t{color:var(--muted)}
+.foot .t:hover{color:var(--text)}
+
+/* drafted mode */
+.prov{width:2px;align-self:stretch;flex:none;background:repeating-linear-gradient(to bottom,var(--accent) 0 3px,transparent 3px 6px)}
+.prov.mixed{background:repeating-linear-gradient(to bottom,var(--muted) 0 3px,transparent 3px 6px)}
+.gut .prov{margin-bottom:1.25rem}
+.modetag{white-space:nowrap}
+.menu .sep{border-top:1px solid var(--rule);margin-top:4px;padding-top:8px;color:var(--muted)}
+.menu .pend.own{border-top:0;margin-top:0;padding-top:0}
+.quiet{display:flex;flex-direction:column;gap:8px;flex:1;min-height:0;min-width:0}
+.legend{display:flex;gap:4px 12px;flex-wrap:wrap;align-items:center;padding-top:8px}
+.legend .lg{display:inline-flex;align-items:center;gap:6px}
+.legend .prov{height:12px;align-self:center}
+
+/* layout */
+.head{display:flex;align-items:center;gap:24px;min-height:40px;padding:0 calc(1.5rem - 16px);border-bottom:1px solid var(--rule);position:relative}
+.head .back{padding:12px 0}
+.head nav{display:flex;gap:12px;align-items:baseline}
+.thesis{font-family:var(--serif);font-size:13px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.spacer{flex:1}
+.stage{padding:12px 0;white-space:nowrap}
+.body{display:grid;grid-template-columns:minmax(0,1fr) var(--mw,280px);min-height:0;transition:grid-template-columns 200ms ease-out;position:relative}
+.page{padding:40px 0 48px;min-width:0;position:relative}
+.col{width:min(68ch,100% - 3rem);margin:0 auto;padding-left:24px;box-sizing:content-box}
+.prow{display:grid;grid-template-columns:24px 1fr;margin-left:-24px}
+.gut{display:flex;justify-content:center;gap:4px}
+.margin{border-left:1px dotted var(--rule);padding:24px 20px 16px;display:flex;flex-direction:column;gap:16px;min-height:0;min-width:0;position:relative;overflow:hidden}
+.aleaf{display:flex;flex-direction:column;gap:16px;flex:1;min-height:0;min-width:0}
+.filter{display:flex;gap:12px;flex-wrap:wrap}
+.notes-wrap{display:flex;flex-direction:column;overflow:auto;flex:1;min-height:0}
+.turns{display:flex;flex-direction:column;gap:14px;overflow:auto;flex:1;min-height:0}
+.quotes{display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.5;color:var(--muted);overflow:auto;flex:1;min-height:0}
+.log{position:absolute;top:0;right:0;bottom:0;width:var(--mw,280px);background:var(--bg);border-left:1px solid var(--rule);padding:24px 20px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;overflow:auto;z-index:4}
+.log .bar{display:flex;justify-content:space-between}
+.line{display:grid;grid-template-columns:44px 1fr;gap:12px;font-size:15px;line-height:1.5}
+.line .at{padding-top:3px}
+.line span{min-width:0}
+.pre{white-space:pre-line}
+.foot{display:flex;align-items:center;justify-content:space-between;min-height:32px;padding:0 calc(1.5rem - 16px);border-top:1px solid var(--rule);gap:12px}
+.foot .grp{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+
+/* proto strip */
+.proto{position:fixed;bottom:env(safe-area-inset-bottom,0px);right:max(12px,env(safe-area-inset-right,0px));z-index:50;display:flex;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 24px);box-sizing:border-box;align-items:center;gap:2px;padding:0 6px;background:var(--bg);border:1px solid var(--rule);color:var(--muted);font-family:var(--mono);font-size:12px;line-height:1.4}
+.proto a,.proto .cur,.proto .t{display:inline-flex;align-items:center;min-height:44px;padding:0 6px;color:var(--muted)}
+.proto .cur{color:var(--text)}
+.proto .dot{padding:0 2px}
+.proto .sw{width:44px;min-height:44px;justify-content:center;padding:0}
+.proto .sw span{width:14px;height:14px;border-radius:50%;display:block;border:1px solid var(--rule)}
+.proto .sw[aria-pressed="true"] span{outline:2px solid var(--text);outline-offset:2px}
+
+a:focus-visible,button:focus-visible,input:focus-visible,.note .replyrow input:focus-visible,#composer:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+@media (prefers-reduced-motion: reduce){.body{transition:none}}
+
+@media (max-width:760px){
+  .head{flex-wrap:wrap;gap:8px 16px;padding-block:4px}
+  .thesis{flex:1 1 100%;order:9;text-align:left}
+  .menu{top:100%}
+  .body{grid-template-columns:minmax(0,1fr)}
+  .margin{border-left:0;border-top:1px dotted var(--rule);overflow:visible}
+  .notes-wrap,.turns,.quotes{overflow:visible}
+  .log{position:fixed;left:0;right:0;top:0;bottom:0;width:auto;border-left:0}
+  .tells{left:16px;right:16px;max-width:none}
+  .foot{flex-wrap:wrap;padding-block:6px}
+}
+@media (max-width:480px){
+  .proto{left:0;right:0;bottom:0;max-width:none;flex-wrap:wrap;justify-content:center;border-width:1px 0 0;padding:0 4px}
+}
+</style>
+</head>
+<body>
+<div class="sp">
+
+  <header class="mono head">
+    <a href="index.html" class="muted back">← articles</a>
+    <span class="muted">closed-laptop</span>
+    <nav aria-label="Leaves">
+      <button type="button" id="leaf-dump" class="t leaf off" data-leaf="dump">dump</button>
+      <span class="muted">·</span>
+      <button type="button" id="leaf-brief" class="t leaf off" data-leaf="brief">brief</button>
+      <span class="muted">·</span>
+      <button type="button" id="leaf-article" class="t leaf on" data-leaf="article" aria-current="true">article</button>
+    </nav>
+    <span id="thesis" class="muted thesis" title="reader: someone building or operating an agent runtime, who has watched a spinner after a sleep and blamed the model">Closing a laptop does not crash a coding agent; it leaves one confident about a world that stopped existing, and runtimes should treat the transcript as stale on wake.</span>
+    <span id="spacer" class="spacer" hidden></span>
+    <span id="mode-tag" class="muted modetag" hidden>drafted · 0% yours</span>
+    <button type="button" id="stage-btn" class="t mono stage" aria-haspopup="true" aria-expanded="false" aria-controls="stage-menu"><span id="stage-word">draft</span> ▾</button>
+    <div id="stage-menu" class="menu mono" hidden></div>
+  </header>
+
+  <div class="body" id="body" style="--mw: 280px">
+
+    <main class="page">
+      <div class="col">
+        <div id="paras-article" class="paras"></div>
+        <div id="paras-dump" class="paras" hidden></div>
+        <div id="paras-brief" class="paras" hidden></div>
+      </div>
+
+      <div id="tells" class="tells mono" hidden>
+        <span>em-dash</span><span class="text">0</span><span></span>
+        <span>single-sentence ¶</span><span class="text">1</span><span class="muted">"That is the test I want for every agent runtime now."</span>
+        <span>not-X-but-Y</span><span class="text">1</span><span class="muted">"not broken, it is very confident"</span>
+        <span>genuinely</span><span class="text">0</span><span></span>
+        <span>rule-of-three</span><span class="text">2</span><span class="muted">¶4, ¶10</span>
+        <span>sentence-length σ</span><span class="text">7.9</span><span class="muted">dump 11.2</span>
+        <span>first-person</span><span class="text">11%</span><span class="muted">dump 27%</span>
+        <span class="muted" style="grid-column: 1 / -1; padding-top: 8px">counts, not verdicts. Cantrill's own post trips this.</span>
+      </div>
+    </main>
+
+    <aside class="margin" aria-label="Coach margin">
+
+      <div id="aside-article" class="aleaf">
+        <div id="letter" class="letter mono muted"><span>write refused</span><span>·</span><span>the coach tried to edit article.md</span><span>·</span><span>logged</span></div>
+        <div id="letter-drafted" class="letter mono muted" hidden><span>drafted</span><span>·</span><span>the coach wrote article.md</span><span>·</span><span>never-write is off for this article</span></div>
+        <div id="quiet" class="quiet mono muted" hidden>
+          <span class="text">the coach is quiet. this review is yours.</span>
+          <span>/critique when you want notes</span>
+          <span id="quiet-counts">13 ¶ · 13 coach · 0 edited · 0 yours</span>
+          <span id="quiet-pct">0% of the words are yours</span>
+          <div class="legend"><span class="lg"><span class="prov" aria-hidden="true"></span>coach</span><span class="lg"><span class="prov mixed" aria-hidden="true"></span>edited</span><span>no bar: yours</span></div>
+        </div>
+        <div id="filter-row" class="mono filter"><span class="text">all 6</span><span class="muted">open <span id="open-count">5</span></span><span class="muted">critique 4</span><span class="muted">filler 1</span><span class="muted">voice 1</span></div>
+        <div id="notes-wrap" class="notes-wrap">
+          <div id="notes"></div>
+          <div class="divider" style="margin-top: 8px"><span>shelf</span></div>
+        </div>
+      </div>
+
+      <div id="aside-dump" class="aleaf" hidden>
+        <div id="turns" class="turns"></div>
+      </div>
+
+      <div id="aside-brief" class="aleaf" hidden>
+        <div class="mono muted">quoted from dump.md</div>
+        <div class="quotes">
+          <span>"not crashed. confident."</span>
+          <span>"the transcript is just a cache"</span>
+          <span>"I sat through a whole standup watching it spin"</span>
+          <span>"daemon owns the session, agent is a child"</span>
+          <span>"I want to close the lid and not think about it"</span>
+          <span>"only when the socket was actually gone"</span>
+        </div>
+      </div>
+
+      <div class="comp">
+        <div id="slash" class="slash mono" hidden>
+          <span class="text">/next</span><span class="muted">write the next section, then say done</span>
+          <span class="text">/ask</span><span class="muted">park a question at the caret</span>
+          <span class="text">/critique</span><span class="muted">argument pass over the whole draft</span>
+          <span class="text">/reader</span><span class="muted">role-play the reader in brief.md</span>
+          <span class="text">/pass</span><span class="muted">filler buried-verbs passive repeats topic-sentences cut voice typos tells</span>
+          <span class="text">/queue</span><span class="muted">run passes unattended</span>
+          <span class="text">/strict</span><span class="muted">howlers only · normal · every nit</span>
+          <span class="text">/quiet</span><span class="muted">no coach for this article</span>
+          <span class="text">/sendit</span><span class="muted">the coach writes the draft; you review alone</span>
+          <span class="text">/publish</span><span class="muted">open the publish sheet</span>
+        </div>
+        <label for="composer" class="mono muted" style="padding-top: 1px">&gt;</label>
+        <textarea id="composer" rows="1" aria-label="Reply to the coach or type a slash command" placeholder=""></textarea>
+      </div>
+    </aside>
+
+    <div id="log" class="log" hidden>
+      <div class="mono muted bar"><span>transcript</span><button type="button" id="log-esc" class="t act text">esc</button></div>
+      <div id="log-list" style="display: flex; flex-direction: column; gap: 12px" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <footer class="foot mono muted">
+    <span class="grp"><span>612 words</span><span>·</span><span id="saved">saved 12s</span><span>·</span><button type="button" class="t tells-btn" aria-expanded="false" aria-controls="tells">em 0</button><span>·</span><button type="button" class="t tells-btn" aria-expanded="false" aria-controls="tells">¶1 1</button><span>·</span><button type="button" class="t tells-btn" aria-expanded="false" aria-controls="tells">not-x-but-y 1</button><span>·</span><span>pasted 0</span><span id="yours-sep" hidden>·</span><span id="yours-foot" hidden>0% yours</span></span>
+    <span class="grp"><span id="open-foot-wrap"><span id="open-foot">5</span> open</span><span id="open-foot-sep">·</span><button type="button" id="log-btn" class="t" aria-label="Open the transcript" aria-expanded="false" aria-controls="log">⋯</button></span>
+  </footer>
+</div>
+
+<nav class="proto" id="proto" aria-label="Prototype screens">
+  <a href="index.html">articles</a><span class="dot">·</span><span class="cur" aria-current="page">room</span><span class="dot">·</span><a href="publish.html">publish</a><span class="dot">·</span><a href="phone.html">phone</a><span class="dot">·</span><a href="phone-interview.html">interview</a>
+  <button type="button" id="proto-theme" class="t">theme · auto</button>
+  <button type="button" id="proto-mode" class="t">mode · coached</button>
+  <button type="button" class="t sw" id="accent-teal" data-accent="#35697c" aria-label="accent teal" aria-pressed="false"><span style="background: #35697c"></span></button>
+  <button type="button" class="t sw" id="accent-orange" data-accent="#b4521a" aria-label="accent orange" aria-pressed="false"><span style="background: #b4521a"></span></button>
+  <button type="button" class="t sw" id="accent-grey" data-accent="#6b6660" aria-label="accent grey" aria-pressed="false"><span style="background: #6b6660"></span></button>
+</nav>
+
+<script>
+const ARTICLE = [
+  '## The lid is the first failure you meet',
+  'I spent six years on a UI framework where the hardest bug was always the one between two renders. Nothing was wrong in either frame; the wrong thing was the gap. Agents have the same gap, and the lid of a laptop is where you find it.',
+  'The setup is ordinary. You start a coding agent on a task that will take twenty minutes, you close the lid to walk to a meeting, you open it on the other side of the building. What you expect is the agent where you left it. What you get depends on about six things nobody wrote down.',
+  '## What actually dies',
+  'The process does not die. macOS suspends it, and when the lid opens it is still there with its stack intact. What dies is everything the process believed about the outside world. Its WebSocket to the model is gone; the server dropped it after thirty seconds of silence and the client will not know until it tries to write. Its child process, the one running the test suite, got SIGSTOP and SIGCONT and now has a wall-clock timer that thinks nineteen minutes passed in zero. The file watcher missed every event. And the model, which was mid-stream when the socket went, has finished its turn into a void. The tool call it emitted was never acknowledged, so from the model\'s side the turn is complete and from the agent\'s side it never happened.',
+  'It is important to note that none of this is a crash. Every component is healthy. The agent is not broken, it is very confident about a world that stopped existing.',
+  '## The frame between two frames',
+  'In the framework we had a rule: never trust state you did not compute this frame. It was expensive and we argued about it for a year, but it was the only rule that survived contact with a tab being backgrounded for six hours. I think agent runtimes need the same rule and mostly do not have it. The agent keeps a transcript, and a transcript is a cache of what the world was. When the lid opens, the honest move is to treat the transcript as stale and re-derive: is the socket alive, did the child exit, what is on disk now versus what I think I wrote.',
+  'The runtimes I have read do something cheaper. They retry the socket and carry on. The transcript says the test suite is running, so the agent waits for a result that will never come, and the user watches a spinner for eleven minutes before killing it.',
+  '## What I did about it',
+  'I built a small daemon that owns the session instead of the agent owning it. The agent is a child the daemon can lose. On wake, the daemon reconciles: it reopens the socket, asks the model to replay from the last acknowledged turn, diffs the working tree against the last commit it made, and only then lets the agent see anything. The agent\'s first message after a lid-close is a system line it did not write: what changed while you were out.',
+  'It is not elegant. The replay costs tokens and the diff is sometimes noisy. But it is the first version where closing the lid stopped being a thing I had to remember not to do, which is actually the whole point of a tool that is supposed to work while I am not looking at it.',
+  'That is the test I want for every agent runtime now.',
+];
+const DUMP = [
+  'ok so the thing that keeps biting me. I close the laptop with the agent mid task and when I open it the thing is just sitting there confident. not crashed. confident. the socket is dead, it just dropped, the test runner child got stopped and its timers are garbage, and the model finished its turn into nothing so the tool call never came back. none of that is an error. that is what makes it bad.',
+  'this is the same bug as the framework. the between frames bug. we had the rule never trust state you did not compute this frame and people hated it and it was right. agents keep a transcript and the transcript is just a cache.',
+  'I sat through a whole standup watching it spin. eleven minutes maybe. then killed it.',
+  'what I did: daemon owns the session, agent is a child. on wake it reconciles only when the socket was actually gone. reopen, replay from last ack, diff the tree, then let the agent see. first message after wake is from the daemon not the agent.',
+  'I want to close the lid and not think about it. that is the whole thing.',
+];
+const BRIEF = [
+  '## thesis',
+  'Closing a laptop does not crash a coding agent; it leaves one confident about a world that stopped existing, and runtimes should treat the transcript as stale on wake.',
+  '## reader',
+  'Someone building or operating an agent runtime, who has watched a spinner after a sleep and blamed the model. They lose the week I lost.',
+  '## arc',
+  'The lid as the ordinary failure; what dies and what does not; the framework rule; the cheap fix most runtimes make; the daemon; the test I want.',
+  '## Questions',
+  '> "the test runner child got stopped and its timers are garbage"\nWhich timer, and how did you find out?',
+  '> "only when the socket was actually gone"\nHow does the daemon know? Keepalive, or an error on write?',
+];
+const NOTES = [
+  { id: 'c07', kind: 'unclear', para: 2, brief: 'brief: arc', span: 'about six things nobody wrote down', body: 'You then name four: socket, child, watcher, model. Six is a count the reader will check. Which are the other two, or is the number wrong?', status: 'open' },
+  { id: 'c08', kind: 'unsupported', para: 4, brief: 'brief: evidence', span: 'the server dropped it after thirty seconds of silence', body: 'Which server, and did you measure the thirty seconds or assume them? The dump says "it just dropped". The reader you named will want the number or the admission.', status: 'open' },
+  { id: 'c11', kind: 'filler', para: 5, brief: 'no brief line', span: 'It is important to note that', body: 'Six words before the sentence starts. The sentence after them is the strongest in the section.', status: 'dismissed' },
+  { id: 'c09', kind: 'counter', para: 8, brief: 'brief: counter', span: 'The runtimes I have read do something cheaper.', body: 'The smartest person who disagrees says retry-and-continue is right for nearly every wake and your reconcile taxes all of them for the rare one. The brief names this counter. The draft does not answer it.', status: 'disagreed', v2: 'Sharpened. You say that in dump.md ("only when the socket was actually gone"). The draft says "on wake, the daemon reconciles" with no condition. Put the condition in the sentence or the counter stands.' },
+  { id: 'c10', kind: 'detail', para: 8, brief: 'brief: scar', span: 'the user watches a spinner for eleven minutes', body: 'Was this you? The dump says "I sat through a whole standup watching it." That is the lived moment; the draft has an anonymous user.', status: 'open' },
+  { id: 'c12', kind: 'voice', para: 11, brief: 'brief: thesis', span: 'which is actually the whole point of a tool that is supposed to work while I am not looking at it', body: 'The dump says "I want to close the lid and not think about it." Eleven words. The draft explains the same thing in twenty-two. Which one sounds like you?', status: 'open' },
+];
+const TURNS = [
+  { who: 'coach', text: 'Read the dump. Your words, not mine:\n· "not crashed. confident."\n· "the transcript is just a cache"\n· "I sat through a whole standup watching it spin"\n· "daemon owns the session, agent is a child"\n· "I want to close the lid and not think about it"\nWhich of these is the thing you want to say?' },
+  { who: 'you', text: 'the confident one. not crashed, confident.' },
+  { who: 'coach', text: 'Say the claim in one sentence, your words.' },
+  { who: 'you', text: 'closing the lid doesn\'t break the agent, it leaves it sure about a world that\'s gone, and the runtime should assume that on wake.' },
+  { who: 'coach', text: 'You wrote "the runtime should assume that on wake." Who exactly reads this, and what do they lose if they don\'t?' },
+  { who: 'you', text: 'people building agent runtimes. they lose the week I lost blaming the model for a dead socket.' },
+  { who: 'coach', text: '"the week I lost." What did you see first-hand? Name the incident.' },
+  { who: 'you', text: 'tuesday. closed the lid for standup, came back, the test runner was "running" for eleven minutes. nothing was running.' },
+  { who: 'coach', text: 'You wrote "the transcript is just a cache." What would the smartest person who disagrees say?' },
+  { who: 'you', text: 'that retry and continue is right 95% of the time and my reconcile step taxes every wake for the one bad one.' },
+  { who: 'coach', text: 'Which part are you least sure of?' },
+  { who: 'you', text: 'whether the thirty second drop is the server or my keepalive. I never actually measured it.' },
+  { who: 'coach', text: '"never actually measured it." What did you get wrong along the way?' },
+  { who: 'you', text: 'I blamed the model for a month. wrote a bug report against the provider. it was my socket.' },
+  { who: 'coach', text: 'I can restate thesis, reader and arc in your sentences. Interview done. brief.md is yours.' },
+  { divider: 'interview done · brief.md is yours' },
+];
+const LOG = [
+  { at: '09:12', who: 'host', text: 'stage draft · claude-agent-acp 0.101.0 · session loaded' },
+  { at: '10:02', who: 'you', text: '/critique' },
+  { at: '10:03', who: 'coach', text: 'comment c07 · unclear · ¶3\ncomment c08 · unsupported · ¶5\ncomment c09 · counter · ¶9\ncomment c10 · detail · ¶9\nFour items. Each cites a brief line. Nothing on structure.' },
+  { at: '10:20', who: 'you', text: '/pass filler' },
+  { at: '10:20', who: 'coach', text: 'comment c11 · filler · ¶6\nOne item.' },
+  { at: '10:31', who: 'you', text: '/pass voice' },
+  { at: '10:32', who: 'coach', text: 'comment c12 · voice · ¶12\nOne question.' },
+  { at: '10:41', who: 'you', text: 're c09: the retry path is fine when the child survived. my daemon only reconciles when the socket was down for more than its own keepalive. the comment reads as if every wake pays the round trip.' },
+  { at: '10:41', who: 'coach', text: 'Sharpened. You say that in dump.md ("only when the socket was actually gone"). The draft says "on wake, the daemon reconciles" with no condition. Put the condition in the sentence or the counter stands.\nc09 v2' },
+  { at: '10:44', who: 'you', text: 'dismiss c11 on purpose' },
+  { at: '10:58', who: 'host', text: 'write refused · the coach tried to edit article.md · logged' },
+];
+const STAGES = ['ideas', 'interview 6/6', 'outline', 'draft', 'critique', 'polish'];
+
+const state = {
+  leaf: 'article',
+  stage: 'draft',
+  stageOpen: false,
+  pending: null,
+  edited: { 11: true },
+  statuses: Object.fromEntries(NOTES.map((n) => [n.id, n.status])),
+  replying: null,
+  reply: '',
+  muted: {},
+  composer: '',
+  logOpen: false,
+  tellsOpen: false,
+  log: LOG.slice(),
+  saved: 'saved 12s',
+  mode: 'coached',
+  sendPending: false,
+  quiet: false,
+  drafting: false,
+  dtext: ARTICLE.slice(),
+  dstate: ARTICLE.map(() => 'agent'),
+};
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+const bodyEl = $('body');
+const notesEl = $('notes');
+const menuEl = $('stage-menu');
+const stageBtn = $('stage-btn');
+const logEl = $('log');
+const logList = $('log-list');
+const logBtn = $('log-btn');
+const tellsEl = $('tells');
+const composer = $('composer');
+const slashEl = $('slash');
+
+/* ---------- textarea sizing (field-sizing: content fallback) ---------- */
+function autosize(ta) {
+  if (!ta.getClientRects().length) return;
+  ta.style.height = 'auto';
+  ta.style.height = ta.scrollHeight + 'px';
+}
+function autosizeAll(root) {
+  (root || document).querySelectorAll('textarea').forEach(autosize);
+}
+
+/* ---------- paragraphs ---------- */
+const noteByPara = {};
+NOTES.forEach((n) => { (noteByPara[n.para] ||= []).push(n); });
+
+function makeRow(text, i, leaf) {
+    const row = document.createElement('div');
+    row.className = 'prow';
+    const gut = document.createElement('div');
+    gut.className = 'gut';
+    if (leaf === 'article') {
+      const pv = document.createElement('span');
+      pv.className = 'prov';
+      pv.setAttribute('aria-hidden', 'true');
+      pv.hidden = true;
+      gut.appendChild(pv);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 't mark';
+      b.setAttribute('aria-label', 'Open the note on this paragraph');
+      b.dataset.para = String(i);
+      b.hidden = true;
+      gut.appendChild(b);
+    } else if (leaf === 'dump') {
+      const q = document.createElement('span');
+      q.className = 'qmark';
+      q.setAttribute('aria-hidden', 'true');
+      q.textContent = '?';
+      gut.appendChild(q);
+    }
+    const ta = document.createElement('textarea');
+    ta.className = 'para';
+    ta.id = 'para-' + leaf + '-' + (i + 1);
+    ta.rows = text.startsWith('## ') ? 1 : Math.max(1, Math.ceil(text.length / 72));
+    ta.spellcheck = false;
+    ta.setAttribute('aria-label', 'Paragraph ' + (i + 1));
+    ta.dataset.index = String(i);
+    ta.value = text;
+    row.appendChild(gut);
+    row.appendChild(ta);
+    return row;
+}
+function buildParas(container, source, leaf) {
+  const frag = document.createDocumentFragment();
+  source.forEach((text, i) => { frag.appendChild(makeRow(text, i, leaf)); });
+  container.appendChild(frag);
+  if (container.dataset.wired) return;
+  container.dataset.wired = '1';
+  container.addEventListener('input', (e) => {
+    const ta = e.target;
+    if (!ta.classList.contains('para')) return;
+    autosize(ta);
+    const i = Number(ta.dataset.index);
+    if (!state.edited[i]) {
+      state.edited[i] = true;
+      state.saved = 'unsaved';
+      updateSaved();
+      updateMarks();
+      renderNotes();
+    }
+    if (leaf === 'article') draftInput(i, ta.value);
+  });
+  if (leaf === 'article') {
+    container.addEventListener('click', (e) => {
+      const b = e.target.closest('.mark');
+      if (b) focusNote(Number(b.dataset.para));
+    });
+  }
+}
+
+function updateMarks() {
+  $('paras-article').querySelectorAll('.mark').forEach((b) => {
+    const i = Number(b.dataset.para);
+    const ns = noteByPara[i];
+    const hasBar = !!ns && !(state.mode === 'drafted' && state.quiet) && ns.some((n) => state.statuses[n.id] !== 'done');
+    const seen = !!ns && ns.every((n) => state.statuses[n.id] !== 'open');
+    b.hidden = !hasBar;
+    b.classList.toggle('seen', seen);
+  });
+}
+
+let sortedNotes = [];
+function focusNote(i) {
+  setLeaf('article');
+  const n = sortedNotes.find((x) => x.para === i && x.st !== 'done') || sortedNotes.find((x) => x.para === i);
+  if (!n) return;
+  const el = $('note-' + n.id);
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: reduced.matches ? 'auto' : 'smooth' });
+  const target = el.querySelector('button:not(:disabled)') || el;
+  target.focus({ preventScroll: true });
+}
+
+/* ---------- notes ---------- */
+function renderNotes() {
+  const order = { open: 0, disagreed: 0, dismissed: 1, done: 2 };
+  sortedNotes = NOTES.map((n) => ({ ...n, st: state.statuses[n.id] }))
+    .sort((a, b) => (order[a.st] - order[b.st]) || (a.para - b.para));
+  notesEl.innerHTML = sortedNotes.map((n) => {
+    const edited = !!state.edited[n.para];
+    const open = n.st === 'open', dis = n.st === 'disagreed', dsm = n.st === 'dismissed', done = n.st === 'done';
+    let h = '<div class="note" id="note-' + n.id + '" tabindex="-1" style="opacity: ' + (done || dsm ? 0.7 : 1) + '">';
+    h += '<div class="mono muted nhead"><span>' + esc(n.kind) + '</span><span>·</span><span>' + n.id + '</span><span>·</span><span>' + esc(n.brief) + '</span>';
+    if (dis) h += '<span>·</span><span>disagreed · sharpened</span>';
+    if (done) h += '<span>·</span><span>done</span>';
+    if (dsm) h += '<span>·</span><span>dismissed</span>';
+    h += '</div>';
+    if (open || dis) {
+      h += '<p class="span">"' + esc(n.span) + '"</p><p class="nbody">' + esc(n.body) + '</p>';
+    }
+    if (open) {
+      h += '<div class="acts">'
+        + '<button type="button" class="t act ' + (edited ? 'text' : 'muted') + '" data-act="done" data-id="' + n.id + '"' + (edited ? '' : ' disabled') + '>done</button>'
+        + '<button type="button" class="t act text" data-act="disagree" data-id="' + n.id + '">disagree</button>'
+        + '<button type="button" class="t act text" data-act="dismiss" data-id="' + n.id + '">dismiss</button>'
+        + '</div>';
+      if (!edited) h += '<div class="mono muted">·edit the span first</div>';
+    }
+    if (state.replying === n.id) {
+      h += '<div class="mono replyrow">'
+        + '<label for="reply-' + n.id + '" class="muted">re ' + n.id + ':</label>'
+        + '<input id="reply-' + n.id + '" class="reply-in" type="text" autocomplete="off" data-id="' + n.id + '" value="' + esc(state.reply) + '">'
+        + '<button type="button" class="t act text" data-act="send" data-id="' + n.id + '">send</button>'
+        + '<button type="button" class="t act muted" data-act="cancel" data-id="' + n.id + '">cancel</button>'
+        + '</div>';
+    }
+    if (dis) {
+      h += '<div class="v2">'
+        + (n.v2 ? '<p class="nbody">' + esc(n.v2) + '</p>' : '')
+        + '<div class="mono muted acts2"><span>' + n.id + ' v2</span>'
+        + '<button type="button" class="t act text" data-act="dismiss" data-id="' + n.id + '">dismiss</button>'
+        + '<button type="button" class="t act text" data-act="done" data-id="' + n.id + '">done</button>'
+        + '</div></div>';
+    }
+    if (dsm) {
+      h += state.muted[n.id]
+        ? '<span class="mono muted">muted · STYLE.md ← do not flag: "' + esc(n.span) + '"</span>'
+        : '<button type="button" class="t act muted" data-act="mute" data-id="' + n.id + '">on purpose, stop flagging this</button>';
+    }
+    h += '</div>';
+    return h;
+  }).join('');
+}
+
+function updateCounts() {
+  const c = NOTES.filter((n) => state.statuses[n.id] === 'open' || state.statuses[n.id] === 'disagreed').length;
+  $('open-count').textContent = c;
+  $('open-foot').textContent = c;
+}
+function updateSaved() { $('saved').textContent = state.saved; }
+
+function appendLog(...lines) {
+  state.log = state.log.concat(lines);
+  renderLog();
+}
+function focusNoteEl(id) {
+  const el = $('note-' + id);
+  if (el) el.focus({ preventScroll: true });
+}
+function setStatus(id, status, line) {
+  state.statuses[id] = status;
+  state.replying = null;
+  appendLog({ at: 'now', who: 'you', text: line });
+  renderNotes();
+  updateCounts();
+  updateMarks();
+  focusNoteEl(id);
+}
+function sendReply(id) {
+  const text = state.reply.trim();
+  if (!text) return;
+  state.replying = null;
+  state.statuses[id] = 'disagreed';
+  appendLog(
+    { at: 'now', who: 'you', text: 're ' + id + ': ' + text },
+    { at: 'now', who: 'coach', text: 'Withdrawn. Your reply names a condition the comment did not see.\n' + id + ' withdrawn' }
+  );
+  renderNotes();
+  updateCounts();
+  updateMarks();
+  focusNoteEl(id);
+}
+function cancelReply(id) {
+  state.replying = null;
+  renderNotes();
+  const b = notesEl.querySelector('[data-act="disagree"][data-id="' + id + '"]');
+  if (b) b.focus({ preventScroll: true }); else focusNoteEl(id);
+}
+
+notesEl.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  const id = b.dataset.id;
+  const n = NOTES.find((x) => x.id === id);
+  switch (b.dataset.act) {
+    case 'done': setStatus(id, 'done', 'done ' + id); break;
+    case 'dismiss': setStatus(id, 'dismissed', 'dismiss ' + id); break;
+    case 'disagree':
+      state.replying = id; state.reply = '';
+      renderNotes();
+      { const inp = $('reply-' + id); if (inp) inp.focus(); }
+      break;
+    case 'send': sendReply(id); break;
+    case 'cancel': cancelReply(id); break;
+    case 'mute':
+      state.muted[id] = true;
+      appendLog(
+        { at: 'now', who: 'you', text: 'dismiss ' + id + ' on purpose' },
+        { at: 'now', who: 'host', text: 'STYLE.md ← do not flag: "' + n.span + '"' }
+      );
+      renderNotes();
+      focusNoteEl(id);
+      break;
+  }
+});
+notesEl.addEventListener('input', (e) => {
+  if (e.target.classList.contains('reply-in')) state.reply = e.target.value;
+});
+notesEl.addEventListener('keydown', (e) => {
+  if (!e.target.classList.contains('reply-in')) return;
+  if (e.key === 'Enter') { e.preventDefault(); sendReply(e.target.dataset.id); }
+  else if (e.key === 'Escape') { e.preventDefault(); cancelReply(e.target.dataset.id); }
+});
+
+/* ---------- transcript (dump leaf) ---------- */
+function renderTurns() {
+  $('turns').innerHTML = TURNS.map((t) => t.divider
+    ? '<div class="divider"><span>' + esc(t.divider) + '</span></div>'
+    : '<div class="turn"><span class="who">' + esc(t.who) + '</span><span class="' + (t.who === 'you' ? 'text' : 'muted') + ' pre">' + esc(t.text) + '</span></div>'
+  ).join('');
+}
+
+/* ---------- log overlay ---------- */
+function renderLog() {
+  logList.innerHTML = state.log.map((l) => {
+    const text = l.who === 'host' ? '── ' + l.text + ' ──' : l.text;
+    return '<div class="line"><span class="mono muted at">' + esc(l.at) + '</span><span class="' + (l.who === 'you' ? 'text' : 'muted') + ' pre">' + esc(text) + '</span></div>';
+  }).join('');
+}
+function setLog(open) {
+  state.logOpen = open;
+  logEl.hidden = !open;
+  logBtn.setAttribute('aria-expanded', String(open));
+  if (open) logEl.scrollTop = logEl.scrollHeight;
+}
+logBtn.addEventListener('click', () => { setLog(!state.logOpen); if (state.logOpen) $('log-esc').focus(); });
+$('log-esc').addEventListener('click', () => { setLog(false); logBtn.focus(); });
+
+/* ---------- tells ---------- */
+function setTells(open) {
+  state.tellsOpen = open;
+  tellsEl.hidden = !open;
+  document.querySelectorAll('.tells-btn').forEach((b) => b.setAttribute('aria-expanded', String(open)));
+}
+document.querySelectorAll('.tells-btn').forEach((b) => b.addEventListener('click', () => setTells(!state.tellsOpen)));
+
+/* ---------- stage menu ---------- */
+function renderStageMenu() {
+  let h = STAGES.map((label) => {
+    const key = label.split(' ')[0];
+    return '<button type="button" class="t it ' + (key === state.stage ? 'text' : 'muted') + '" data-stage="' + key + '">' + esc(label) + '</button>'
+      + (key === 'interview' ? '<div class="text" style="padding: 0 0 6px 12px">thesis reader evidence counter uncertainty scar</div>' : '');
+  }).join('');
+  if (state.pending) {
+    h += '<div class="muted pend">advance to ' + esc(state.pending) + ' · <button type="button" class="t text" data-act="confirm">yes</button> · <button type="button" class="t text" data-act="cancel">no</button></div>';
+  }
+  const drafted = state.mode === 'drafted';
+  h += '<button type="button" class="t it muted sep" data-act="sendit">' + (drafted ? 'coached again' : 'send it') + '</button>';
+  if (state.sendPending) {
+    h += '<div class="muted pend own">'
+      + (drafted ? 'discard the coach\'s draft · your page comes back from the shelf' : 'the coach writes the draft from dump.md and brief.md · what is on the page moves to the shelf')
+      + ' · <button type="button" class="t text" data-act="send-yes">yes</button> · <button type="button" class="t text" data-act="send-no">no</button></div>';
+  }
+  h += '<a href="publish.html" class="it muted" style="border-top: 1px solid var(--rule); margin-top: 4px; padding-top: 8px">publish →</a>';
+  menuEl.innerHTML = h;
+  menuEl.hidden = !state.stageOpen;
+  stageBtn.setAttribute('aria-expanded', String(state.stageOpen));
+  $('stage-word').textContent = state.drafting ? 'drafting…' : state.stage;
+}
+function openSendConfirm() {
+  state.stageOpen = true;
+  state.pending = null;
+  state.sendPending = state.mode !== 'drafted';
+  renderStageMenu();
+  const t = menuEl.querySelector(state.sendPending ? '[data-act="send-yes"]' : '[data-act="sendit"]');
+  if (t) t.focus();
+}
+function toggleStage() {
+  state.stageOpen = !state.stageOpen;
+  state.pending = null;
+  state.sendPending = false;
+  renderStageMenu();
+  if (state.stageOpen) { const cur = menuEl.querySelector('[data-stage="' + state.stage + '"]'); if (cur) cur.focus(); }
+}
+stageBtn.addEventListener('click', toggleStage);
+menuEl.addEventListener('click', (e) => {
+  const pick = e.target.closest('[data-stage]');
+  if (pick) {
+    const key = pick.dataset.stage;
+    state.pending = key === state.stage ? null : key;
+    state.sendPending = false;
+    renderStageMenu();
+    const again = menuEl.querySelector('[data-stage="' + key + '"]');
+    if (again) again.focus();
+    return;
+  }
+  const act = e.target.closest('[data-act]');
+  if (!act) return;
+  if (act.dataset.act === 'sendit') {
+    state.pending = null;
+    state.sendPending = true;
+    renderStageMenu();
+    const again = menuEl.querySelector('[data-act="sendit"]');
+    if (again) again.focus();
+    return;
+  }
+  if (act.dataset.act === 'send-yes') {
+    if (state.mode === 'drafted') goCoached(); else sendIt(true);
+    stageBtn.focus();
+    return;
+  }
+  if (act.dataset.act === 'send-no') {
+    state.sendPending = false;
+    renderStageMenu();
+    const again = menuEl.querySelector('[data-act="sendit"]');
+    if (again) again.focus();
+    return;
+  }
+  if (act.dataset.act === 'confirm') {
+    appendLog({ at: 'now', who: 'host', text: 'stage ' + state.stage + ' → ' + state.pending });
+    state.stage = state.pending;
+    state.pending = null;
+    state.stageOpen = false;
+    renderStageMenu();
+    stageBtn.focus();
+  } else if (act.dataset.act === 'cancel') {
+    state.pending = null;
+    renderStageMenu();
+    const cur = menuEl.querySelector('[data-stage="' + state.stage + '"]');
+    if (cur) cur.focus();
+  }
+});
+document.addEventListener('click', (e) => {
+  if (!state.stageOpen) return;
+  if (menuEl.contains(e.target) || stageBtn.contains(e.target)) return;
+  state.stageOpen = false; state.pending = null; state.sendPending = false; renderStageMenu();
+}, true);
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !state.stageOpen) return;
+  state.stageOpen = false; state.pending = null; state.sendPending = false; renderStageMenu(); stageBtn.focus();
+});
+
+/* ---------- leaves ---------- */
+function setLeaf(leaf) {
+  state.leaf = leaf;
+  const onA = leaf === 'article', onD = leaf === 'dump';
+  document.querySelectorAll('.leaf').forEach((b) => {
+    const on = b.dataset.leaf === leaf;
+    b.classList.toggle('on', on);
+    b.classList.toggle('off', !on);
+    if (on) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+  });
+  $('thesis').hidden = !onA;
+  $('spacer').hidden = onA;
+  ['article', 'dump', 'brief'].forEach((l) => {
+    $('paras-' + l).hidden = l !== leaf;
+    $('aside-' + l).hidden = l !== leaf;
+  });
+  bodyEl.style.setProperty('--mw', onD ? '400px' : '280px');
+  autosizeAll($('paras-' + leaf));
+}
+document.querySelectorAll('.leaf').forEach((b) => b.addEventListener('click', () => setLeaf(b.dataset.leaf)));
+
+/* ---------- composer ---------- */
+composer.addEventListener('input', () => {
+  state.composer = composer.value;
+  slashEl.hidden = !state.composer.startsWith('/');
+  autosize(composer);
+});
+composer.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    state.composer = ''; composer.value = ''; slashEl.hidden = true; autosize(composer);
+    setLog(false); setTells(false);
+    state.stageOpen = false; state.pending = null; state.sendPending = false; renderStageMenu();
+    return;
+  }
+  if (e.key !== 'Enter' || e.shiftKey) return;
+  e.preventDefault();
+  const text = state.composer.trim();
+  if (!text) return;
+  if (/^\/sendit(\s|$)/.test(text)) {
+    state.composer = ''; composer.value = ''; slashEl.hidden = true; autosize(composer);
+    openSendConfirm();
+    return;
+  }
+  const reply = text.startsWith('/')
+    ? { at: 'now', who: 'host', text: 'running ' + text.slice(1) + '… 12s' }
+    : { at: 'now', who: 'coach', text: 'Which sentence in the draft says that? Quote it and I will point at the gap.' };
+  state.composer = ''; composer.value = ''; slashEl.hidden = true; autosize(composer);
+  appendLog({ at: 'now', who: 'you', text }, reply);
+  setLog(true);
+  if (/^\/(critique|pass)(\s|$)/.test(text)) wakeCoach();
+});
+
+/* ---------- drafted mode ("send it") ----------
+   the sample article is 13 blocks (4 headings, 9 paragraphs), so every count and the
+   stored sparring-draft arrays follow ARTICLE.length, as the phone and publish pages do */
+function words(s) { return String(s).replace(/^## /, '').toLowerCase().match(/[a-z0-9'’]+/g) || []; }
+function newWords(orig, cur) {
+  var bag = {}, n = 0, cw = words(cur);
+  words(orig).forEach(function (w) { bag[w] = (bag[w] || 0) + 1; });
+  cw.forEach(function (w) { if (bag[w] > 0) bag[w]--; else n++; });
+  return { n: n, total: cw.length };
+}
+function blockState(orig, cur) {
+  if (cur === orig) return 'agent';
+  var r = newWords(orig, cur);
+  return r.total > 0 && r.n / r.total >= 0.5 ? 'yours' : 'mixed';
+}
+function yoursPct() {
+  let n = 0, total = 0;
+  ARTICLE.forEach((orig, i) => { const r = newWords(orig, state.dtext[i]); n += r.n; total += r.total; });
+  return Math.round(100 * n / Math.max(1, total));
+}
+const NOTE_STATUS0 = Object.fromEntries(NOTES.map((n) => [n.id, n.status]));
+function resetNotes() {
+  state.statuses = Object.assign({}, NOTE_STATUS0);
+  state.replying = null;
+  state.reply = '';
+  state.muted = {};
+}
+
+function applyProv(i) {
+  const ta = $('para-article-' + (i + 1));
+  if (!ta) return;
+  const bar = ta.parentNode.querySelector('.prov');
+  const s = state.mode === 'drafted' ? state.dstate[i] : 'yours';
+  if (bar) { bar.hidden = s === 'yours'; bar.classList.toggle('mixed', s === 'mixed'); }
+  if (s === 'yours') ta.removeAttribute('aria-description');
+  else ta.setAttribute('aria-description', s === 'agent' ? 'written by the coach' : 'written by the coach, edited by you');
+}
+function updateYours() {
+  const pct = yoursPct();
+  const c = { agent: 0, mixed: 0, yours: 0 };
+  state.dstate.forEach((s) => { c[s]++; });
+  $('mode-tag').textContent = 'drafted · ' + pct + '% yours';
+  $('yours-foot').textContent = pct + '% yours';
+  $('quiet-counts').textContent = ARTICLE.length + ' ¶ · ' + c.agent + ' coach · ' + c.mixed + ' edited · ' + c.yours + ' yours';
+  $('quiet-pct').textContent = pct + '% of the words are yours';
+}
+function updateMode() {
+  const d = state.mode === 'drafted', q = d && state.quiet;
+  updateSaved();
+  $('mode-tag').hidden = !d;
+  $('yours-sep').hidden = !d;
+  $('yours-foot').hidden = !d;
+  $('letter').hidden = d;
+  $('letter-drafted').hidden = !d;
+  $('quiet').hidden = !q;
+  $('filter-row').hidden = q;
+  $('notes-wrap').hidden = q;
+  $('open-foot-wrap').hidden = q;
+  $('open-foot-sep').hidden = q;
+  $('proto-mode').textContent = 'mode · ' + state.mode;
+  updateYours();
+}
+
+let persistTimer = 0;
+function writeDraft() {
+  clearTimeout(persistTimer);
+  persistTimer = 0;
+  if (state.mode !== 'drafted') return;
+  try {
+    localStorage.setItem('sparring-draft', JSON.stringify({ v: 1, text: state.dtext, state: state.dstate, yours: yoursPct() }));
+  } catch (e) {}
+}
+function persistDraft() {
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(writeDraft, 250);
+}
+window.addEventListener('pagehide', () => { if (persistTimer) writeDraft(); });
+
+function draftInput(i, value) {
+  if (state.mode !== 'drafted') return;
+  state.dtext[i] = value;
+  const s = blockState(ARTICLE[i], value);
+  if (s !== state.dstate[i]) { state.dstate[i] = s; applyProv(i); }
+  updateYours();
+  persistDraft();
+}
+
+/* the article column is only ever rebuilt on a mode switch, never while typing */
+let streamTimer = 0;
+function stopStream() {
+  clearTimeout(streamTimer);
+  streamTimer = 0;
+  state.drafting = false;
+}
+function clearArticle() {
+  const box = $('paras-article');
+  if (box.contains(document.activeElement)) document.activeElement.blur();
+  box.textContent = '';
+  return box;
+}
+function landBlock(box, text, i) {
+  const row = makeRow(text, i, 'article');
+  box.appendChild(row);
+  applyProv(i);
+  autosize(row.querySelector('textarea'));
+}
+function rebuildArticle(texts) {
+  stopStream();
+  const box = clearArticle();
+  texts.forEach((text, i) => landBlock(box, text, i));
+}
+function streamDraft() {
+  stopStream();
+  const box = clearArticle();
+  if (reduced.matches) {
+    ARTICLE.forEach((text, i) => landBlock(box, text, i));
+    return;
+  }
+  state.drafting = true;
+  let i = 0;
+  const land = () => {
+    landBlock(box, ARTICLE[i], i);
+    if (!state.quiet) updateMarks();
+    i++;
+    if (i < ARTICLE.length) { streamTimer = setTimeout(land, 220); return; }
+    streamTimer = 0;
+    state.drafting = false;
+    $('stage-word').textContent = state.stage;
+    updateMarks();
+  };
+  land();
+}
+
+function sendIt(stream) {
+  const from = state.stage;
+  state.stageOpen = false; state.pending = null; state.sendPending = false;
+  state.mode = 'drafted';
+  state.quiet = true;
+  state.stage = 'draft';
+  state.edited = {};
+  state.saved = 'saved 12s';
+  state.dtext = ARTICLE.slice();
+  state.dstate = ARTICLE.map(() => 'agent');
+  resetNotes();
+  clearTimeout(persistTimer); persistTimer = 0;
+  try { localStorage.removeItem('sparring-draft'); localStorage.setItem('sparring-mode', 'drafted'); } catch (e) {}
+  const lines = [
+    { at: 'now', who: 'host', text: 'mode coached → drafted · never-write is off for this article' },
+    { at: 'now', who: 'coach', text: 'write_draft article.md · ' + ARTICLE.length + ' ¶ from dump.md and brief.md\nDrafted from your sentences where you had them. The review is yours; I stay quiet until you ask.' },
+  ];
+  if (from !== 'draft') lines.push({ at: 'now', who: 'host', text: 'stage ' + from + ' → draft' });
+  appendLog(...lines);
+  setLeaf('article');
+  if (stream) streamDraft(); else rebuildArticle(ARTICLE);
+  renderStageMenu();
+  renderNotes();
+  updateCounts();
+  updateMarks();
+  updateMode();
+}
+function goCoached() {
+  stopStream();
+  state.stageOpen = false; state.pending = null; state.sendPending = false;
+  state.mode = 'coached';
+  state.quiet = false;
+  state.edited = { 11: true };
+  state.saved = 'saved 12s';
+  state.dtext = ARTICLE.slice();
+  state.dstate = ARTICLE.map(() => 'agent');
+  resetNotes();
+  clearTimeout(persistTimer); persistTimer = 0;
+  try { localStorage.removeItem('sparring-mode'); localStorage.removeItem('sparring-draft'); } catch (e) {}
+  rebuildArticle(ARTICLE);
+  appendLog({ at: 'now', who: 'host', text: 'mode drafted → coached · the coach\'s draft moved to the shelf' });
+  renderStageMenu();
+  renderNotes();
+  updateCounts();
+  updateMarks();
+  updateMode();
+}
+function wakeCoach() {
+  if (state.mode !== 'drafted' || !state.quiet) return;
+  state.quiet = false;
+  renderNotes();
+  updateCounts();
+  updateMarks();
+  updateMode();
+}
+function loadMode() {
+  let mode = null, raw = null;
+  try { mode = localStorage.getItem('sparring-mode'); raw = localStorage.getItem('sparring-draft'); } catch (e) {}
+  if (mode !== 'drafted') return;
+  state.mode = 'drafted';
+  state.quiet = true;
+  state.edited = {};
+  let d = null;
+  try { d = raw ? JSON.parse(raw) : null; } catch (e) { d = null; }
+  if (d && d.v === 1 && Array.isArray(d.text) && Array.isArray(d.state) && d.text.length === ARTICLE.length && d.state.length === ARTICLE.length) {
+    state.dtext = d.text.map(String);
+    state.dstate = d.state.map((s, i) => (s === 'agent' || s === 'mixed' || s === 'yours') ? s : blockState(ARTICLE[i], state.dtext[i]));
+    state.dstate.forEach((s, i) => { if (s !== 'agent') state.edited[i] = true; });
+  }
+}
+$('proto-mode').addEventListener('click', () => {
+  if (state.mode === 'drafted') goCoached(); else sendIt(false);
+});
+
+/* ---------- proto strip: theme + accent ---------- */
+const THEMES = ['auto', 'light', 'dark'];
+function currentTheme() {
+  const t = document.documentElement.dataset.theme;
+  return t === 'light' || t === 'dark' ? t : 'auto';
+}
+function applyTheme(t) {
+  if (t === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = t;
+  try { if (t === 'auto') localStorage.removeItem('sparring-theme'); else localStorage.setItem('sparring-theme', t); } catch (e) {}
+  $('proto-theme').textContent = 'theme · ' + t;
+}
+$('proto-theme').addEventListener('click', () => {
+  applyTheme(THEMES[(THEMES.indexOf(currentTheme()) + 1) % THEMES.length]);
+});
+function applyAccent(a) {
+  if (a === '#35697c') document.documentElement.style.removeProperty('--accent');
+  else document.documentElement.style.setProperty('--accent', a);
+  try { if (a === '#35697c') localStorage.removeItem('sparring-accent'); else localStorage.setItem('sparring-accent', a); } catch (e) {}
+  document.querySelectorAll('.proto .sw').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.accent === a)));
+}
+document.querySelectorAll('.proto .sw').forEach((b) => b.addEventListener('click', () => applyAccent(b.dataset.accent)));
+(function initProto() {
+  $('proto-theme').textContent = 'theme · ' + currentTheme();
+  let a = '#35697c';
+  try { a = localStorage.getItem('sparring-accent') || a; } catch (e) {}
+  document.querySelectorAll('.proto .sw').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.accent === a)));
+  const strip = $('proto');
+  const reserve = () => document.documentElement.style.setProperty('--proto-h', (strip.offsetHeight + 2) + 'px');
+  if ('ResizeObserver' in window) new ResizeObserver(reserve).observe(strip);
+  else window.addEventListener('resize', reserve);
+  reserve();
+})();
+
+/* ---------- init ---------- */
+loadMode();
+buildParas($('paras-article'), state.mode === 'drafted' ? state.dtext : ARTICLE, 'article');
+ARTICLE.forEach((text, i) => applyProv(i));
+buildParas($('paras-dump'), DUMP, 'dump');
+buildParas($('paras-brief'), BRIEF, 'brief');
+renderTurns();
+renderNotes();
+renderLog();
+renderStageMenu();
+updateMarks();
+updateCounts();
+updateSaved();
+updateMode();
+setLeaf('article');
+autosize(composer);
+
+let rafId = 0;
+window.addEventListener('resize', () => {
+  cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(() => { autosizeAll($('paras-' + state.leaf)); autosize(composer); });
+});
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => autosizeAll($('paras-' + state.leaf)));
+</script>
+</body>
+</html>

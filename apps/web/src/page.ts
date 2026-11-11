@@ -67,7 +67,8 @@ export class Page {
       if (!(prev instanceof HTMLTextAreaElement)) return;
       e.preventDefault();
       const at = prev.value.length;
-      prev.value = prev.value === "" || ta.value === "" ? prev.value + ta.value : `${prev.value}\n${ta.value}`;
+      prev.value =
+        prev.value === "" || ta.value === "" ? prev.value + ta.value : `${prev.value}\n${ta.value}`;
       ta.remove();
       autosize(prev);
       prev.focus();

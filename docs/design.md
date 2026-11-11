@@ -137,7 +137,7 @@ Codex, OpenCode and Gemini are Later (section 9).
 
 **Spawn.** `node:child_process.spawn(cmd, args, {cwd: articleDir, stdio: ["pipe","pipe","pipe"], env})`. The wire is newline-delimited JSON-RPC through the lifted `acp-connection.ts`, which answers any agent request the host has not registered with -32601. The child's env is an allow-list: `PATH`, `HOME`, `LANG`, `TMPDIR`, `CLAUDE_CONFIG_DIR`, the model credential and `CLAUDE_AGENT_ACP_PROTOCOL=v1`. It never gets `SSH_AUTH_SOCK`, `GH_TOKEN`, `GITHUB_TOKEN` or the Sparring token. Every path is absolute; the host expands `~` before spawn.
 
-**Credentials.** The model credential is a subscription token from `claude setup-token`, stored in `~/.sparring/config.json` as `claude_oauth_token` and passed as `CLAUDE_CODE_OAUTH_TOKEN` (open decision, section 10). When `session/new` fails with code -32000 the Room shows `sign-in needed · claude` and the article behaves as if `/offline` were on.
+**Credentials.** The model credential is a subscription token from `claude setup-token`, stored in `~/.sparring/config.json` as `claude_oauth_token` and passed as `CLAUDE_CODE_OAUTH_TOKEN` (open decision, section 10). Without a credential `session/new` still succeeds; the adapter sends `_auth/status_update {kind: "none"}` and the first `session/prompt` fails with -32000 (probe, 0.101.0). Either one makes the Room show `sign-in needed · claude`, and the article behaves as if `/offline` were on.
 
 **Handshake.**
 
@@ -197,7 +197,7 @@ Never-write is enforced in three layers.
 
 ### MCP surface
 
-`packages/mcp` is a thin stdio proxy with no database access. It forwards each tool call as JSON over the Unix socket and returns the reply. The daemon maps `SPARRING_MCP_SECRET` to the article, so no tool takes a slug. All validation and every write happen in the daemon. Six tools and nothing else:
+`packages/mcp` is a thin stdio proxy with no database access. It forwards each tool call as JSON over the Unix socket and returns the reply. On start it sends one `{secret, hello: true}` line, so the daemon sees the proxy connect before any tool call. The daemon maps `SPARRING_MCP_SECRET` to the article, so no tool takes a slug. All validation and every write happen in the daemon. Six tools and nothing else:
 
 - `read_article()` returns the text with line numbers.
 - `read_source({name})`. `name` is `dump`, `brief`, `style` or `pass:<id>`. It reads `dump.md`, `brief.md`, `STYLE.md` and pass files only.

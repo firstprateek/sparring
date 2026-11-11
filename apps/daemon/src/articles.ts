@@ -102,7 +102,8 @@ export class Articles {
       throw new HttpError(409, { error: `${slug} already exists` });
     }
     const folder = join(this.dir, slug);
-    if (existsSync(folder)) throw new HttpError(409, { error: `${slug} is already a folder in the writing repo` });
+    if (existsSync(folder))
+      throw new HttpError(409, { error: `${slug} is already a folder in the writing repo` });
     const commit = await this.git.serial(async () => {
       await mkdir(folder);
       for (const f of FILES) await writeFile(join(folder, `${f}.md`), "");
@@ -157,7 +158,13 @@ export class Articles {
    * Saves one file when the client's base_sha is what is on disk; otherwise writes nothing and answers 409 with
    * the disk text. Commits at once on Cmd+S, otherwise at most once a minute per article.
    */
-  async save(slug: string, file: FileName, text: string, baseSha: string, commitNow = false): Promise<SaveResult> {
+  async save(
+    slug: string,
+    file: FileName,
+    text: string,
+    baseSha: string,
+    commitNow = false,
+  ): Promise<SaveResult> {
     const row = this.row(slug);
     return this.git.serial(async () => {
       const path = this.path(slug, file);
@@ -217,7 +224,9 @@ export class Articles {
       const env = { GIT_INDEX_FILE: index };
       try {
         await this.git.raw(["read-tree", "HEAD"], { env });
-        await this.git.raw(["update-index", "--add", "--cacheinfo", `100644,${blob},${slug}/${file}.md`], { env });
+        await this.git.raw(["update-index", "--add", "--cacheinfo", `100644,${blob},${slug}/${file}.md`], {
+          env,
+        });
         const tree = (await this.git.raw(["write-tree"], { env })).stdout.trim();
         const ref = `refs/sparring/stash/${slug}`;
         const prev = await this.git.raw(["rev-parse", "--verify", "-q", ref], { ok: [0, 1] });

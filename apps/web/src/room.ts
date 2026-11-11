@@ -57,7 +57,14 @@ function render(): void {
     const keep = button("keep mine", () => void conflict.keepMine());
     const take = button("take disk", () => void conflict.takeDisk());
     const where = conflict.file === "article" ? [] : [span(`${conflict.file}.md`), span("·")];
-    els.letter.replaceChildren(...where, span("disk changed while offline"), span("·"), keep, span("·"), take);
+    els.letter.replaceChildren(
+      ...where,
+      span("disk changed while offline"),
+      span("·"),
+      keep,
+      span("·"),
+      take,
+    );
   }
 }
 
@@ -113,9 +120,13 @@ async function main(): Promise<void> {
   }
   try {
     const recent = JSON.parse(localStorage.getItem("sparring-recent") ?? "[]") as string[];
-    localStorage.setItem("sparring-recent", JSON.stringify([slug, ...recent.filter((s) => s !== slug)].slice(0, 20)));
+    localStorage.setItem(
+      "sparring-recent",
+      JSON.stringify([slug, ...recent.filter((s) => s !== slug)].slice(0, 20)),
+    );
   } catch {}
-  const first = snap.files.article.text.trim() === "" && snap.files.dump.text.trim() !== "" ? "dump" : "article";
+  const first =
+    snap.files.article.text.trim() === "" && snap.files.dump.text.trim() !== "" ? "dump" : "article";
   showLeaf(first);
   page.focusEnd();
 }

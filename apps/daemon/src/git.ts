@@ -32,7 +32,12 @@ export function gitEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
   return env;
 }
 
-function execGit(cwd: string, args: string[], input?: string, env?: Record<string, string>): Promise<GitResult> {
+function execGit(
+  cwd: string,
+  args: string[],
+  input?: string,
+  env?: Record<string, string>,
+): Promise<GitResult> {
   return new Promise((resolve) => {
     const child = execFile(
       "git",

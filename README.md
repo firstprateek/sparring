@@ -15,12 +15,12 @@ A writing coach that lives in the margin. You give it rough ideas, it interviews
 
 ## What is here
 
-| Path | What |
-|---|---|
-| [docs/design.md](docs/design.md) | The design document: workflow, architecture, drafted mode, data model, build steps, open decisions |
-| [docs/ui-spec.md](docs/ui-spec.md) | The UI specification |
-| [docs/drafted-mode-mock-spec.md](docs/drafted-mode-mock-spec.md) | The brief the "send it" mocks were built from |
-| [mocks/](mocks/) | Clickable HTML mocks: articles, room, publish, phone, phone interview |
+| Path                                                             | What                                                                                               |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [docs/design.md](docs/design.md)                                 | The design document: workflow, architecture, drafted mode, data model, build steps, open decisions |
+| [docs/ui-spec.md](docs/ui-spec.md)                               | The UI specification                                                                               |
+| [docs/drafted-mode-mock-spec.md](docs/drafted-mode-mock-spec.md) | The brief the "send it" mocks were built from                                                      |
+| [mocks/](mocks/)                                                 | Clickable HTML mocks: articles, room, publish, phone, phone interview                              |
 
 To try the mocks, open `mocks/index.html` in a browser. They are static pages with sample data and talk to nothing.
 

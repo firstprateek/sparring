@@ -3,7 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "scripts": { "start": "bun src/main.ts", "typecheck": "tsc --noEmit", "test": "vitest run" },
-  "dependencies": { "@sparring/protocol": "workspace:*" },
-  "devDependencies": { "@types/bun": "1.4.4" }
+  "scripts": {
+    "start": "bun src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@sparring/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4"
+  }
 }

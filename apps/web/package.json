@@ -12,7 +12,8 @@
   "dependencies": {
     "@fontsource/jetbrains-mono": "5.3.0",
     "@fontsource/source-serif-4": "5.3.1",
-    "@sparring/protocol": "workspace:*"
+    "@sparring/protocol": "workspace:*",
+    "@microsoft/agent-host-protocol": "1.0.0"
   },
   "devDependencies": {
     "happy-dom": "21.0.4",

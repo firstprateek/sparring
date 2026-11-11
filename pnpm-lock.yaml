@@ -184,6 +184,9 @@ importers:
 
   apps/daemon:
     dependencies:
+      '@microsoft/agent-host-protocol':
+        specifier: 1.0.0
+        version: 1.0.0
       '@sparring/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -200,6 +203,9 @@ importers:
       '@fontsource/source-serif-4':
         specifier: 5.3.1
         version: 5.3.1
+      '@microsoft/agent-host-protocol':
+        specifier: 1.0.0
+        version: 1.0.0
       '@sparring/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -311,6 +317,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@microsoft/agent-host-protocol@1.0.0':
+    resolution: {integrity: sha512-swjikGoqZ/bv3Mn4vkkLzwpmS/j9tV7Aas7ruD2a/R3KVsUlokwCJNSET57mdsmZLMnrawDaCr/ctufbpjE4iA==}
 
   '@modelcontextprotocol/sdk@1.32.2':
     resolution: {integrity: sha512-SWsVtH/0vULSQStoZ6xxH2K09Li8fXYTMC64ZeogCdpZ3XSi1eCPOByV1OpuJxuI3OcmHhosDWYyii07tpPsLw==}
@@ -1282,6 +1291,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@microsoft/agent-host-protocol@1.0.0': {}
 
   '@modelcontextprotocol/sdk@1.32.2(zod@4.6.7)':
     dependencies:

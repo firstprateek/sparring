@@ -4,6 +4,7 @@ import { Articles } from "./articles.ts";
 import { loadConfig, sparringHome } from "./config.ts";
 import { openDb } from "./db.ts";
 import { restHandler } from "./rest.ts";
+import { restGuard } from "./rest-guard.ts";
 import { migrate } from "./schema.ts";
 import { serveWebFrom } from "./web-static.ts";
 
@@ -17,7 +18,7 @@ const articles = new Articles(db, config.writing_dir, {
 });
 await articles.init();
 
-const rest = restHandler(articles);
+const rest = restGuard({ token: config.token, hosts: config.hosts }, restHandler(articles));
 const web = serveWebFrom(join(import.meta.dir, "../../web/dist"));
 
 const server = Bun.serve({

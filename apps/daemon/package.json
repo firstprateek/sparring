@@ -9,7 +9,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@sparring/protocol": "workspace:*"
+    "@sparring/protocol": "workspace:*",
+    "@microsoft/agent-host-protocol": "1.0.0"
   },
   "devDependencies": {
     "@types/bun": "1.4.4"

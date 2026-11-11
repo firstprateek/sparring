@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -129,5 +129,71 @@ describe("saving", () => {
     expect(res.status).toBe(200);
     expect(git("show", "refs/sparring/stash/a:a/article.md")).toBe("my lost words");
     expect(git("status", "--porcelain")).toBe("");
+  });
+});
+
+describe("the inbox", () => {
+  it("lists nothing at first, then each idea posted, oldest first", async () => {
+    expect(await (await call("GET", "/api/inbox")).json()).toEqual([]);
+    const one = await call("POST", "/api/inbox", { text: "the six o'clock rule" });
+    expect(one.status).toBe(201);
+    const idea = (await one.json()) as { id: string; date: string; text: string };
+    expect(idea).toEqual({
+      id: expect.stringMatching(/^[0-9a-f]{12}$/),
+      date: expect.any(String),
+      text: "the six o'clock rule",
+    });
+    expect(Date.parse(idea.date)).toBeGreaterThan(0);
+    await call("POST", "/api/inbox", { text: "why  I stopped\nusing standups" });
+    const list = (await (await call("GET", "/api/inbox")).json()) as { text: string }[];
+    expect(list.map((i) => i.text)).toEqual(["the six o'clock rule", "why I stopped using standups"]);
+    expect(git("log", "-1", "--format=%s")).toBe("idea");
+    expect(git("status", "--porcelain")).toBe("");
+    // a line written by hand is an idea too
+    writeFileSync(join(dir, "inbox.md"), `${readFileSync(join(dir, "inbox.md"), "utf8")}- typed in vim\n`);
+    const all = (await (await call("GET", "/api/inbox")).json()) as { date: string; text: string }[];
+    expect(all.at(-1)).toMatchObject({ date: "", text: "typed in vim" });
+  });
+
+  it("refuses an empty idea", async () => {
+    expect((await call("POST", "/api/inbox", { text: "   " })).status).toBe(400);
+    expect((await call("POST", "/api/inbox", {})).status).toBe(400);
+  });
+
+  it("turns an idea into an article: dump.md is seeded and the idea leaves inbox.md", async () => {
+    const keep = (await (await call("POST", "/api/inbox", { text: "keep me" })).json()) as { id: string };
+    const idea = (await (await call("POST", "/api/inbox", { text: "closing the laptop" })).json()) as {
+      id: string;
+    };
+    const res = await call("POST", "/api/articles", { slug: "closed-laptop", inboxId: idea.id });
+    expect(res.status).toBe(201);
+    expect(readFileSync(join(dir, "closed-laptop", "dump.md"), "utf8")).toBe("closing the laptop\n");
+    const left = (await (await call("GET", "/api/inbox")).json()) as { id: string }[];
+    expect(left.map((i) => i.id)).toEqual([keep.id]);
+    expect(articles.row("closed-laptop").dump_baseline_commit).toBe(git("rev-parse", "HEAD~1"));
+    expect(git("show", "HEAD~1:closed-laptop/dump.md")).toBe("closing the laptop");
+    expect(git("status", "--porcelain")).toBe("");
+    // an idea that is not there
+    expect((await call("POST", "/api/articles", { slug: "other", inboxId: "000000000000" })).status).toBe(
+      404,
+    );
+    expect(existsSync(join(dir, "other"))).toBe(false);
+  });
+});
+
+describe("letter lines", () => {
+  it("dismiss clears a line; restore only works on a quarantine line", async () => {
+    await call("POST", "/api/articles", { slug: "a" });
+    const row = articles.row("a");
+    const id = articles.addLetter(
+      row.id,
+      "refused",
+      "write refused · the coach tried to edit article.md · logged",
+    );
+    expect((await call("POST", `/api/articles/a/letter/${id}`, { action: "restore" })).status).toBe(409);
+    expect((await call("POST", `/api/articles/a/letter/${id}`, { action: "burn" })).status).toBe(400);
+    expect((await call("POST", `/api/articles/a/letter/${id}`, { action: "dismiss" })).status).toBe(200);
+    expect(articles.metaFor(articles.row("a")).letter).toEqual([]);
+    expect((await call("POST", `/api/articles/a/letter/${id}`, { action: "dismiss" })).status).toBe(404);
   });
 });

@@ -1,75 +1,21 @@
 // The coach behind every article's session: the session and chat an article gets, `_meta.sparring`, the scripted
 // coach answering through the real ACP path, and the commands the host answers itself.
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import type { Launch } from "../src/ahp/agent-process.ts";
-import { AhpHost } from "../src/ahp/host.ts";
+import { describe, expect, it } from "vitest";
 import { ActionType, ResponsePartKind, ROOT, TurnState } from "../src/ahp/wire.ts";
 import { Articles, sha256 } from "../src/articles.ts";
-import { CLAUDE_LATER, Coach } from "../src/coach.ts";
-import { type Db, openDb } from "../src/db.ts";
-import { demoLaunch, NO_MORE, QUESTIONS } from "../src/demo-agent.ts";
-import { restHandler } from "../src/rest.ts";
+import { SESSION_META } from "../src/coach.ts";
+import { openDb } from "../src/db.ts";
+import { NO_MORE, QUESTIONS } from "../src/demo-agent.ts";
 import { migrate } from "../src/schema.ts";
 import { FakeLauncher } from "./ahp/fake-acp.ts";
 import { type Any, TestClient, turnStarted } from "./ahp/support.ts";
+import { dirs, meta, rig } from "./rig.ts";
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const plain = (x: unknown) => JSON.parse(JSON.stringify(x));
-const dirs: string[] = [];
-afterEach(() => {
-  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
-});
-
-async function rig(o: { launch?: Launch; db?: Db; dir?: string } = {}) {
-  const dir = o.dir ?? mkdtempSync(join(tmpdir(), "sparring-coach-"));
-  if (!o.dir) dirs.push(dir);
-  const db = o.db ?? (await openDb(":memory:"));
-  migrate(db);
-  const articles = new Articles(db, dir, {
-    gitName: "Test",
-    gitEmail: "test@localhost",
-    defaultProvider: "demo",
-    commitEveryMs: 60_000,
-  });
-  await articles.init();
-  let launches = 0;
-  const demo = o.launch ?? demoLaunch({ delayMs: 0 });
-  const coach = new Coach({
-    articles,
-    launches: {
-      demo: (r) => {
-        launches++;
-        return demo(r);
-      },
-    },
-    metaDebounceMs: 20,
-  });
-  const host = new AhpHost({ db, backend: coach, limits: { snapshotMinBytes: 0, snapshotMinMs: 0 } });
-  await coach.start();
-  const api = restHandler(articles);
-  const call = async (method: string, path: string, body?: unknown): Promise<Any> => {
-    const res = await api(
-      new Request(`http://127.0.0.1:7421${path}`, {
-        method,
-        headers: body === undefined ? {} : { "content-type": "application/json" },
-        body: body === undefined ? null : JSON.stringify(body),
-      }),
-    );
-    return { status: res.status, body: await res.json() };
-  };
-  /** POST /api/articles; answers the article's session and chat. */
-  const article = async (slug: string, provider?: string) => {
-    const res = await call("POST", "/api/articles", { slug, ...(provider ? { provider } : {}) });
-    expect(res.status).toBe(201);
-    return res.body as { id: string; slug: string; commit: string; session: string; chat: string };
-  };
-  return { dir, db, articles, coach, host, call, article, launches: () => launches };
-}
-
-const meta = (host: AhpHost, session: string): Any => (host.sessionState(session)?._meta as Any)?.sparring;
 
 describe("an article's session", () => {
   it("is made with the article, and the root list shows it with _meta.sparring", async () => {
@@ -222,7 +168,21 @@ describe("the scripted coach", () => {
       clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
       clientInfo: { name: "sparring" },
     });
-    expect(fake.last.requests("session/new")[0]?.params).toEqual({ cwd: join(t.dir, "a"), mcpServers: [] });
+    expect(fake.last.requests("session/new")[0]?.params).toEqual({
+      cwd: join(t.dir, "a"),
+      mcpServers: [
+        {
+          name: "sparring",
+          command: process.execPath,
+          args: [expect.stringMatching(/\/packages\/mcp\/src\/server\.ts$/)],
+          env: [
+            { name: "SPARRING_MCP_SOCK", value: "/tmp/sparring-test.sock" },
+            { name: "SPARRING_MCP_SECRET", value: expect.stringMatching(/^[0-9a-f]{48}$/) },
+          ],
+        },
+      ],
+      _meta: SESSION_META,
+    });
     c.dispatch(a.chat, turnStarted("slow down", "t2"));
     await sleep(30);
     c.dispatch(a.chat, { type: ActionType.ChatTurnCancelled, turnId: "t2", duration: 0 });
@@ -313,7 +273,7 @@ describe("what the host answers itself", () => {
     expect(t.launches()).toBe(0);
   });
 
-  it("answers every turn of a claude article with a host line until step 3, and starts nothing", async () => {
+  it("answers a turn of a provider with no launch with a host line, and starts nothing", async () => {
     const t = await rig();
     const a = await t.article("a", "claude");
     const c = new TestClient(t.host);
@@ -323,7 +283,7 @@ describe("what the host answers itself", () => {
     expect(t.host.chatState(a.chat)?.turns[0]?.responseParts).toEqual([
       {
         kind: ResponsePartKind.SystemNotification,
-        content: CLAUDE_LATER,
+        content: "no coach for claude",
         _meta: { "sparring.line": "refused" },
       },
     ]);

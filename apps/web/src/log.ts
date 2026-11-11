@@ -69,8 +69,13 @@ export class Transcript {
   }
 }
 
-/** The interview turns in the dump leaf's margin: writer and coach lines, host lines as dividers. */
-export function renderTurns(el: HTMLElement, lines: readonly Line[]): void {
+export const INTERVIEW_DONE = "interview done · brief.md is yours";
+
+/**
+ * The interview turns (the dump leaf's margin, the phone interview's sheet): writer and coach lines, host lines
+ * as dividers, and `interview done · brief.md is yours` last once every topic is covered.
+ */
+export function renderTurns(el: HTMLElement, lines: readonly Line[], done = false): void {
   keepBottom(el, () => {
     const rows: HTMLElement[] = [];
     for (const l of lines) {
@@ -86,6 +91,9 @@ export function renderTurns(el: HTMLElement, lines: readonly Line[]): void {
         span(l.text, `${l.kind === "you" ? "text" : "muted"} pre`),
       );
       rows.push(row);
+    }
+    if (done && !lines.some((l) => l.kind === "host" && l.text === INTERVIEW_DONE)) {
+      rows.push(divider(INTERVIEW_DONE));
     }
     el.replaceChildren(...rows);
   });

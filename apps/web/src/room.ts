@@ -1,19 +1,26 @@
 // The Room: the three leaves of one article as a block page, saved to ~/writing as you type, with the coach in
 // the margin over AHP. The article's session and chat are found in the root session list by
 // `_meta.sparring.slug`; the stage menu changes the session's `stage`; the composer sends chat lines, kept in
-// the outbox while the socket is down; `⋯` opens the transcript.
+// the outbox while the socket is down; `⋯` opens the transcript. The margin's letter shows the host lines in
+// `_meta.sparring.letter`; the dump leaf's blocks quoted by `briefNotes` carry `?`, and the brief leaf's margin
+// lists those quotes. A bump of `commentsRev` fetches the snapshot again. At phone width in `interview` the
+// Room becomes the phone interview screen (interview.ts).
 import "@fontsource/source-serif-4/400.css";
 import "@fontsource/source-serif-4/400-italic.css";
 import "@fontsource/source-serif-4/600.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "./base.css";
 import "./room.css";
+import "./interview.css";
 import { wordCount } from "@sparring/protocol/blocks";
 import { checkOutgoing } from "./actions.ts";
 import { ahp, useAhp } from "./ahp/hub.ts";
-import { api, type FileName } from "./api.ts";
+import { api, type BriefNote, type FileName, type Snapshot } from "./api.ts";
+import { adoptBrief, briefNotesOf, quoteMarks, renderQuotes } from "./brief.ts";
 import { Composer } from "./composer.ts";
+import { InterviewScreen, interviewDone, PHONE_QUERY } from "./interview.ts";
 import { Leaf } from "./leaf.ts";
+import { letterRows } from "./letter.ts";
 import { renderTurns, Transcript } from "./log.ts";
 import { ensureLogin } from "./login.ts";
 import { Outbox } from "./outbox.ts";
@@ -34,7 +41,9 @@ import { connectionWords } from "./status.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
-const slug = new URLSearchParams(location.search).get("slug") ?? "";
+const params = new URLSearchParams(location.search);
+const slug = params.get("slug") ?? "";
+const askedLeaf = params.get("leaf");
 const els = {
   slug: $("slug"),
   words: $("words"),
@@ -43,6 +52,7 @@ const els = {
   paras: $("paras"),
   body: $("body"),
   asideDump: $("aside-dump"),
+  asideBrief: $("aside-brief"),
   turns: $("turns"),
   log: $("log"),
   logList: $("log-list"),
@@ -55,8 +65,14 @@ let active: FileName = "article";
 const leaves = new Map<FileName, Leaf>();
 let shownCommit: { sha: string; until: number } | null = null;
 let snapStage = "";
+let briefNotes: BriefNote[] = [];
+/** True once the snapshot is in and the leaves exist. */
+let loaded = false;
 
-const page = new Page(els.paras, (text) => leaves.get(active)?.edit(text));
+const page = new Page(els.paras, (text) => leaves.get(active)?.edit(text), { gutter: true });
+/** The phone interview's page: always the dump. */
+const ivPage = new Page($("iv-paras"), (text) => leaves.get("dump")?.edit(text));
+const phone = window.matchMedia(PHONE_QUERY);
 
 // ───────────────────────────── AHP state ─────────────────────────────
 
@@ -86,23 +102,68 @@ const stageMenu = new StageMenu(
   },
 );
 
+/** A composer line: checked, then sent or kept in the outbox. Returns true when it went out now. */
+function sendLine(from: Composer, text: string): boolean {
+  const problem = checkOutgoing(text);
+  if (problem) {
+    from.note(problem);
+    from.restore(text);
+    return false;
+  }
+  const went = outbox.push(text) === "sent";
+  renderAhp();
+  return went;
+}
+
 const composer = new Composer($<HTMLTextAreaElement>("composer"), $("slash"), $("comp-note"), $("queued"), {
   line: (text) => {
-    const problem = checkOutgoing(text);
-    if (problem) {
-      composer.note(problem);
-      composer.restore(text);
-      return;
-    }
     // A line that went out opens the transcript so the reply shows; a queued one leaves the margin in view.
-    const went = outbox.push(text) === "sent";
-    renderAhp();
-    if (went && active !== "dump") setLog(true);
+    if (sendLine(composer, text) && active !== "dump") setLog(true);
   },
   log: () => setLog(true),
   escape: () => setLog(false),
 });
+const ivComposer = new Composer(
+  $<HTMLTextAreaElement>("iv-composer"),
+  $("iv-slash"),
+  $("iv-note"),
+  $("iv-queued"),
+  {
+    line: (text) => void sendLine(ivComposer, text),
+    log: () => interview.fold(false),
+    escape: () => {},
+  },
+);
+$<HTMLFormElement>("iv-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  ivComposer.submit();
+  $<HTMLTextAreaElement>("iv-composer").focus();
+});
 outbox.onChange(() => renderQueued());
+
+const interview = new InterviewScreen(
+  {
+    root: $("iv"),
+    title: $("iv-title"),
+    stageBtn: $<HTMLButtonElement>("iv-stage-btn"),
+    stageWord: $("iv-stage-word"),
+    menu: $("iv-menu"),
+    stages: $("iv-stages"),
+    sendit: $<HTMLButtonElement>("iv-sendit"),
+    senditLine: $("iv-sendit-line"),
+    menuError: $("iv-menu-error"),
+    topics: $("iv-topics"),
+    sheet: $("iv-sheet"),
+    sheetBtn: $<HTMLButtonElement>("iv-sheet-btn"),
+    sheetBody: $("iv-sheet-body"),
+    thread: $("iv-thread"),
+  },
+  (stage) => {
+    if (!sessionUri) return "this article has no session yet";
+    return setStage(conn, sessionUri, stage);
+  },
+);
+phone.addEventListener("change", () => renderAhp());
 
 const transcriptView = new Transcript(els.logList, els.log);
 
@@ -126,22 +187,92 @@ function attach(): void {
 }
 
 function renderQueued(): void {
-  composer.queued([
+  const lines = [
     ...outbox.lines().map((l) => l.text),
     ...hostQueued(chatUri ? conn.chat(chatUri) : undefined),
-  ]);
+  ];
+  composer.queued(lines);
+  ivComposer.queued(lines);
 }
+
+/** `_meta.sparring` as the session has it, else as the root list has it. */
+function currentMeta() {
+  const session = sessionUri ? conn.session(sessionUri) : undefined;
+  return metaOf(session) ?? metaOf(sessionUri ? list?.bySlug(slug) : undefined);
+}
+
+let seenRev: number | undefined;
 
 /** The stage word, the transcript, the interview turns and the queued lines, from the session and chat. */
 function renderAhp(): void {
   const session = sessionUri ? conn.session(sessionUri) : undefined;
-  const meta = metaOf(session) ?? metaOf(sessionUri ? list?.bySlug(slug) : undefined);
-  stageMenu.set(stageOf(session, meta, snapStage), meta?.covered, meta?.drafting === true);
+  const meta = currentMeta();
+  const stage = stageOf(session, meta, snapStage);
+  const offline = meta?.offline === true;
+  stageMenu.set(stage, meta?.covered, meta?.drafting === true, offline);
   const chat = chatUri ? conn.chat(chatUri) : undefined;
   const said = transcript(chat);
   if (!els.log.hidden) transcriptView.render(said);
-  if (active === "dump") renderTurns(els.turns, said);
+  if (active === "dump") renderTurns(els.turns, said, interviewDone(meta?.covered));
   renderQueued();
+
+  if (meta && typeof meta.commentsRev === "number") {
+    if (seenRev !== undefined && meta.commentsRev !== seenRev) void refetch();
+    seenRev = meta.commentsRev;
+  }
+
+  interview.set({ slug, stage, covered: meta?.covered ?? [], offline, lines: said });
+  setInterview(loaded && phone.matches && stage === "interview");
+  renderLetter();
+}
+
+/** Switches between the Room and the phone interview, handing the dump between their pages. */
+function setInterview(on: boolean): void {
+  if (on === interview.visible) return;
+  if (on) {
+    stageMenu.close(false);
+    ivPage.show(leaves.get("dump")?.text ?? "", "dump");
+  } else page.show(leaves.get(active)?.text ?? "", active);
+  interview.show(on);
+  if (on) ivPage.resize();
+  else markPage();
+}
+
+/** The snapshot again, after `commentsRev` moved: the brief notes, and brief.md unless it has unsent edits. */
+let refetching: Promise<void> | null = null;
+let refetchAgain = false;
+async function refetch(): Promise<void> {
+  if (refetching) {
+    refetchAgain = true;
+    return;
+  }
+  refetching = (async () => {
+    try {
+      const snap = await api.snapshot(slug);
+      takeNotes(snap);
+      const brief = leaves.get("brief");
+      if (brief) adoptBrief(brief, snap.files.brief);
+    } catch (e) {
+      console.info(`snapshot refetch failed: ${e instanceof Error ? e.message : e}`);
+    }
+  })();
+  await refetching;
+  refetching = null;
+  if (refetchAgain) {
+    refetchAgain = false;
+    await refetch();
+  }
+}
+
+function takeNotes(snap: Snapshot): void {
+  briefNotes = briefNotesOf(snap.briefNotes);
+  markPage();
+  renderQuotes(els.asideBrief, briefNotes);
+}
+
+/** The `?` marks: on the dump leaf, the blocks a brief quote comes from. */
+function markPage(): void {
+  page.setMarks(active === "dump" ? (b) => quoteMarks([b], briefNotes)[0] === true : null);
 }
 
 conn.onChange((uris) => {
@@ -198,11 +329,33 @@ function render(): void {
     const where = conflict.file === "article" ? [] : [span(`${conflict.file}.md`), span("·")];
     rows.push(row(...where, span("disk changed while offline"), span("·"), keep, span("·"), take));
   }
+  rows.push(...hostLetter());
   const info = conn.info;
   const down = info.status === "reconnecting" || (info.status === "connecting" && info.attempt > 0);
   if (down || info.status === "failed") rows.push(row(span(connectionWords(info))));
   els.letter.hidden = rows.length === 0;
-  els.letter.replaceChildren(...rows);
+  const same =
+    rows.length === els.letter.children.length && rows.every((r, i) => r === els.letter.children[i]);
+  if (!same) els.letter.replaceChildren(...rows);
+}
+
+/** The host's letter lines, rebuilt only when they change so a `restore it` in flight keeps its state. */
+let letterKey = "";
+let letterEls: HTMLDivElement[] = [];
+function hostLetter(): HTMLDivElement[] {
+  const letter = currentMeta()?.letter ?? [];
+  const key = JSON.stringify(letter);
+  if (key !== letterKey) {
+    letterKey = key;
+    letterEls = letterRows(letter, async (id) => {
+      await api.letter(slug, id, "restore");
+    });
+  }
+  return letterEls;
+}
+
+function renderLetter(): void {
+  if (loaded) render();
 }
 
 function row(...kids: HTMLElement[]): HTMLDivElement {
@@ -236,7 +389,9 @@ function showLeaf(file: FileName): void {
   }
   els.body.classList.toggle("on-dump", file === "dump");
   els.asideDump.hidden = file !== "dump";
+  els.asideBrief.hidden = file !== "brief";
   page.show(leaves.get(file)?.text ?? "", file);
+  markPage();
   render();
   renderAhp();
 }
@@ -244,27 +399,33 @@ function showLeaf(file: FileName): void {
 function onLeafChange(leaf: Leaf, commit?: string): void {
   if (commit) shownCommit = { sha: commit.slice(0, 7), until: Date.now() + 2000 };
   // `take disk` replaced the text: show it when it is the leaf on screen.
-  if (leaf.file === active && !leaf.dirty && leaf.state.kind === "saved" && page.text() !== leaf.text) {
+  const fresh = !leaf.dirty && leaf.state.kind === "saved";
+  if (interview.visible) {
+    if (leaf.file === "dump" && fresh && ivPage.text() !== leaf.text) ivPage.show(leaf.text, "dump");
+  } else if (leaf.file === active && fresh && page.text() !== leaf.text) {
     page.show(leaf.text, leaf.file);
   }
   render();
 }
 
-let loaded = false;
-
 async function load(): Promise<void> {
   const snap = await api.snapshot(slug);
   snapStage = snap.stage;
+  takeNotes(snap);
   for (const f of ["article", "dump", "brief"] as const) {
     const leaf = new Leaf(slug, f, snap.files[f].text, snap.files[f].sha, onLeafChange);
     leaves.set(f, leaf);
     leaf.replay();
   }
   loaded = true;
-  const first =
-    snap.files.article.text.trim() === "" && snap.files.dump.text.trim() !== "" ? "dump" : "article";
+  const first: FileName =
+    askedLeaf === "dump" || askedLeaf === "brief" || askedLeaf === "article"
+      ? askedLeaf
+      : snap.files.article.text.trim() === "" && snap.files.dump.text.trim() !== ""
+        ? "dump"
+        : "article";
   showLeaf(first);
-  page.focusEnd();
+  if (!interview.visible && !phone.matches) page.focusEnd();
 }
 
 async function main(): Promise<void> {

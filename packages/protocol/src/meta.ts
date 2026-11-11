@@ -42,6 +42,8 @@ export interface SparringMeta {
   prUrl?: string;
   tokens: number;
   provider: "claude" | "demo";
+  /** The engine answered a prompt with -32000: the Room shows `sign-in needed · <provider>` and no coach starts. */
+  signInNeeded?: boolean;
 }
 
 /** The key under the session's `_meta`. */

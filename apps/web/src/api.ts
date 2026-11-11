@@ -4,12 +4,27 @@ import { apiUrl, crossOrigin } from "./config.ts";
 
 export type FileName = "article" | "dump" | "brief";
 
+/** One `note_brief` entry: the topic it covers and the writer's words it quotes. */
+export interface BriefNote {
+  topic: string;
+  quote: string;
+  question?: string;
+}
+
 export interface Snapshot {
   slug: string;
   stage: string;
   authorship: string;
   files: Record<FileName, { text: string; sha: string }>;
   commit: string;
+  briefNotes?: BriefNote[];
+}
+
+/** One line of `~/writing/inbox.md`. */
+export interface Idea {
+  id: string;
+  date: string;
+  text: string;
 }
 
 export class ApiError extends Error {
@@ -49,7 +64,12 @@ const enc = encodeURIComponent;
 export const api = {
   me: () => call<{ ok: true }>("GET", "/api/me"),
   login: (token: string) => call<{ ok: true }>("POST", "/api/login", { token }),
-  createArticle: (slug: string) => call<{ id: string; slug: string }>("POST", "/api/articles", { slug }),
+  createArticle: (slug: string, inboxId?: string) =>
+    call<{ id: string; slug: string }>("POST", "/api/articles", inboxId ? { slug, inboxId } : { slug }),
+  inbox: () => call<Idea[]>("GET", "/api/inbox"),
+  addIdea: (text: string) => call<unknown>("POST", "/api/inbox", { text }),
+  letter: (slug: string, id: string, action: "dismiss" | "restore") =>
+    call<unknown>("POST", `/api/articles/${enc(slug)}/letter/${enc(id)}`, { action }),
   snapshot: (slug: string) => call<Snapshot>("GET", `/api/articles/${enc(slug)}`),
   save: (slug: string, file: FileName, text: string, base_sha: string, commit: boolean) =>
     call<{ sha: string; commit: string | null }>("PUT", `/api/articles/${enc(slug)}/${file}`, {

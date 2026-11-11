@@ -231,6 +231,29 @@ export function toolLine(tc: {
   return said && said !== name && said !== tc.displayName ? `${name} · ${said}` : name;
 }
 
+interface TurnError {
+  errorType?: string;
+  message?: string;
+  _meta?: Record<string, unknown>;
+}
+
+const SIGN_IN =
+  /sign[\s-]?in|auth(?:entication|_required|Required)?\b|not logged in|log ?in required|-32000/i;
+
+/**
+ * A failed turn as a host line. A failure for sign-in (the adapter's -32000, an auth error type, or the
+ * daemon's own `sign-in needed` words) reads `sign-in needed · claude`; anything else reads `error · <message>`.
+ */
+export function errorLine(error: TurnError | undefined): string {
+  const message = String(error?.message ?? "").trim();
+  if (/^sign-in needed\b/.test(message)) return message;
+  if (SIGN_IN.test(String(error?.errorType ?? "")) || SIGN_IN.test(message)) {
+    const provider = error?._meta?.provider;
+    return `sign-in needed · ${typeof provider === "string" && provider ? provider : "claude"}`;
+  }
+  return `error · ${message || "the turn failed"}`;
+}
+
 function partsToLines(
   parts: ResponsePart[],
   at: string | undefined,
@@ -263,11 +286,7 @@ function partsToLines(
         break;
       case "error":
         flush(false);
-        out.push({
-          kind: "host",
-          text: `error · ${(p as { error: { message: string } }).error.message}`,
-          at,
-        });
+        out.push({ kind: "host", text: errorLine((p as { error: TurnError }).error), at });
         break;
       default:
         break;

@@ -34,6 +34,16 @@ CREATE TABLE IF NOT EXISTS turns (
 );
 `;
 
+/** Columns added after a table first shipped: added to an older database on start. */
+const ADDED: [table: string, column: string, decl: string][] = [
+  // bumped by note_brief (and later by notes): tells a client to fetch the snapshot again
+  ["articles", "comments_rev", "INT NOT NULL DEFAULT 0"],
+];
+
 export function migrate(db: Db): void {
   db.exec(SCHEMA);
+  for (const [table, column, decl] of ADDED) {
+    const have = db.all<{ name: string }>(`PRAGMA table_info(${table})`).some((c) => c.name === column);
+    if (!have) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${decl}`);
+  }
 }

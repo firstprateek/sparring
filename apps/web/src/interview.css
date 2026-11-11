@@ -1,0 +1,232 @@
+/* The phone interview (mocks/phone-interview.html at phone width). The frame is fixed to the visual viewport
+   (--vvt, --vvh set from visualViewport), so the iOS keyboard shrinks it instead of covering the composer. */
+html.iv-on,
+html.iv-on body {
+  overflow: hidden;
+  height: 100%;
+  overscroll-behavior: none;
+}
+html.iv-on #room {
+  display: none;
+}
+.iv {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--vvt, 0px);
+  height: var(--vvh, 100dvh);
+  display: grid;
+  grid-template-rows: 40px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  --pl: max(1.5rem, env(safe-area-inset-left, 0px));
+  --pr: max(1.5rem, env(safe-area-inset-right, 0px));
+}
+.iv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 var(--pr) 0 var(--pl);
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+}
+.iv-head .back {
+  padding: 12px 8px 12px 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  flex: none;
+}
+.iv-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.iv-head .stage-count {
+  white-space: nowrap;
+  min-height: 40px;
+  padding: 0 6px 0 8px;
+  margin: 0 -6px 0 -8px;
+  flex: none;
+}
+.iv-head .stage-count:focus-visible {
+  outline-offset: -3px;
+}
+.iv-page {
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 24px var(--pr) 60px var(--pl);
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  overscroll-behavior: contain;
+}
+.iv-page .para {
+  font-size: 17px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.iv .sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: min(700px, calc(100% - 40px));
+  background: var(--bg);
+  border-top: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.iv .sheet.folded {
+  height: auto;
+}
+.iv .sheet-head {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 var(--pr) 0 var(--pl);
+  flex: none;
+  min-width: 0;
+}
+.iv .sheet-head .topics {
+  display: flex;
+  gap: 0 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  padding: 6px 0;
+}
+.iv .fold {
+  min-width: 44px;
+  min-height: 44px;
+  margin-right: -14px;
+  text-align: center;
+  flex: none;
+}
+.iv .sheet-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.iv .thread {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 4px var(--pr) 16px var(--pl);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overscroll-behavior: contain;
+}
+.iv .turn {
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 10px;
+}
+.iv .divider {
+  text-align: center;
+}
+.iv .queued,
+.iv .note-line {
+  padding: 0 var(--pr) 8px var(--pl);
+}
+.iv .comp {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  border-top: 1px solid var(--rule);
+  padding: 12px var(--pr) max(14px, env(safe-area-inset-bottom, 0px)) var(--pl);
+  flex: none;
+  margin: 0;
+  position: relative;
+}
+.iv .comp .prompt {
+  padding-top: 4px;
+}
+.iv .comp textarea {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: 0;
+  resize: none;
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  padding: 0;
+  margin: 0;
+  min-height: 22px;
+  max-height: 88px;
+  overflow-y: auto;
+  field-sizing: content;
+}
+.iv .comp textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.iv .comp .send {
+  padding: 4px 0 4px 10px;
+  min-height: 22px;
+}
+.iv .slash {
+  left: var(--pl);
+  right: var(--pr);
+}
+.imenu {
+  position: absolute;
+  top: 39px;
+  right: var(--pr);
+  width: min(280px, calc(100% - 3rem));
+  max-height: calc(100% - 48px);
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 3;
+}
+.imenu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.imenu li .t {
+  display: block;
+  width: 100%;
+  padding: 6px 0;
+}
+.imenu .sendit {
+  border-top: 1px solid var(--rule);
+  margin-top: 4px;
+  min-height: 44px;
+}
+.imenu .pend {
+  margin: 0;
+}
+/* `.t` resets font and colour after `.mono` and `.muted`; say them again where a button needs them. */
+.imenu .t.muted,
+.iv-head .stage-count.muted {
+  color: var(--muted);
+}
+.imenu .t.text {
+  color: var(--text);
+}
+.iv .comp .send {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+}

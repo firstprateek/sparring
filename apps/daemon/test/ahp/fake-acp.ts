@@ -41,6 +41,14 @@ export interface FakeOptions {
   hang?: boolean;
   /** Carry on when stdin closes (an agent that does not take the end of its input as the end). */
   ignoreEof?: boolean;
+  /** Fail every `session/prompt` with -32000, as claude-agent-acp does without a credential. */
+  promptAuthRequired?: boolean;
+  /** Advertise `sessionCapabilities.systemPrompt`, as claude-agent-acp 0.101.0 does. */
+  systemPrompt?: boolean;
+  /** The mode a new session starts in (default: `default`). */
+  startMode?: string;
+  /** Refuse every `session/set_mode`. */
+  refuseMode?: boolean;
 }
 
 export class FakeAcpAgent {
@@ -212,8 +220,17 @@ export class FakeAcpAgent {
       });
       this.update(sessionId, { sessionUpdate: "tool_call_update", toolCallId, status: "completed" });
     }
-    const said = text.split("The owner's new message:").pop()?.trim() ?? text;
+    // The writer's message is the last text block; the host's header and context come before it.
+    const lastText = [...blocks].reverse().find((b) => b.type === "text");
+    const said = String(lastText?.text ?? text).trim();
     const images = blocks.filter((b) => b.type === "image").length;
+    if (said.startsWith("modeswitch")) {
+      // the agent leaves `default` on its own mid-turn, then works until cancelled
+      this.update(sessionId, { sessionUpdate: "current_mode_update", currentModeId: "acceptEdits" });
+      while (!this.cancelled.has(sessionId) && this.exitCode === undefined) await this.sleep(5);
+      this.cancelled.delete(sessionId);
+      return { stopReason: "cancelled" };
+    }
     if (said.startsWith("slow")) {
       for (let i = 0; i < 400 && !this.cancelled.has(sessionId); i++) {
         this.update(sessionId, {
@@ -502,6 +519,9 @@ export class FakeAcpAgent {
           agentCapabilities: {
             loadSession: this.opts.loadSession ?? false,
             promptCapabilities: { image: this.opts.image ?? true, embeddedContext: true },
+            ...(this.opts.systemPrompt
+              ? { sessionCapabilities: { systemPrompt: { mode: { override: {} } } } }
+              : {}),
           },
           authMethods: [],
         });
@@ -510,10 +530,11 @@ export class FakeAcpAgent {
           return this.out({ id, error: { code: -32000, message: "Authentication required" } });
         const sessionId = `acp-${++this.seq}-${Math.random().toString(36).slice(2, 6)}`;
         const options = this.opts.codex ? this.options() : [];
-        this.sessions.set(sessionId, { mode: this.opts.codex ? "read-only" : "default", options });
+        const mode = this.opts.codex ? "read-only" : (this.opts.startMode ?? "default");
+        this.sessions.set(sessionId, { mode, options });
         return reply({
           sessionId,
-          ...(this.opts.codex ? { configOptions: options } : { modes }),
+          ...(this.opts.codex ? { configOptions: options } : { modes: { ...modes, currentModeId: mode } }),
         });
       }
       case "session/load": {
@@ -538,7 +559,7 @@ export class FakeAcpAgent {
       }
       case "session/set_mode": {
         const s = this.sessions.get(String(p.sessionId));
-        if (!s || !modes.availableModes.some((x) => x.id === p.modeId)) {
+        if (this.opts.refuseMode || !s || !modes.availableModes.some((x) => x.id === p.modeId)) {
           return this.out({ id, error: { code: -32602, message: `no mode ${String(p.modeId)}` } });
         }
         s.mode = String(p.modeId);
@@ -557,6 +578,10 @@ export class FakeAcpAgent {
         return;
       }
       case "session/prompt": {
+        if (this.opts.promptAuthRequired) {
+          this.prompts.push({ sessionId: String(p.sessionId), blocks: (p.prompt ?? []) as Json[] });
+          return this.out({ id, error: { code: -32000, message: "Authentication required" } });
+        }
         try {
           const result = await this.prompt(String(p.sessionId), (p.prompt ?? []) as Json[]);
           if (this.exitCode === undefined) reply(result);

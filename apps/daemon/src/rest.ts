@@ -1,5 +1,6 @@
-// The /api/* routes: create an article (with its AHP session and chat), read its snapshot, save its files, stash
-// on `take disk`. The REST guard (login, Host, Origin) wraps this in main.ts.
+// The /api/* routes: the inbox, create an article (with its AHP session and chat, from an idea or not), read its
+// snapshot, save its files, stash on `take disk`, act on a letter line. The REST guard (login, Host, Origin) wraps
+// this in main.ts.
 import { type Articles, FILES, type FileName, HttpError, sessionUri } from "./articles.ts";
 
 const json = (body: unknown, status = 200) =>
@@ -35,6 +36,13 @@ export function restHandler(articles: Articles) {
     const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent); // ["api", ...]
     const m = req.method;
     try {
+      if (parts[1] === "inbox" && parts.length === 2) {
+        if (m === "GET") return json(await articles.inbox());
+        if (m === "POST") {
+          const b = await body(req);
+          return json(await articles.addIdea(str(b.text, "text")), 201);
+        }
+      }
       if (parts[1] === "articles") {
         if (parts.length === 2 && m === "POST") {
           const b = await body(req);
@@ -42,7 +50,18 @@ export function restHandler(articles: Articles) {
           if (provider !== undefined && provider !== "claude" && provider !== "demo") {
             throw new HttpError(400, { error: "provider is claude or demo" });
           }
-          const row = await articles.create(str(b.slug, "slug"), provider);
+          const inboxId =
+            b.inboxId === undefined || b.inboxId === null ? undefined : str(b.inboxId, "inboxId");
+          // An inbox idea becomes the dump: looked up first, taken out of inbox.md once the article exists.
+          const idea = inboxId === undefined ? undefined : await articles.idea(inboxId);
+          if (inboxId !== undefined && !idea) throw new HttpError(404, { error: "no such idea in inbox.md" });
+          const row = await articles.create(
+            str(b.slug, "slug"),
+            provider,
+            undefined,
+            idea ? { dump: `${idea.text}\n` } : {},
+          );
+          if (idea) await articles.takeIdea(idea.id).catch(() => undefined);
           return json(
             {
               id: row.id,
@@ -68,6 +87,24 @@ export function restHandler(articles: Articles) {
               b.commit === true,
             );
             return json(res);
+          }
+          if (parts.length === 5 && parts[3] === "letter" && m === "POST") {
+            const b = await body(req);
+            const id = parts[4] as string;
+            const line = articles.letterLine(slug, id);
+            if (!line) throw new HttpError(404, { error: "no such letter line" });
+            if (b.action === "dismiss") {
+              articles.dropLetter(slug, id);
+              return json({ ok: true });
+            }
+            if (b.action === "restore") {
+              if (line.kind !== "quarantine")
+                throw new HttpError(409, { error: "only a quarantine line restores" });
+              const res = await articles.restoreQuarantine(slug);
+              articles.dropLetter(slug, id);
+              return json(res);
+            }
+            throw new HttpError(400, { error: "action is dismiss or restore" });
           }
           if (parts.length === 4 && parts[3] === "stash" && m === "POST") {
             const b = await body(req);

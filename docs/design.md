@@ -239,7 +239,7 @@ Section 7 lists what `~/.sparring/` and `~/writing/` hold. Backup is nightly and
 
 The working assumption is that a ten-note pass over 1,500 words takes 30 to 90 seconds. It is measured on the first real article. That wait is why `/queue` exists: run the passes at night and read the notes on the phone in the morning.
 
-`usage_update{used, size, cost?}` from the agent maps to `chat/usage`. The host sums it per article into the two usage columns on `articles`. The footer hides the figure when the engine sends neither. `_meta["_claude/rateLimit"]`, when present, drives the `rate limited` status line.
+The `session/prompt` reply's `usage` (`inputTokens`, `outputTokens`, `cachedReadTokens`, `cachedWriteTokens` on 0.101.0) maps to `chat/usage`. The host sums it per article into the two usage columns on `articles`: `tokens_in` is input plus both cache counts, `tokens_out` is output. `usage_update{used, size}` is the context window, not spend, and is not summed. The footer hides the figure when the engine sends neither. `_meta["_claude/rateLimit"]`, when present, drives the `rate limited` status line.
 
 ### Publishing into the Astro site
 
@@ -673,6 +673,7 @@ The total is 28 to 33 evenings. There is a plain editor for one article after st
 - An existing AHP client such as VS Code against the host, with `deferredAuth`; `elicitation/create` if adapters advertise it.
 - Images in posts, and a headless page check of the built post.
 - A tagged Tailscale service and a separate macOS user for the coach.
+- A native iOS app through Tauri, with a share-sheet "send to inbox", once the owner pays for the Apple developer membership. A free account would mean reinstalling every 7 days and no push, so until then the phone keeps the home-screen web app.
 - A Tauri desktop shell as a thin client of the daemon on the Mac mini, about one evening. Packaging the daemon inside the app as a sidecar is only worth it without phone access.
 
 ## 10. Risks and open decisions

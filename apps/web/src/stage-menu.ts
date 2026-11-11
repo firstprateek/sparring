@@ -8,6 +8,7 @@ export class StageMenu {
   private stage = "";
   private covered: readonly string[] = [];
   private drafting = false;
+  private offline = false;
   private pending: Stage | null = null;
   private error = "";
 
@@ -36,15 +37,23 @@ export class StageMenu {
     });
   }
 
-  /** The article's stage as the host has it. */
-  set(stage: string, covered: readonly string[] | undefined, drafting = false): void {
+  /** The article's stage as the host has it. While `offline` the word reads `offline`, muted. */
+  set(stage: string, covered: readonly string[] | undefined, drafting = false, offline = false): void {
     const same =
       stage === this.stage && drafting === this.drafting && (covered ?? []).join() === this.covered.join();
     this.stage = stage;
     this.covered = covered ?? [];
     this.drafting = drafting;
+    this.offline = offline;
     if (this.pending === stage) this.pending = null;
-    this.word.textContent = drafting ? "drafting…" : stage ? stageLabel(stage, this.covered) : "";
+    this.word.textContent = this.offline
+      ? "offline"
+      : drafting
+        ? "drafting…"
+        : stage
+          ? stageLabel(stage, this.covered)
+          : "";
+    this.button.classList.toggle("is-offline", this.offline);
     if (!same && this.isOpen()) this.render();
   }
 

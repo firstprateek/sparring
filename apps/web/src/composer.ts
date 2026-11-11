@@ -152,6 +152,11 @@ export class Composer {
     }
     if (e.key !== "Enter" || e.shiftKey) return;
     e.preventDefault();
+    this.submit();
+  }
+
+  /** Sends what is typed (Enter, or a `send` button). */
+  submit(): void {
     const text = this.ta.value.trim();
     if (!text) return;
     const cmd = parseCommand(text);

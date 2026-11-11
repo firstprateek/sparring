@@ -125,6 +125,20 @@ export class Leaf {
     }
   }
 
+  /**
+   * Takes text the daemon changed on its own (a refetched snapshot). Refused while the writer has changes the
+   * daemon has not taken: dirty, a save in flight or waiting, or a conflict open. Returns true when it took it.
+   */
+  adopt(text: string, sha: string): boolean {
+    if (this.dirty || this.inFlight || this.state.kind !== "saved") return false;
+    if (text === this.text && sha === this.baseSha) return false;
+    this.text = text;
+    this.baseSha = sha;
+    this.persist();
+    this.onChange(this);
+    return true;
+  }
+
   /** `keep mine`: send the local text again over what is on disk. */
   async keepMine(): Promise<void> {
     if (this.state.kind !== "conflict") return;

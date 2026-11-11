@@ -5,13 +5,16 @@ import { AhpHost } from "./ahp/host.ts";
 import { AhpTransport, type WsData } from "./ahp/transport.ts";
 import { Articles } from "./articles.ts";
 import { same } from "./auth.ts";
+import { claudeLaunch, claudePaths, ensureSettings } from "./claude.ts";
 import { Coach } from "./coach.ts";
 import { loadConfig, sparringHome } from "./config.ts";
 import { openDb } from "./db.ts";
 import { demoLaunch } from "./demo-agent.ts";
+import { listenMcp } from "./mcp-socket.ts";
 import { restHandler } from "./rest.ts";
 import { restGuard } from "./rest-guard.ts";
 import { migrate } from "./schema.ts";
+import { Tools } from "./tools.ts";
 import { serveWebFrom } from "./web-static.ts";
 
 const log = (m: string) => console.log(`${new Date().toISOString()} ${m}`);
@@ -26,7 +29,30 @@ const articles = new Articles(db, config.writing_dir, {
 });
 await articles.init();
 
-const coach = new Coach({ articles, launches: { demo: demoLaunch() }, log });
+const home = sparringHome();
+// The guard's settings: written on first run; a file that differs is reported here and stops every spawn.
+try {
+  ensureSettings(home);
+} catch (e) {
+  log(`claude: ${e instanceof Error ? e.message : e}`);
+}
+const tools = new Tools(articles);
+const sock = join(home, "daemon.sock");
+const coach = new Coach({
+  articles,
+  tools,
+  launches: {
+    demo: demoLaunch({ delayMs: 30, tools: (secret, tool, args) => tools.call(secret, tool, args) }),
+    claude: claudeLaunch({
+      home,
+      ...(config.claude_oauth_token ? { token: config.claude_oauth_token } : {}),
+    }),
+  },
+  mcp: { sock },
+  runDir: claudePaths(home).runDir,
+  version: "0.3.0",
+  log,
+});
 const host = new AhpHost({
   db,
   backend: coach,
@@ -35,6 +61,8 @@ const host = new AhpHost({
   verifyToken: (t) => same(t, config.token),
 });
 await coach.start();
+coach.startSweep();
+const mcp = await listenMcp(sock, tools, log);
 // Pings every 25 s, a client silent for 90 s is closed (the host's idleCloseMs), Bun's own idle timeout is 60 s.
 const transport = new AhpTransport(host, {
   token: config.token,
@@ -87,6 +115,7 @@ async function shutdown(signal: string): Promise<void> {
     transport.stop();
     await articles.flush();
     await coach.shutdown();
+    await mcp.close();
     host.close();
     await new Promise((r) => setTimeout(r, 50)); // let the runs the close ended write their last lines
     db.close();

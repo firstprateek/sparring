@@ -14,6 +14,19 @@
   </header>
 
   <main>
+    <form id="idea-form" class="ideaform">
+      <label for="idea" class="mono muted">&gt;</label>
+      <input id="idea" class="idea" type="text" autocomplete="off" aria-label="Write down an idea" aria-describedby="idea-error">
+    </form>
+    <span id="idea-error" class="mono muted idea-error" role="status" hidden></span>
+
+    <section id="inbox-sec" class="list" aria-labelledby="inbox-h" hidden>
+      <h2 id="inbox-h" class="mono muted">inbox</h2>
+      <div id="inbox"></div>
+    </section>
+
+    <hr class="rule">
+
     <section class="list" aria-labelledby="articles-h">
       <h2 id="articles-h" class="mono muted">articles</h2>
       <div id="articles"></div>
@@ -28,7 +41,7 @@
   </main>
 
   <footer class="bar mono muted">
-    <span>j k move · enter open · n new</span>
+    <span>j k move · enter open · n new · i idea</span>
     <span id="conn"></span>
   </footer>
 </div>

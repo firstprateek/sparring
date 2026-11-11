@@ -136,6 +136,100 @@ main {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+.ideaform {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+.ideaform label {
+  padding: 12px 0;
+}
+.idea {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: none;
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  padding: 12px 0;
+}
+.idea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.idea-error {
+  margin-top: -20px;
+}
+.rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 0;
+}
+.inbox {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 6px 0;
+}
+.inbox .date {
+  flex: none;
+}
+.inbox .text {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.inbox .go {
+  flex: none;
+  padding: 12px 0;
+  visibility: hidden;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.inbox .go:hover {
+  color: var(--text);
+}
+.inbox:hover .go,
+.inbox:focus-within .go {
+  visibility: visible;
+}
+@media (hover: none) {
+  .inbox .go {
+    visibility: visible;
+  }
+}
+.inbox .slug {
+  flex: 1 1 100%;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin: 0;
+}
+.inbox .slug input {
+  flex: 1;
+  min-width: 12ch;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  outline: 0;
+  font: inherit;
+  color: var(--text);
+  padding: 4px 0;
+}
+.inbox .slug input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 @media (max-width: 480px) {
   .row .top {
     gap: 12px;

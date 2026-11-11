@@ -1,6 +1,6 @@
-// Articles: every article from the AHP root session list and its `_meta.sparring`, `+ new article`, and the
-// keys j, k, enter and n. There is no REST list; a save made elsewhere reaches the row through
-// root/sessionSummaryChanged.
+// Articles: the `>` idea field and the inbox (`GET` and `POST /api/inbox`, `→ article` on each idea), every
+// article from the AHP root session list and its `_meta.sparring`, `+ new article`, and the keys j, k, enter, n
+// and i. There is no REST list; a save made elsewhere reaches the row through root/sessionSummaryChanged.
 import "@fontsource/source-serif-4/400.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "./base.css";
@@ -8,8 +8,9 @@ import "./index.css";
 import type { SessionSummary } from "@microsoft/agent-host-protocol";
 import { slugProblem } from "@sparring/protocol/slug";
 import { ahp, useAhp } from "./ahp/hub.ts";
-import { ApiError, api } from "./api.ts";
+import { ApiError, api, type Idea } from "./api.ts";
 import { daemonHost } from "./config.ts";
+import { inboxRows } from "./inbox.ts";
 import { ensureLogin } from "./login.ts";
 import { headLine, rowSub, rowTail } from "./rows.ts";
 import { ArticleList, metaOf } from "./session.ts";
@@ -29,9 +30,17 @@ const els = {
   newForm: $<HTMLFormElement>("new"),
   newInput: $<HTMLInputElement>("new-slug"),
   newError: $("new-error"),
+  ideaForm: $<HTMLFormElement>("idea-form"),
+  idea: $<HTMLInputElement>("idea"),
+  ideaError: $("idea-error"),
+  inboxSec: $("inbox-sec"),
+  inbox: $("inbox"),
 };
 
-const roomUrl = (slug: string) => `/room.html?slug=${encodeURIComponent(slug)}`;
+const roomUrl = (slug: string, leaf?: "dump") =>
+  `/room.html?slug=${encodeURIComponent(slug)}${leaf ? `&leaf=${leaf}` : ""}`;
+
+const failed = (err: unknown) => (err instanceof ApiError ? err.message : "could not reach the daemon");
 
 function span(text: string, cls?: string): HTMLSpanElement {
   const s = document.createElement("span");
@@ -120,7 +129,66 @@ els.newForm.addEventListener("submit", async (e) => {
     await api.createArticle(slug);
     location.href = roomUrl(slug);
   } catch (err) {
-    els.newError.textContent = err instanceof ApiError ? err.message : "could not reach the daemon";
+    els.newError.textContent = failed(err);
+  }
+});
+
+// ───────────────────────────── ideas ─────────────────────────────
+
+function renderInbox(items: Idea[]): void {
+  // Leave the list alone while a slug is being typed into one of its rows.
+  if (els.inbox.querySelector("form.slug")) return;
+  els.inbox.replaceChildren(
+    ...inboxRows(items, {
+      check: slugProblem,
+      article: async (idea, slug) => {
+        try {
+          await api.createArticle(slug, idea.id);
+        } catch (err) {
+          throw new Error(failed(err));
+        }
+        location.href = roomUrl(slug, "dump");
+      },
+    }),
+  );
+  els.inboxSec.hidden = items.length === 0;
+}
+
+async function loadInbox(): Promise<void> {
+  try {
+    const items = await api.inbox();
+    renderInbox(Array.isArray(items) ? items : []);
+  } catch (err) {
+    showIdeaError(`inbox · ${failed(err)}`);
+  }
+}
+
+function showIdeaError(text: string): void {
+  els.ideaError.textContent = text;
+  els.ideaError.hidden = text === "";
+}
+
+els.idea.addEventListener("input", () => showIdeaError(""));
+els.ideaForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = els.idea.value.trim();
+  if (!text) return;
+  els.idea.disabled = true;
+  try {
+    await api.addIdea(text);
+    els.idea.value = "";
+    await loadInbox();
+  } catch (err) {
+    showIdeaError(`not kept · ${failed(err)}`);
+  } finally {
+    els.idea.disabled = false;
+    els.idea.focus();
+  }
+});
+els.idea.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    e.preventDefault();
+    els.idea.blur();
   }
 });
 
@@ -143,6 +211,9 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "n") {
     e.preventDefault();
     openNew();
+  } else if (e.key === "i") {
+    e.preventDefault();
+    els.idea.focus();
   }
 });
 
@@ -150,12 +221,26 @@ document.addEventListener("keydown", (e) => {
 
 async function main(): Promise<void> {
   renderConn();
-  await ensureLogin(() => ahp().retryNow());
+  await ensureLogin(() => {
+    ahp().retryNow();
+    void loadInbox();
+  });
+  void loadInbox();
   useAhp();
   const conn = ahp();
   list = new ArticleList(conn);
   list.onChange(render);
   conn.onInfo(renderConn);
+  // Ideas added elsewhere (`/idea` in a Room, another device) show on the next reconnect or return to the tab.
+  let wasOpen = conn.info.status === "open";
+  conn.onInfo((i) => {
+    const open = i.status === "open";
+    if (open && !wasOpen) void loadInbox();
+    wasOpen = open;
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void loadInbox();
+  });
   setInterval(() => {
     renderConn();
     render(); // save ages move on

@@ -2,12 +2,14 @@
 // The lock in front of /api/*, from its REST guard: every request
 // must come to an allowed Host (421) and carry the cookie or the bearer token (401); every write must also
 // come from an allowed Origin (403) and be JSON (415). Login is the one route open without a credential,
-// and it allows five failures a minute.
+// and it allows five failures a minute. It takes the token or a one-time code from login-codes.ts.
 import { authorized, hostAllowed, loginCookie, originAllowed, same } from "./auth.ts";
 
 export interface GuardOptions {
   token: string;
   hosts: string[];
+  /** Spends a one-time login code, true when it was live. See login-codes.ts. */
+  spendCode?: (input: string) => boolean;
 }
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -39,9 +41,10 @@ export function restGuard(opts: GuardOptions, next: (req: Request) => Promise<Re
       if (fails.length >= LOGIN_FAILS_PER_MINUTE)
         return json({ error: "too many tries · wait a minute" }, 429);
       const body = (await req.json().catch(() => ({}))) as { token?: unknown };
-      if (typeof body.token !== "string" || !same(body.token, opts.token)) {
+      const given = typeof body.token === "string" ? body.token : "";
+      if (!same(given, opts.token) && !opts.spendCode?.(given)) {
         fails.push(now);
-        return json({ error: "wrong token" }, 401);
+        return json({ error: "wrong token or code" }, 401);
       }
       return json({ ok: true }, 200, { "set-cookie": loginCookie(opts.token, host) });
     }

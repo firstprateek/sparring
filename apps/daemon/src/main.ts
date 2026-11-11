@@ -10,6 +10,7 @@ import { Coach } from "./coach.ts";
 import { loadConfig, sparringHome } from "./config.ts";
 import { openDb } from "./db.ts";
 import { demoLaunch } from "./demo-agent.ts";
+import { spendCode } from "./login-codes.ts";
 import { listenMcp } from "./mcp-socket.ts";
 import { restHandler } from "./rest.ts";
 import { restGuard } from "./rest-guard.ts";
@@ -72,7 +73,10 @@ const transport = new AhpTransport(host, {
 });
 transport.start();
 
-const rest = restGuard({ token: config.token, hosts: config.hosts }, restHandler(articles));
+const rest = restGuard(
+  { token: config.token, hosts: config.hosts, spendCode: (code) => spendCode(home, code) },
+  restHandler(articles),
+);
 const web = serveWebFrom(join(import.meta.dir, "../../web/dist"));
 
 const server = Bun.serve<WsData>({

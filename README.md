@@ -20,7 +20,7 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` builds the web client and starts the daemon on `http://127.0.0.1:7421`. The login token is in `~/.sparring/config.json`.
+`pnpm dev` builds the web client and starts the daemon on `http://127.0.0.1:7421`. The login token is in `~/.sparring/config.json`. To log in a new device without copying the token, run `pnpm login-code` on the daemon's machine: it prints a code that works once and lapses in ten minutes.
 
 ### Desktop app
 

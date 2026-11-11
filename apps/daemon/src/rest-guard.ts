@@ -1,4 +1,5 @@
-// The lock in front of /api/*. Lifted from the REST guard of firstprateek/i-inc at 274b42b: every request
+// Lifted from firstprateek/i-inc at 274b42b.
+// The lock in front of /api/*, from its REST guard: every request
 // must come to an allowed Host (421) and carry the cookie or the bearer token (401); every write must also
 // come from an allowed Origin (403) and be JSON (415). Login is the one route open without a credential,
 // and it allows five failures a minute.

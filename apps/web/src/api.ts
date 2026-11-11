@@ -1,4 +1,6 @@
-// The REST calls the web client makes. Every non-GET sends JSON, as the REST guard requires.
+// The REST calls the web client makes. Every non-GET sends JSON, as the REST guard requires. Every call goes to
+// the daemon named in config.ts and carries the login cookie; a 401 tells the login form to show.
+import { apiUrl, crossOrigin } from "./config.ts";
 
 export type FileName = "article" | "dump" | "brief";
 
@@ -19,21 +21,34 @@ export class ApiError extends Error {
   }
 }
 
+const unauthorized = new Set<() => void>();
+
+/** Called when a call other than the login itself answers 401. Returns the release. */
+export function onUnauthorized(fn: () => void): () => void {
+  unauthorized.add(fn);
+  return () => unauthorized.delete(fn);
+}
+
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const init: RequestInit = { method, credentials: "same-origin" };
+  const init: RequestInit = { method, credentials: crossOrigin() ? "include" : "same-origin" };
   if (body !== undefined) {
     init.headers = { "content-type": "application/json" };
     init.body = JSON.stringify(body);
   }
-  const res = await fetch(path, init);
+  const res = await fetch(apiUrl(path), init);
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) throw new ApiError(res.status, data);
+  if (!res.ok) {
+    if (res.status === 401 && path !== "/api/login") for (const fn of [...unauthorized]) fn();
+    throw new ApiError(res.status, data);
+  }
   return data as T;
 }
 
 const enc = encodeURIComponent;
 
 export const api = {
+  me: () => call<{ ok: true }>("GET", "/api/me"),
+  login: (token: string) => call<{ ok: true }>("POST", "/api/login", { token }),
   createArticle: (slug: string) => call<{ id: string; slug: string }>("POST", "/api/articles", { slug }),
   snapshot: (slug: string) => call<Snapshot>("GET", `/api/articles/${enc(slug)}`),
   save: (slug: string, file: FileName, text: string, base_sha: string, commit: boolean) =>

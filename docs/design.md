@@ -464,7 +464,8 @@ Stage, pass and strictness go through `session/configChanged`. Note actions and 
 **`_meta.sparring`.**
 
 ```ts
-{ stage,                      // ideas|interview|outline|draft|critique|polish
+{ slug, provider,             // how a client finds the article; claude|demo
+  stage,                      // ideas|interview|outline|draft|critique|polish
   covered: string[],          // interview topics noted; N/6 is its length
   authorship,                 // coached|drafted, read-only mirror
   drafting, coachQuiet, offline,                 // booleans

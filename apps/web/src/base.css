@@ -81,3 +81,42 @@ textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.login-bar {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 0.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+.login {
+  width: min(68ch, 100% - 3rem);
+  margin: 40px auto 0;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.login input {
+  flex: 1;
+  min-width: 12ch;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  outline: 0;
+  font: inherit;
+  color: var(--text);
+  padding: 4px 0;
+}
+.login .t {
+  padding: 8px 0;
+}
+.login .status {
+  flex-basis: 100%;
+}

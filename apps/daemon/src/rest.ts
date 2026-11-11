@@ -1,6 +1,6 @@
-// The /api/* routes for step 1: create an article, read its snapshot, save its files, stash on `take disk`.
-// The REST guard (login, Host, Origin) wraps this in step 2.
-import { type Articles, FILES, type FileName, HttpError } from "./articles.ts";
+// The /api/* routes: create an article (with its AHP session and chat), read its snapshot, save its files, stash
+// on `take disk`. The REST guard (login, Host, Origin) wraps this in main.ts.
+import { type Articles, FILES, type FileName, HttpError, sessionUri } from "./articles.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -43,7 +43,16 @@ export function restHandler(articles: Articles) {
             throw new HttpError(400, { error: "provider is claude or demo" });
           }
           const row = await articles.create(str(b.slug, "slug"), provider);
-          return json({ id: row.id, slug: row.slug, commit: row.last_commit }, 201);
+          return json(
+            {
+              id: row.id,
+              slug: row.slug,
+              commit: row.last_commit,
+              session: sessionUri(row.id),
+              chat: row.chat,
+            },
+            201,
+          );
         }
         const slug = parts[2];
         if (slug !== undefined) {

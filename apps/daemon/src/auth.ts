@@ -1,4 +1,5 @@
-// Lifted from firstprateek/i-inc at 274b42b, trimmed. The daemon's lock, shared by the REST API and the AHP
+// Lifted from firstprateek/i-inc at 274b42b.
+// Trimmed. The daemon's lock, shared by the REST API and the AHP
 // WebSocket upgrade: the `sparring` cookie, which holds an HMAC of the token and never the token, or the token
 // as an `Authorization: Bearer` header; plus the Host and Origin allow-lists.
 import { createHmac, timingSafeEqual } from "node:crypto";

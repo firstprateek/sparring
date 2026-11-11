@@ -9,18 +9,28 @@
 <body>
 <div class="sp">
   <header class="bar mono">
-    <span class="text">sparring</span>
-    <button type="button" id="theme" class="t muted">theme · auto</button>
+    <span>sparring</span>
+    <span class="muted"><span id="head-line"></span><span id="head-sep" hidden> · </span><button type="button" id="theme" class="t">theme · auto</button></span>
   </header>
-  <main class="list">
-    <div class="mono muted">articles</div>
-    <ul id="articles" class="rows"></ul>
-    <form id="new" class="new mono">
-      <label for="new-slug" class="muted">+ new article</label>
-      <input id="new-slug" name="slug" autocomplete="off" spellcheck="false" placeholder="slug, like closed-laptop" aria-describedby="new-error">
-      <span id="new-error" class="muted" role="status"></span>
-    </form>
+
+  <main>
+    <section class="list" aria-labelledby="articles-h">
+      <h2 id="articles-h" class="mono muted">articles</h2>
+      <div id="articles"></div>
+      <p id="empty" class="mono muted" hidden>no articles yet</p>
+      <button type="button" id="new-btn" class="t pill">+ new article</button>
+      <form id="new" class="new mono" hidden>
+        <label for="new-slug" class="muted">+ new article</label>
+        <input id="new-slug" name="slug" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="slug, like closed-laptop" aria-describedby="new-error">
+        <span id="new-error" class="muted" role="status"></span>
+      </form>
+    </section>
   </main>
+
+  <footer class="bar mono muted">
+    <span>j k move · enter open · n new</span>
+    <span id="conn"></span>
+  </footer>
 </div>
 <script type="module" src="/src/index.ts"></script>
 </body>

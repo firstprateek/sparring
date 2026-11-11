@@ -19,21 +19,39 @@
       <button type="button" class="t leaf on" data-leaf="article" aria-current="true">article</button>
     </nav>
     <span class="spacer"></span>
-    <span id="stage-word" class="muted stage"></span>
+    <button type="button" id="stage-btn" class="t mono muted stage" aria-haspopup="true" aria-expanded="false" aria-controls="stage-menu"><span id="stage-word"></span> ▾</button>
+    <div id="stage-menu" class="menu mono" hidden></div>
   </header>
 
-  <div class="body">
+  <div class="body" id="body">
     <main class="page">
       <div class="col"><div id="paras" class="paras"></div></div>
     </main>
     <aside class="margin" aria-label="Coach margin">
       <div id="letter" class="letter mono muted" hidden></div>
+      <div id="aside-dump" class="aleaf" hidden>
+        <div id="turns" class="turns" aria-live="polite"></div>
+      </div>
+      <div class="comp-wrap">
+        <div id="queued" class="queued mono muted" hidden></div>
+        <div id="comp-note" class="mono muted note-line" role="status" hidden></div>
+        <div class="comp">
+          <div id="slash" class="slash mono" role="listbox" aria-label="Commands" hidden></div>
+          <label for="composer" class="mono muted prompt">&gt;</label>
+          <textarea id="composer" rows="1" aria-label="Reply to the coach or type a slash command" aria-controls="slash" aria-autocomplete="list" spellcheck="true"></textarea>
+        </div>
+      </div>
     </aside>
+
+    <div id="log" class="log" role="dialog" aria-label="Transcript" hidden>
+      <div class="mono muted bar"><span>transcript</span><button type="button" id="log-esc" class="t act text">esc</button></div>
+      <div id="log-list" class="log-list" aria-live="polite"></div>
+    </div>
   </div>
 
   <footer class="foot mono muted">
     <span class="grp"><span id="words">0 words</span><span>·</span><span id="saved">saved</span></span>
-    <span class="grp"></span>
+    <span class="grp"><button type="button" id="log-btn" class="t" aria-label="Open the transcript" aria-expanded="false" aria-controls="log">⋯</button></span>
   </footer>
 </div>
 <script type="module" src="/src/room.ts"></script>

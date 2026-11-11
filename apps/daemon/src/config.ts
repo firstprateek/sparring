@@ -51,7 +51,8 @@ export function loadConfig(home = sparringHome()): Config {
     port,
     git_name: raw.git_name ?? "Sparring",
     git_email: raw.git_email ?? "sparring@localhost",
-    default_provider: raw.default_provider ?? "claude",
+    // "demo" until the real coach lands in step 3.
+    default_provider: raw.default_provider ?? "demo",
   };
   if (JSON.stringify(filled) !== JSON.stringify(raw)) {
     writeFileSync(path, `${JSON.stringify(filled, null, 2)}\n`, { mode: 0o600 });

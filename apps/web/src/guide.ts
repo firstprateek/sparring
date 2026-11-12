@@ -1,6 +1,6 @@
 // The guide: a tutorial card that walks the writer from an idea to a finished article in the real app. Each step
 // says what to do and points at the control; steps that can be checked (an idea kept, 100 words dumped, the
-// interview covered, an outline's headings, a critique's notes on the page, a pass that ran, a draft sent for) move on by themselves
+// interview covered, an outline's headings, a critique's notes on the page, a pass that ran, the Tells table opened, a draft sent for) move on by themselves
 // once done. Steps for parts not built yet say so. Where the writer is
 // in the guide is kept in localStorage, so it follows them from Articles into a Room; it is a convenience only.
 import type { FileName } from "./api.ts";
@@ -23,6 +23,8 @@ export interface GuideFacts {
   passes?: number;
   /** The article is drafted: the coach wrote its draft. */
   drafted?: boolean;
+  /** The writer has opened the Tells table. */
+  tells?: boolean;
 }
 
 export interface Step {
@@ -119,6 +121,13 @@ export const STEPS: readonly Step[] = [
     where: "room",
     target: "#composer, #notes, #letter",
     done: (f) => (f.passes ?? 0) > 0,
+  },
+  {
+    title: "Count the tells",
+    body: "Under the article, em, ¶1 and not-x-but-y count three habits that read as machine-written: em-dashes, one-sentence paragraphs and it's not X, it's Y. Click a count to open the Tells table and jump to each one. They are counts, not verdicts. Pasting is allowed, and words pasted from the coach keep a dotted underline until you rewrite them; pasted counts them.",
+    where: "room",
+    target: '#tells-foot, [data-leaf="article"]',
+    done: (f) => f.tells === true,
   },
   {
     title: "Stuck? Send it",

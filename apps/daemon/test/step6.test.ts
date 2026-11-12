@@ -197,7 +197,8 @@ describe("send it", () => {
     const r = await t.tools.call(secret, "write_draft", { blocks: ["A sentence."] });
     expect(r).toMatchObject({ ok: false, error: expect.stringMatching(/^write refused/) });
     expect(disk(t)).toBe(PAGE);
-    expect(letter(t, a.session).filter((l) => l.kind === "refused")).toHaveLength(2);
+    // the same line said again takes the older one's place
+    expect(letter(t, a.session).filter((l) => l.kind === "refused")).toHaveLength(1);
   });
 
   it("a failed draft leaves the page byte for byte", async () => {

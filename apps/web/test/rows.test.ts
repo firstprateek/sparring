@@ -40,6 +40,13 @@ describe("Articles row tail", () => {
     expect(rowTail(meta(), NOW).map((p) => p.cls)).toEqual([undefined, undefined, undefined, "save", "tok"]);
   });
 
+  it("tags a drafted article before the stage", () => {
+    const tail = rowTail(meta({ authorship: "drafted", yoursPct: 12 }), NOW);
+    expect(tail.map((p) => p.text)).toEqual(["drafted", "draft", "612w", "·6", "2h", "18k tok"]);
+    expect(tail[0]?.cls).toBe("tag");
+    expect(texts(meta({ authorship: "drafted", prNumber: 5 }))).toEqual(["PR #5"]);
+  });
+
   it("counts the interview from covered", () => {
     const m = meta({
       stage: "interview",

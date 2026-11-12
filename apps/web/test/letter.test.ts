@@ -60,6 +60,20 @@ describe("the letter", () => {
     expect(restore).toHaveBeenCalledWith("l3");
   });
 
+  it("gives every kind but the quarantine line a dismiss, the write refused line included", async () => {
+    const dismiss = vi.fn(async () => {});
+    const rows = letterRows(LETTER, async () => {}, dismiss);
+    expect(rows.map((r) => r.textContent)).toEqual([
+      "the coach was interrupted·ask again·dismiss",
+      "article.md changed outside a save·quarantined as article.agent.md·restore it",
+      "write refused·the coach tried to edit article.md·logged·dismiss",
+    ]);
+    const refused = rows[2] as HTMLElement;
+    expect(refused.classList.contains("err")).toBe(true);
+    refused.querySelector("button")?.click();
+    expect(dismiss).toHaveBeenCalledWith(refused.dataset.id);
+  });
+
   it("adds `restore it` when the daemon's quarantine text leaves it out", () => {
     const rows = letterRows(
       [line("q", "quarantine", "article.md changed outside a save · quarantined as article.agent.md", "x")],

@@ -1,12 +1,16 @@
 // The /api/* routes: the inbox, create an article (with its AHP session and chat, from an idea or not), read its
-// snapshot, save its files, stash on `take disk`, act on a letter line, mark notes seen. The REST guard (login, Host, Origin) wraps
+// snapshot, save its files, stash on `take disk`, act on a letter line, mark notes seen, check pasted text
+// against the coach's words (`pastes`). The REST guard (login, Host, Origin) wraps
 // this in main.ts. `authorship` is the one call that flips an article between coached and drafted; the coach
 // does it, since the draft turn is its to start. `shelf` is the page from before the draft.
+import type { CorpusEntry } from "@sparring/protocol/overlap";
 import { type Articles, FILES, type FileName, HttpError, sessionUri } from "./articles.ts";
 
 /** What the routes need from the coach. */
 export interface Flipper {
   flip(slug: string, to: "coached" | "drafted"): Promise<Record<string, unknown>>;
+  /** Everything the coach said in an article, and the writer's own words to hold against it. */
+  corpus?(slug: string): Promise<{ entries: CorpusEntry[]; own: string[] }>;
 }
 
 const json = (body: unknown, status = 200) =>
@@ -147,6 +151,20 @@ export function restHandler(articles: Articles, coach?: Flipper) {
             if (b.confirm !== true) throw new HttpError(400, { error: "confirm must be true" });
             if (!coach) throw new HttpError(503, { error: "no coach is attached" });
             return json(await coach.flip(slug, b.to));
+          }
+          if (parts.length === 4 && parts[3] === "pastes" && m === "POST") {
+            const b = await body(req);
+            const text = str(b.text, "text");
+            const row = articles.row(slug);
+            // With no coach attached there is no chat: the notes and the brief questions are the corpus.
+            const corpus = coach?.corpus
+              ? await coach.corpus(slug)
+              : { entries: articles.coachWritten(row), own: [await articles.read(slug, "dump")] };
+            const res = articles.recordPaste(slug, text, corpus);
+            return json({
+              spans: res.spans.map(({ text, words, source }) => ({ text, words, source })),
+              pastes: res.pastes.map(({ text, source }) => ({ text, source })),
+            });
           }
           if (parts.length === 4 && parts[3] === "shelf" && m === "GET")
             return json(await articles.shelf(slug));

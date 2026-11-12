@@ -1,7 +1,7 @@
 // The letter's host lines from `_meta.sparring.letter`: most recent first, at most three, each in its kind's copy.
 // A quarantine line ends in `restore it`, which posts `{action: 'restore'}` for that line. A pass result
-// (`filler · 2 notes`, `nothing in this pass · cut`) ends in `dismiss`, since a night's queue leaves three of them.
-// The mock draws no dismiss on the other kinds, so they have no action here. `tickerText` is the line that counts
+// (`filler · 2 notes`, `nothing in this pass · cut`) ends in `dismiss`, since a night's queue leaves three of them,
+// and so does every other kind but the quarantine line: `write refused`, a failed draft, an interrupted turn. `tickerText` is the line that counts
 // while a pass runs, and `resumeRows` the resume letter the snapshot carries after time away.
 import type { LetterKind, SparringMeta } from "@sparring/protocol/meta";
 
@@ -41,12 +41,17 @@ export function letterParts(line: LetterLine): string[] {
 
 export type Restore = (id: string) => Promise<void>;
 
-/** The kinds with a `dismiss`: a pass result, and a draft that failed or had nothing to start from. */
+/**
+ * The kinds with a `dismiss`: every one but the quarantine line, whose `restore it` is the way out. The daemon
+ * drops a dismissed line, so it stays gone after a reload.
+ */
 const PASS_KINDS: ReadonlySet<LetterKind> = new Set<LetterKind>([
   "passDone",
   "passEmpty",
   "draftFailed",
   "draftEmpty",
+  "refused",
+  "interrupted",
 ]);
 /** The kinds that are failures: drawn in red. */
 const BAD_KINDS: ReadonlySet<LetterKind> = new Set<LetterKind>([

@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { TELL_ROWS, tells, tellsSummary } from "@sparring/protocol/tells";
 
 /** `packages/protocol/prompts`: RULES.md and stages/*.md. */
 export const PROMPTS_DIR = resolve(
@@ -76,6 +77,35 @@ export function passBlock(o: { pass: string; strictness: string; text: string })
   return [`Pass: ${o.pass} · from passes/${o.pass}.md`, strictnessLine(o.strictness), "", o.text.trim()].join(
     "\n",
   );
+}
+
+/** At most this many places are listed for one kind of tell. */
+const TELL_HITS_SHOWN = 12;
+
+/**
+ * What the `tells` pass is handed after its pass file: the tells module's counts for article.md as it stands,
+ * the dump's two voice numbers beside the article's, and where each counted construction is. The coach judges
+ * content only; it does not count.
+ */
+export function tellsBlock(article: string, dump: string): string {
+  const t = tells(article, dump);
+  const out = [
+    "Counts from the tells module, for article.md as it stands:",
+    tellsSummary(t),
+    `dump.md, the writer's own voice: sentence-length σ ${t.dump.sentenceSigma.toFixed(1)} · first-person ${t.dump.firstPerson}%`,
+  ];
+  const where = TELL_ROWS.filter((r) => t.hits[r.key].length > 0);
+  if (where.length > 0) out.push("", "Where they are:");
+  for (const r of where) {
+    const hits = t.hits[r.key];
+    const shown = hits
+      .slice(0, TELL_HITS_SHOWN)
+      .map((h) => `¶${h.block + 1} "${cut(h.text.replace(/\s+/g, " "), 80)}"`);
+    const more = hits.length > shown.length ? `, and ${hits.length - shown.length} more` : "";
+    out.push(`- ${r.label}: ${shown.join(", ")}${more}`);
+  }
+  out.push("", "These are counts, not verdicts. Flag only a construction that carries no content.");
+  return out.join("\n");
 }
 
 /** Sent with a plain message while the writer has `/quiet` on. */

@@ -141,6 +141,36 @@ describe("the outline, draft and polish steps", () => {
   });
 });
 
+describe("the tells step", () => {
+  const step = at("Count the tells");
+
+  it("is built: it waits for the Tells table to be opened and moves on once it was", () => {
+    expect(step).toBe(at("Polish") + 1);
+    expect(STEPS[step]?.later).toBeUndefined();
+    expect(advance(step, { where: "room", stage: "polish", tells: false }).step).toBe(step);
+    expect(advance(step, { where: "room", stage: "polish", tells: true })).toEqual({
+      step: step + 1,
+      passed: "Count the tells",
+    });
+  });
+
+  it("points at the foot's counts and the article tab, with no not-built tag", () => {
+    localStorage.setItem("sparring-guide", JSON.stringify({ open: true, step, seen: true, small: false }));
+    const foot = document.createElement("span");
+    foot.id = "tells-foot";
+    const tab = document.createElement("button");
+    tab.dataset.leaf = "article";
+    document.body.append(foot, tab);
+    const g = new Guide("room", null);
+    expect(foot.classList.contains("guide-target")).toBe(true);
+    expect(tab.classList.contains("guide-target")).toBe(true);
+    expect(document.querySelector(".g-tag")).toBeNull();
+    expect(document.querySelector(".g-wait")?.textContent).toBe("moves on when you have done it");
+    g.update({ where: "room", tells: true });
+    expect(loadState().step).toBe(step + 1);
+  });
+});
+
 describe("the send it step", () => {
   const step = at("Stuck? Send it");
 

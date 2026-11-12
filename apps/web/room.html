@@ -37,6 +37,7 @@
           </section>
         </div>
       </div>
+      <section id="tells" class="tells mono" aria-label="Tells" hidden></section>
     </main>
 
     <aside class="coach" aria-label="Coach">
@@ -83,7 +84,7 @@
   </div>
 
   <footer class="foot mono muted">
-    <span class="grp"><span id="words">0 words</span><span>·</span><span id="saved">saved</span><span id="quiet" class="quiet" title="The coach holds its notes. /quiet again to hear them." hidden>· quiet</span><span id="yours" class="yours" hidden></span></span>
+    <span class="grp"><span id="words">0 words</span><span>·</span><span id="saved">saved</span><span id="tells-foot" class="tells-foot" hidden><span>·</span><button type="button" class="t tells-btn" data-tell="em" aria-expanded="false" aria-controls="tells" title="Em-dashes in the article. Opens the Tells table.">em 0</button><span>·</span><button type="button" class="t tells-btn" data-tell="oneSentence" aria-expanded="false" aria-controls="tells" title="Paragraphs of one sentence. Opens the Tells table.">¶1 0</button><span>·</span><button type="button" class="t tells-btn" data-tell="notXButY" aria-expanded="false" aria-controls="tells" title="It is not X, it is Y. Opens the Tells table.">not-x-but-y 0</button><span class="pasted-sep">·</span><button type="button" id="pasted" class="t pasted-btn" title="Words on the page that were pasted from the coach. Click to step through them.">pasted 0</button></span><span id="quiet" class="quiet" title="The coach holds its notes. /quiet again to hear them." hidden>· quiet</span><span id="yours" class="yours" hidden></span></span>
     <span class="grp"><button type="button" id="notes-btn" class="t notes-btn" aria-controls="notes" hidden></button><button type="button" id="yours-btn" class="t yours-btn" aria-expanded="false" aria-controls="quiet-block" hidden></button><button type="button" id="shelf-btn" class="t" aria-expanded="false" aria-controls="shelf" hidden>shelf</button><button type="button" id="log-btn" class="t" aria-expanded="false" aria-controls="log">transcript</button></span>
   </footer>
 </div>

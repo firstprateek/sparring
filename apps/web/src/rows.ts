@@ -26,13 +26,16 @@ export function stageLabel(stage: string, covered: readonly string[] | undefined
 export interface TailPart {
   text: string;
   /** `save` hides on hover, `tok` shows only on hover (as the mock has it). */
-  cls?: "save" | "tok";
+  cls?: "save" | "tok" | "tag";
 }
 
 /** The mono tail of a row. Once a PR exists it is the PR alone. */
 export function rowTail(m: SparringMeta, now = Date.now()): TailPart[] {
   if (m.prNumber) return [{ text: `PR #${m.prNumber}` }];
-  const out: TailPart[] = [{ text: stageLabel(m.stage, m.covered) }];
+  const out: TailPart[] = [];
+  // The coach wrote this article's draft: the row says so before anything else.
+  if (m.authorship === "drafted") out.push({ text: "drafted", cls: "tag" });
+  out.push({ text: stageLabel(m.stage, m.covered) });
   if (m.wordCount > 0) out.push({ text: `${m.wordCount}w` });
   if (m.openComments > 0) out.push({ text: `·${m.openComments}` });
   const saved = m.savedAt ? Date.parse(m.savedAt) : Number.NaN;

@@ -282,9 +282,9 @@ describe("the letter in drafted mode", () => {
     expect(byId("l1").classList.contains("err")).toBe(true);
     expect(byId("l2").classList.contains("err")).toBe(true);
     expect(byId("l3").classList.contains("err")).toBe(false);
-    // a failed draft can be put away; a refused write stays
+    // a failed draft can be put away, and so can a refused write
     expect(byId("l2").querySelector("button")?.textContent).toBe("dismiss");
-    expect(byId("l1").querySelector("button")).toBeNull();
+    expect(byId("l1").querySelector("button")?.textContent).toBe("dismiss");
     const now = Date.parse("2026-11-11T10:00:12Z");
     expect(tickerText({ pass: "sendit", startedAt: "2026-11-11T10:00:00Z" }, 0, now)).toBe(
       "the coach is writing the draft… 12s",

@@ -20,7 +20,8 @@
 // names the first heading with nothing under it, and `done` after it leaves one note on the last paragraph.
 // `/ask` leaves one note on the paragraph the question was parked at. A named pass (`/pass filler`, or one of a
 // `/queue`) reads the page and flags what a few fixed patterns find, fewer or more by the strictness in the
-// header: `filler`, `repeats`, `passive`, `typos` and `cut` can leave notes, every other pass finds nothing.
+// header: `filler`, `repeats`, `passive`, `typos` and `cut` can leave notes. `tells` leaves a `tell` note on what
+// the tells module counts and ends with the false-positive caveat. Every other pass finds nothing.
 //
 // The draft turn (the header's pass is `sendit`) reads the dump and the brief and writes one draft with
 // `write_draft`: a heading, the dump's paragraphs, what the brief adds, and a closing block of its own. A plain
@@ -31,6 +32,7 @@ import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { TOPICS } from "@sparring/protocol/commands";
+import { type TellKey, tells } from "@sparring/protocol/tells";
 import type { AgentProcess, Launch } from "./ahp/agent-process.ts";
 
 type Json = Record<string, unknown>;
@@ -87,6 +89,19 @@ export const TYPO_BODY = "word doubled";
 export const fillerBody = (word: string) => `"${word}" adds no degree here. Does the claim need it?`;
 export const repeatBody = (word: string) =>
   `"${word}" comes back within a few lines. Is the echo on purpose?`;
+/** What the scripted coach says of each kind of tell. No quotes: the anchor is the evidence. */
+export const TELL_BODIES: Record<TellKey, string> = {
+  notXButY:
+    "This sets something up to knock it down. What does the sentence lose if it only says the second half?",
+  ruleOfThree:
+    "A list of three. Does each item carry something the reader needs, or is one there for the rhythm?",
+  genuinely: "This word vouches for the sentence. What would show it instead?",
+  oneSentence: "A paragraph of one sentence asks for weight. Does this line carry it?",
+  em: "The dash holds two thoughts together. Is the second one earned, or an aside?",
+};
+/** The caveat the tells pass ends on. */
+export const TELLS_CAVEAT_SAYS =
+  "These produce false positives, and careful human writers trip them too. It is the writer's call.";
 /** How many notes the scripted coach leaves in one pass, by strictness. */
 export const DEMO_LIMIT: Record<string, number> = { "howlers only": 1, normal: 2, "every nit": 10 };
 const FILLER = /\b(very|really|quite|actually|basically|just|simply|kind of|sort of)\s+[\w'’-]+/gi;
@@ -474,6 +489,22 @@ export class DemoCoach {
           seen.add(word);
         }
       }
+    } else if (pass === "tells") {
+      // The tells module counts; the note points at each construction it found.
+      const text = blocks.join("\n\n");
+      const t = tells(text);
+      for (const key of ["notXButY", "ruleOfThree", "genuinely", "oneSentence", "em"] as const)
+        for (const h of t.hits[key]) {
+          const block = blocks[h.block] ?? "";
+          // A dash alone is no anchor: the words on both sides of it are.
+          const anchor =
+            key === "em"
+              ? (/[\w'’]+\s*$/.exec(block.slice(0, h.start))?.[0] ?? "") +
+                h.text +
+                (/^\s*[\w'’]+/.exec(block.slice(h.end))?.[0] ?? "")
+              : h.text;
+          finds.push({ anchor: anchor.trim(), kind: "tell", body: TELL_BODIES[key] });
+        }
     } else if (pass === "cut" && paras.length >= 3) {
       finds.push({ anchor: firstSentence(paras.at(-1) as string), kind: "filler", body: CUT_BODY });
     }
@@ -483,7 +514,8 @@ export class DemoCoach {
       if ((await this.tool(sessionId, s, "comment", { ...f, pass })) !== undefined) left++;
     }
     if (left === 0) return NOTHING;
-    return `${left === 1 ? "One note" : `${left} notes`} in the ${pass} pass, at ${strictness}.`;
+    const said = `${left === 1 ? "One note" : `${left} notes`} in the ${pass} pass, at ${strictness}.`;
+    return pass === "tells" ? `${said} ${TELLS_CAVEAT_SAYS}` : said;
   }
 
   /** The answer to `re c09: …`: one resolve_comment, sharpen unless the writer's reply asks to withdraw. */

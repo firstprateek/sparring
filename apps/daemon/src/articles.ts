@@ -9,8 +9,16 @@ import { wordCount } from "@sparring/protocol/blocks";
 import { PASSES, type Stage, type TOPICS } from "@sparring/protocol/commands";
 import type { LetterKind, SparringMeta } from "@sparring/protocol/meta";
 import type { Note, NoteStatus } from "@sparring/protocol/notes";
+import {
+  type CorpusEntry,
+  type OverlapSpan,
+  overlap,
+  overlapIndex,
+  overlapWords,
+} from "@sparring/protocol/overlap";
 import { provenance } from "@sparring/protocol/provenance";
 import { slugProblem } from "@sparring/protocol/slug";
+import { tells } from "@sparring/protocol/tells";
 import type { Db } from "./db.ts";
 import { GitQueue } from "./git.ts";
 import { PROMPTS_DIR } from "./prompt.ts";
@@ -82,6 +90,18 @@ export interface Resume {
 }
 
 const RESUME_AFTER_MS = 24 * 3600_000;
+/** The most pasted spans an article keeps; the oldest go first. */
+const PASTES_MAX = 200;
+/** A paste longer than this is checked up to here. */
+export const PASTE_MAX_CHARS = 100_000;
+
+/** A pasted span that matched the coach's words, as `pastes_json` keeps it. */
+export interface Paste {
+  text: string;
+  /** Where the coach said it: `interview q2`, `note c08`. */
+  source: string;
+  at: string;
+}
 const PASS_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
 export class Articles {
@@ -95,6 +115,8 @@ export class Articles {
   onCreated: ((row: ArticleRow) => Promise<void>) | undefined;
   /** Set by the coach: a save or a commit changed what `metaFor` reads. */
   onChanged: ((row: ArticleRow) => void) | undefined;
+  /** Set by the coach: the same, for a change a reload must not outrun (a dismissed letter line): sent at once. */
+  onChangedNow: ((row: ArticleRow) => void) | undefined;
   /** Set by the coach: what `metaFor` takes from the coach itself (the run, a sign-in that is needed). */
   metaExtra: ((row: ArticleRow) => Partial<SparringMeta>) | undefined;
 
@@ -185,8 +207,8 @@ export class Articles {
   }
 
   /**
-   * The whole `_meta.sparring` of an article, from its row and its files. What later steps fill (notes, tells,
-   * the run, publishing) is zero or empty until then.
+   * The whole `_meta.sparring` of an article, from its row and its files. What a later step fills (publishing)
+   * is empty until then.
    */
   metaFor(row: ArticleRow): SparringMeta {
     const text = (() => {
@@ -219,8 +241,8 @@ export class Articles {
       savedAt: row.saved_at ?? null,
       articleSha: row.article_sha ?? null,
       commit: row.last_commit ?? null,
-      tells: { em: 0, oneSentence: 0, notXButY: 0 },
-      pastedWords: 0,
+      tells: (({ em, oneSentence, notXButY }) => ({ em, oneSentence, notXButY }))(tells(text)),
+      pastedWords: overlapWords(overlap(text, this.pastes(row))),
       openComments: live.length,
       unreadComments: live.filter((c) => c.seen_at === null).length,
       commentsRev: Number(row.comments_rev ?? 0),
@@ -810,8 +832,11 @@ export class Articles {
     if (!row) return "";
     const letter = JSON.parse(String(row.letter_json ?? "[]")) as SparringMeta["letter"];
     const lid = `l${randomUUID().slice(0, 8)}`;
-    letter.push({ id: lid, kind, text: text.slice(0, 200), at: now() });
-    this.db.run("UPDATE articles SET letter_json = ? WHERE id = ?", JSON.stringify(letter.slice(-10)), id);
+    const line = { id: lid, kind, text: text.slice(0, 200), at: now() };
+    // The same line said again takes the place of the older one, so a dismissed line has no twin behind it.
+    const kept = letter.filter((l) => !(l.kind === line.kind && l.text === line.text));
+    kept.push(line);
+    this.db.run("UPDATE articles SET letter_json = ? WHERE id = ?", JSON.stringify(kept.slice(-10)), id);
     return lid;
   }
 
@@ -824,12 +849,85 @@ export class Articles {
   dropLetter(slug: string, letterId: string): void {
     const row = this.row(slug);
     const letter = JSON.parse(String(row.letter_json ?? "[]")) as SparringMeta["letter"];
+    const gone = letter.find((l) => l.id === letterId);
     this.db.run(
       "UPDATE articles SET letter_json = ? WHERE id = ?",
-      JSON.stringify(letter.filter((l) => l.id !== letterId)),
+      // An older copy of the same line (kept by a daemon from before lines were deduplicated) goes with it.
+      JSON.stringify(
+        letter.filter((l) => l.id !== letterId && !(gone && l.kind === gone.kind && l.text === gone.text)),
+      ),
       row.id,
     );
+    // Sent at once: a reload right after the click must not find the line in the session's meta again.
+    this.changed(slug, true);
+  }
+
+  // ───────────────────────────── pasted words ─────────────────────────────
+
+  /** The pasted spans recorded for an article: each matched the coach's words when it was pasted. */
+  pastes(row: ArticleRow): Paste[] {
+    try {
+      const list = JSON.parse(String(row.pastes_json ?? "[]")) as unknown;
+      if (!Array.isArray(list)) return [];
+      return list.filter(
+        (p): p is Paste => !!p && typeof p.text === "string" && typeof p.source === "string",
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * `POST pastes`: runs the overlap function on pasted text against what the coach said (`corpus`, less the
+   * writer's `own` words), records the spans that match, and answers them with everything recorded so far.
+   */
+  recordPaste(
+    slug: string,
+    text: string,
+    corpus: { entries: readonly CorpusEntry[]; own: readonly string[] },
+  ): { spans: OverlapSpan[]; pastes: Paste[] } {
+    const row = this.row(slug);
+    const spans = overlap(text.slice(0, PASTE_MAX_CHARS), overlapIndex(corpus.entries, corpus.own));
+    const have = this.pastes(row);
+    if (spans.length === 0) return { spans, pastes: have };
+    const known = new Set(have.map((p) => p.text));
+    const at = now();
+    for (const s of spans) {
+      if (known.has(s.text)) continue;
+      known.add(s.text);
+      have.push({ text: s.text, source: s.source, at });
+    }
+    const pastes = have.slice(-PASTES_MAX);
+    this.db.run("UPDATE articles SET pastes_json = ? WHERE id = ?", JSON.stringify(pastes), row.id);
     this.changed(slug);
+    return { spans, pastes };
+  }
+
+  /**
+   * What the coach wrote outside the chat, for the overlap corpus: every note's body (and its second version)
+   * with the quoted spans taken out, since a quote in a note is the writer's own text, and the questions it put
+   * in the brief. The `write_draft` input is never part of it.
+   */
+  coachWritten(row: ArticleRow): CorpusEntry[] {
+    const unquoted = (body: string) => body.replace(/"[^"\n]*"|“[^”\n]*”/g, " \n\n ");
+    const out: CorpusEntry[] = [];
+    for (const n of this.comments(row.id)) {
+      out.push({ source: `note ${n.id}`, text: unquoted(n.body) });
+      if (n.body_v2) out.push({ source: `note ${n.id} v2`, text: unquoted(n.body_v2) });
+    }
+    const brief = JSON.parse(String(row.brief_notes_json ?? "[]")) as { question?: unknown }[];
+    for (const b of brief)
+      if (typeof b.question === "string" && b.question)
+        out.push({ source: "brief question", text: b.question });
+    return out;
+  }
+
+  /** The article's coach turns as the overlap corpus names them: the stage, and whether the coach asked. */
+  turnRows(articleId: string): { turn_id: string; stage: string; is_question: number }[] {
+    return this.db.all(
+      "SELECT turn_id, stage, is_question FROM turns WHERE article_id = ? ORDER BY started_at, rowid",
+      articleId,
+    );
   }
 
   // ───────────────────────────── brief notes ─────────────────────────────
@@ -949,6 +1047,8 @@ export class Articles {
       resume,
       // The coach's draft, the baseline the browser computes provenance against. Null in a coached article.
       draft: await this.draftBaseline(slug),
+      // The pasted spans that matched the coach's words: the browser underlines them while they stand.
+      pastes: this.pastes(row).map(({ text, source }) => ({ text, source })),
     };
   }
 
@@ -1025,11 +1125,12 @@ export class Articles {
     return commit;
   }
 
-  private changed(slug: string): void {
+  private changed(slug: string, now = false): void {
     const row = this.db.all<ArticleRow>("SELECT * FROM articles WHERE slug = ?", slug)[0];
     if (!row) return;
     try {
-      this.onChanged?.(row);
+      if (now && this.onChangedNow) this.onChangedNow(row);
+      else this.onChanged?.(row);
     } catch (e) {
       console.error(e);
     }

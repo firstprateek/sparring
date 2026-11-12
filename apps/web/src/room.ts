@@ -16,6 +16,11 @@
 // provenance bar, the head and the foot say `N% yours`, the letter carries the status strip, the quiet block
 // stands where the notes do until `/critique` or `/pass`, and `shelf` in the foot opens the page from before the
 // draft. `coached again` puts that page back.
+//
+// Tells and pasted words: on the article leaf the foot counts three tells as the page is typed, and a count
+// opens the Tells table, whose hits put the caret on their span. Text pasted into the article is posted to the
+// daemon, which answers the spans that are the coach's words; those carry a dotted underline while they stand,
+// and `pasted N` in the foot steps through them.
 import "@fontsource/source-serif-4/400.css";
 import "@fontsource/source-serif-4/400-italic.css";
 import "@fontsource/source-serif-4/600.css";
@@ -27,7 +32,9 @@ import "./guide.css";
 import { joinBlocks, splitBlocks, wordCount } from "@sparring/protocol/blocks";
 import { PASSES, parseCommand } from "@sparring/protocol/commands";
 import { isLive, type Note } from "@sparring/protocol/notes";
+import { type OverlapIndex, overlap, overlapIndex, overlapWords } from "@sparring/protocol/overlap";
 import { type Baseline, baselineOf, type Provenance, provenance } from "@sparring/protocol/provenance";
+import { type TellKey, type Tells, tells } from "@sparring/protocol/tells";
 import { checkOutgoing } from "./actions.ts";
 import { ahp, useAhp } from "./ahp/hub.ts";
 import { ApiError, api, type BriefNote, type FileName, type Snapshot } from "./api.ts";
@@ -58,6 +65,7 @@ import {
 } from "./session.ts";
 import { StageMenu } from "./stage-menu.ts";
 import { connectionWords } from "./status.ts";
+import { TellsView } from "./tells-view.ts";
 import { UpdateWatch } from "./update.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -94,7 +102,11 @@ const els = {
   shelfErr: $("shelf-err"),
   shelfBtn: $<HTMLButtonElement>("shelf-btn"),
   shelfEsc: $<HTMLButtonElement>("shelf-esc"),
+  tells: $("tells"),
+  tellsFoot: $("tells-foot"),
+  pasted: $<HTMLButtonElement>("pasted"),
 };
+const tellButtons = [...document.querySelectorAll<HTMLButtonElement>("button.tells-btn")];
 const leafButtons = [...document.querySelectorAll<HTMLButtonElement>("button[data-leaf]")];
 
 let active: FileName = "article";
@@ -122,6 +134,9 @@ const page = new Page(
   {
     gutter: true,
     onMark: (id) => notesView.focus(id),
+    onPaste: (text) => {
+      if (active === "article" && !interview.visible) void checkPaste(text);
+    },
   },
 );
 /** The phone interview's page: always the dump. */
@@ -158,6 +173,117 @@ const stageMenu = new StageMenu(
   },
   (to) => flip(to),
 );
+
+// ───────────────────────────── tells and pasted words ─────────────────────────────
+
+/** The pasted spans the daemon recorded: each was the coach's words when it was pasted. */
+let pasteIndex: OverlapIndex = overlapIndex([]);
+let pasteKey = "[]";
+function takePastes(list: readonly { text: string; source: string }[] | undefined): void {
+  const pastes = Array.isArray(list) ? list : [];
+  const key = JSON.stringify(pastes);
+  if (key === pasteKey) return;
+  pasteKey = key;
+  pasteIndex = overlapIndex(pastes);
+  pastedMemo = null;
+  markPage();
+}
+
+/** Pasted text goes to the daemon, which says which of it is the coach's words. Under five words nothing can be. */
+async function checkPaste(text: string): Promise<void> {
+  if (wordCount(text) < 5) return;
+  try {
+    const res = await api.pastes(slug, text);
+    takePastes(res.pastes);
+    problem("paste", null);
+  } catch (e) {
+    problem(
+      "paste",
+      `the paste was not checked against the coach's words · ${e instanceof Error ? e.message : e}`,
+    );
+  }
+}
+
+/** How many words on the article page are pasted coach words, as it is typed. */
+let pastedMemo: { text: string; n: number } | null = null;
+function pastedWords(): number {
+  const text = leaves.get("article")?.text ?? "";
+  if (pastedMemo?.text !== text) pastedMemo = { text, n: overlapWords(overlap(text, pasteIndex)) };
+  return pastedMemo.n;
+}
+
+/** The tells of the article as it is typed, beside the dump's. Counted again only when a text moves. */
+let tellsMemo: { key: string; t: Tells } | null = null;
+function currentTells(): Tells {
+  const article = leaves.get("article")?.text ?? "";
+  const dump = leaves.get("dump")?.text ?? "";
+  const key = `${article}\u0000${dump}`;
+  if (tellsMemo?.key !== key) tellsMemo = { key, t: tells(article, dump) };
+  return tellsMemo.t;
+}
+
+/** True once the writer has opened the Tells table, for the guide. */
+let tellsSeen = false;
+const tellsView = new TellsView(els.tells, {
+  jump: (hit) => {
+    if (active !== "article") showLeaf("article");
+    const block = splitBlocks(leaves.get("article")?.text ?? "")[hit.block];
+    if (block === undefined || !page.select(block, hit.start, hit.end)) return;
+    // Under 760px the table is a sheet over the page: it steps aside so the span can be seen. The tick stays.
+    if (narrow.matches) setTells(false, null, true);
+  },
+  close: () => {
+    setTells(false);
+    tellButtons[0]?.focus();
+  },
+});
+function setTells(open: boolean, row: TellKey | null = null, keepTick = false): void {
+  els.tells.hidden = !open;
+  for (const b of tellButtons) b.setAttribute("aria-expanded", String(open));
+  if (open) {
+    tellsSeen = true;
+    tellsView.set(currentTells());
+    tellsView.expand(row);
+  } else if (!keepTick) page.clearTick();
+  render();
+}
+for (const b of tellButtons)
+  b.addEventListener("click", () => {
+    const key = b.dataset.tell as TellKey;
+    const t = currentTells();
+    // The count that was clicked opens its own hits; clicking again closes the table.
+    setTells(els.tells.hidden === true, t.hits[key].length > 0 ? key : null);
+  });
+els.pasted.addEventListener("click", () => {
+  if (active === "article") page.nextUnder();
+});
+
+/** The foot's tells and `pasted N`: on the article leaf only, and counted from the page as it is typed. */
+function renderTells(): void {
+  // Under 760px a drafted article's foot says `N% yours` in place of the tells.
+  const show = loaded && active === "article" && !(narrow.matches && isDrafted());
+  els.tellsFoot.hidden = !show;
+  if (!show) {
+    if (!els.tells.hidden && active !== "article") setTells(false);
+    return;
+  }
+  const t = currentTells();
+  const words: Record<string, string> = {
+    em: `em ${t.em}`,
+    oneSentence: `¶1 ${t.oneSentence}`,
+    notXButY: `not-x-but-y ${t.notXButY}`,
+  };
+  for (const b of tellButtons) {
+    const text = words[b.dataset.tell ?? ""] ?? "";
+    if (b.textContent !== text) b.textContent = text;
+  }
+  const n = pastedWords();
+  const pasted = `pasted ${n}`;
+  if (els.pasted.textContent !== pasted) els.pasted.textContent = pasted;
+  els.pasted.disabled = n === 0;
+  els.pasted.classList.toggle("has", n > 0);
+  if (!els.tells.hidden) tellsView.set(t);
+}
 
 // ───────────────────────────── drafted mode ─────────────────────────────
 
@@ -214,6 +340,7 @@ async function modeChanged(landed: boolean): Promise<void> {
   try {
     const snap = await api.snapshot(slug);
     takeNotes(snap);
+    takePastes(snap.pastes);
     const leaf = leaves.get("article");
     landNext = landed && active === "article" && !interview.visible;
     takeDraft(snap);
@@ -478,6 +605,7 @@ function updateGuide(): void {
     articleWords: words("article"),
     headings: splitBlocks(leaves.get("article")?.text ?? "").filter((b) => /^##+ /.test(b)).length,
     notes: notes.length,
+    tells: tellsSeen,
     passes:
       notes.filter((n) => PASS_NAMES.has(n.pass)).length +
       (currentMeta()?.letter ?? []).filter((l) => l.kind === "passDone" || l.kind === "passEmpty").length,
@@ -579,7 +707,11 @@ function setInterview(on: boolean): void {
   } else page.show(leaves.get(active)?.text ?? "", active, LEAF_HELP[active].placeholder);
   interview.show(on);
   if (on) ivPage.resize();
-  else markPage();
+  else {
+    // The page was filled while the Room was hidden, when a block has no height to grow to.
+    page.resize();
+    markPage();
+  }
 }
 
 /** The snapshot again, after `commentsRev` moved: the brief notes, and brief.md unless it has unsent edits. */
@@ -635,6 +767,8 @@ function markPage(): void {
         : null;
     });
   else page.setMarks(null);
+  // Words pasted from the coach carry a dotted underline while five of them still stand in a row.
+  page.setUnder(active === "article" ? (b) => overlap(b, pasteIndex) : null);
   // In a drafted article each block the coach wrote carries its dotted bar, beside the note's solid one.
   page.setProv(active === "article" && draft && isDrafted() ? provOf(draft.base) : null);
 }
@@ -752,6 +886,7 @@ function render(): void {
   updateGuide();
   if (loaded) renderDrafted();
   if (loaded) renderNotes();
+  renderTells();
   const leaf = leaves.get(active);
   if (leaf) {
     els.words.textContent = `${wordCount(leaf.text)} words`;
@@ -982,6 +1117,7 @@ async function load(): Promise<void> {
   snapStage = snap.stage;
   takeNotes(snap);
   takeDraft(snap);
+  takePastes(snap.pastes);
   for (const f of ["article", "dump", "brief"] as const) {
     const leaf = new Leaf(slug, f, snap.files[f].text, snap.files[f].sha, onLeafChange);
     leaves.set(f, leaf);
@@ -1070,6 +1206,9 @@ document.addEventListener("keydown", (e) => {
     quietSheet = false;
     render();
     els.yoursBtn.focus();
+  } else if (e.key === "Escape" && !els.tells.hidden) {
+    setTells(false);
+    tellButtons[0]?.focus();
   } else if (e.key === "Escape" && !els.shelf.hidden) {
     void setShelf(false);
     els.shelfBtn.focus();

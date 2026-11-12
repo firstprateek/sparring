@@ -4,6 +4,11 @@
 // mono `?` of a brief quote, or the solid bar of a live note, which is a button that opens the note. In a drafted
 // article `setProv` adds the dotted provenance bar before it: accent for a block still the coach's, muted for one
 // the writer edited, none once it is the writer's. `showReveal` lands a draft block by block.
+//
+// Behind each textarea of a gutter page lies a mirror: the same text in the same type, drawn transparent, so a
+// span of it can carry an underline the textarea cannot. `setUnder` names the spans (the words pasted from the
+// coach); `select` puts the caret on a span and ticks its block in the gutter (a tell). Pasted text is reported
+// through `onPaste`, and a paste that holds blank lines is split into blocks.
 import { joinBlocks, splitBlocks } from "@sparring/protocol/blocks";
 
 export interface PageOptions {
@@ -11,6 +16,14 @@ export interface PageOptions {
   gutter?: boolean;
   /** A note's bar was clicked. */
   onMark?: (noteId: string) => void;
+  /** Text was pasted into a block. */
+  onPaste?: (text: string) => void;
+}
+
+/** A span of a block's text. */
+export interface Span {
+  start: number;
+  end: number;
 }
 
 /** What a block's gutter shows: `?` for a brief quote, or the bar of the note on it. */
@@ -24,6 +37,11 @@ const PROV_SAYS = { coach: "written by the coach", edited: "written by the coach
 export class Page {
   private mark: ((block: string) => Mark | null) | null = null;
   private prov: ((block: string) => Prov) | null = null;
+  private under: ((block: string) => Span[]) | null = null;
+  /** Bumped when the underline rule changes, so every mirror is drawn again. */
+  private underRev = 0;
+  /** Where `nextUnder` last put the caret. */
+  private underAt = -1;
   private readOnly = false;
   /** The reveal in flight, if one is. */
   private landing: { timer: ReturnType<typeof setTimeout> | undefined } | null = null;
@@ -52,6 +70,84 @@ export class Page {
       const bar = (e.target as HTMLElement).closest<HTMLElement>("button.mark");
       if (bar?.dataset.note) opts.onMark?.(bar.dataset.note);
     });
+    root.addEventListener("paste", (e) => {
+      const ta = e.target;
+      if (!(ta instanceof HTMLTextAreaElement) || ta.readOnly || this.landing) return;
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      if (!text) return;
+      // After the browser has put the text in: blank lines in it become blocks, then the page hears of it.
+      setTimeout(() => {
+        if (ta.isConnected) this.splitBlock(ta);
+        opts.onPaste?.(text);
+      }, 0);
+    });
+  }
+
+  /** A block that holds blank lines (pasted paragraphs) becomes one block per paragraph. */
+  private splitBlock(ta: HTMLTextAreaElement): void {
+    if (!/\n[ \t]*\n/.test(ta.value.replace(/\s+$/, ""))) return;
+    const parts = splitBlocks(ta.value);
+    const label = ta.getAttribute("aria-label") ?? "block";
+    const had = document.activeElement === ta;
+    ta.value = parts[0] as string;
+    let after = this.holder(ta);
+    let last = ta;
+    for (const part of parts.slice(1)) {
+      last = this.block(part, label);
+      const row = this.row(last);
+      after.after(row);
+      after = row;
+    }
+    for (const b of this.blocks()) autosize(b);
+    this.markAll();
+    if (had) {
+      last.focus();
+      last.setSelectionRange(last.value.length, last.value.length);
+    }
+    this.onInput(this.text());
+  }
+
+  /** Which spans of each block are underlined (the words pasted from the coach); null clears them. */
+  setUnder(under: ((block: string) => Span[]) | null): void {
+    this.under = under;
+    this.underRev++;
+    this.markAll();
+  }
+
+  /**
+   * Puts the selection on a span of the block with this text, scrolls it into view and ticks its gutter. False
+   * when no block has that text any more.
+   */
+  select(block: string, start: number, end: number): boolean {
+    const want = block.replace(/\s+$/, "");
+    const ta = this.blocks().find((b) => b.value.replace(/\s+$/, "") === want);
+    if (!ta) return false;
+    this.selectIn(ta, start, end);
+    return true;
+  }
+
+  private selectIn(ta: HTMLTextAreaElement, start: number, end: number): void {
+    this.clearTick();
+    const el = this.holder(ta);
+    el.classList.add("ticked");
+    el.scrollIntoView({ block: "center", behavior: "auto" });
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(start, end);
+  }
+
+  /** Takes the tick out of the gutter. */
+  clearTick(): void {
+    for (const el of this.root.querySelectorAll(".ticked")) el.classList.remove("ticked");
+  }
+
+  /** Moves the selection to the next underlined span, round and round. False when nothing is underlined. */
+  nextUnder(): boolean {
+    const all = this.blocks().flatMap((ta) => (this.under?.(ta.value) ?? []).map((s) => ({ ta, s })));
+    if (all.length === 0) return false;
+    this.underAt = (this.underAt + 1) % all.length;
+    const { ta, s } = all[this.underAt] as (typeof all)[number];
+    this.selectIn(ta, s.start, s.end);
+    return true;
   }
 
   /** Shows a file, one block per textarea. The placeholder shows in the first block while it is empty. */
@@ -203,7 +299,10 @@ export class Page {
     row.className = "prow";
     const gut = document.createElement("div");
     gut.className = "gut";
-    row.append(gut, ta);
+    const mirror = document.createElement("div");
+    mirror.className = "mirror";
+    mirror.setAttribute("aria-hidden", "true");
+    row.append(gut, ta, mirror);
     return row;
   }
 
@@ -215,8 +314,38 @@ export class Page {
     for (const ta of this.blocks()) this.markOne(ta);
   }
 
+  /** Draws a block's mirror: its text, with the underlined spans wrapped. Empty when nothing is underlined. */
+  private mirrorOne(ta: HTMLTextAreaElement): void {
+    const mirror = ta.nextElementSibling;
+    if (!(mirror instanceof HTMLElement) || !mirror.classList.contains("mirror")) return;
+    const spans = this.under?.(ta.value) ?? [];
+    const key = spans.length === 0 ? "" : `${this.underRev}|${ta.value}`;
+    if ((mirror.dataset.key ?? "") === key) return;
+    mirror.dataset.key = key;
+    if (spans.length === 0) {
+      mirror.replaceChildren();
+      ta.removeAttribute("title");
+      return;
+    }
+    const kids: (Node | string)[] = [];
+    let at = 0;
+    for (const s of spans) {
+      if (s.start < at) continue;
+      kids.push(ta.value.slice(at, s.start));
+      const u = document.createElement("span");
+      u.className = "pasted";
+      u.textContent = ta.value.slice(s.start, s.end);
+      kids.push(u);
+      at = s.end;
+    }
+    kids.push(ta.value.slice(at));
+    mirror.replaceChildren(...kids);
+    ta.title = "these are the coach's words";
+  }
+
   private markOne(ta: HTMLTextAreaElement): void {
     if (!this.gutter) return;
+    this.mirrorOne(ta);
     const gut = ta.previousElementSibling;
     if (!(gut instanceof HTMLElement) || !gut.classList.contains("gut")) return;
     const m = this.mark?.(ta.value) ?? null;

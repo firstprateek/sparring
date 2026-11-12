@@ -35,6 +35,7 @@ import {
 } from "@sparring/protocol/commands";
 import { META_KEY } from "@sparring/protocol/meta";
 import { blockEdited, isLive, type NoteAction, parseNoteAction } from "@sparring/protocol/notes";
+import type { CorpusEntry } from "@sparring/protocol/overlap";
 import { AcpConnection, EXITED, type RpcReply, TIMED_OUT } from "./ahp/acp-connection.ts";
 import { promptBlocks, TurnMapper } from "./ahp/acp-mapper.ts";
 import type { Launch } from "./ahp/agent-process.ts";
@@ -74,6 +75,7 @@ import {
   QUIET_LINE,
   rulesText,
   stagePrompt,
+  tellsBlock,
 } from "./prompt.ts";
 import { type Tools, WRITE_REFUSED } from "./tools.ts";
 
@@ -313,6 +315,7 @@ export class Coach implements AgentBackend {
     host.hooks.canDisposeSession = () => false;
     this.articles.onCreated = (row) => this.open(row);
     this.articles.onChanged = (row) => this.metaSoon(row.id);
+    this.articles.onChangedNow = (row) => this.pushMeta(row.id);
     this.articles.metaExtra = (row) => ({
       run: this.runs.get(row.id) ?? null,
       queued: (row.chat ? this.host?.chatState(row.chat)?.queuedMessages?.length : 0) ?? 0,
@@ -808,6 +811,37 @@ export class Coach implements AgentBackend {
     return msgs.filter((m) => m.origin?.kind === "user" && m.text).map((m) => m.text);
   }
 
+  /**
+   * The overlap corpus of an article: everything the coach said. Its chat replies (the Markdown parts of each
+   * turn, named by stage: `interview q2`, `critique reply`), its notes and its brief questions. Tool calls are
+   * not read, so the `write_draft` input is never in it; otherwise a drafted page would match whole. `own` is
+   * the writer's side, the dump and the writer's messages: a run of words found there is not the coach's.
+   */
+  async corpus(slug: string): Promise<{ entries: CorpusEntry[]; own: string[] }> {
+    const row = this.articles.row(slug);
+    const entries: CorpusEntry[] = [];
+    const st = row.chat ? this.host?.chatState(row.chat) : undefined;
+    const rows = new Map(this.articles.turnRows(row.id).map((r) => [r.turn_id, r]));
+    const asked = new Map<string, number>();
+    for (const t of st ? [...st.turns, ...(st.activeTurn ? [st.activeTurn] : [])] : []) {
+      const text = t.responseParts
+        .map((p) => (p.kind === ResponsePartKind.Markdown ? p.content : ""))
+        .join("")
+        .trim();
+      if (!text) continue;
+      const r = rows.get(t.id);
+      const stage = r?.stage || "chat";
+      let source = `${stage} reply`;
+      if (r && Number(r.is_question) === 1) {
+        asked.set(stage, (asked.get(stage) ?? 0) + 1);
+        source = `${stage} q${asked.get(stage)}`;
+      }
+      entries.push({ source, text });
+    }
+    entries.push(...this.articles.coachWritten(row));
+    return { entries, own: [await this.articles.read(slug, "dump"), ...this.ownerMessages(row.id)] };
+  }
+
   // ───────────────────────────── drafted mode ─────────────────────────────
 
   private grantLive(articleId: string): boolean {
@@ -1115,6 +1149,8 @@ export class Coach implements AgentBackend {
       : stagePrompt(passText ? "polish" : fresh.stage, this.o.promptsDir ?? PROMPTS_DIR);
     if (stage) text(stage);
     if (pass && passText) text(passBlock({ pass, strictness: fresh.strictness, text: passText }));
+    // The tells pass leans on the tells module: the coach is handed the counts and judges content only.
+    if (pass === "tells" && passText) text(tellsBlock(article, await this.articles.read(row.slug, "dump")));
     const isDrafted = fresh.authorship === "drafted";
     // A critique or a pass over a drafted article: the draft is the writer's page now.
     if (isDrafted && !bare && (pass === "critique" || passText)) text(DRAFTED_RULES);

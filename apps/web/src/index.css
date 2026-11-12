@@ -88,6 +88,9 @@ main {
   gap: 12px;
   white-space: nowrap;
 }
+.row .tag {
+  color: var(--text);
+}
 .row .tok {
   display: none;
 }

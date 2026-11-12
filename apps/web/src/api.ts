@@ -26,6 +26,14 @@ export interface Snapshot {
   resume?: Resume | null;
   /** The coach's draft of a drafted article: the baseline provenance is computed against. */
   draft?: { n: number; commit: string; text: string } | null;
+  /** The pasted spans that matched the coach's words: underlined while they stand on the page. */
+  pastes?: PastedSpan[];
+}
+
+/** A span of pasted text that is the coach's words, and where the coach said it. */
+export interface PastedSpan {
+  text: string;
+  source: string;
 }
 
 /** One line of `~/writing/inbox.md`. */
@@ -98,6 +106,13 @@ export const api = {
       to,
       confirm: true,
     }),
+  /** Pasted text, checked against what the coach said: the spans that match, and every span recorded so far. */
+  pastes: (slug: string, text: string) =>
+    call<{ spans: (PastedSpan & { words: number })[]; pastes: PastedSpan[] }>(
+      "POST",
+      `/api/articles/${enc(slug)}/pastes`,
+      { text },
+    ),
   /** The page from before the coach's draft. */
   shelf: (slug: string) => call<{ text: string; commit: string }>("GET", `/api/articles/${enc(slug)}/shelf`),
   stash: (slug: string, file: FileName, text: string) =>

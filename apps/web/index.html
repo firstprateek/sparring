@@ -17,7 +17,7 @@
     <div id="guide-slot" class="guide-slot"></div>
     <form id="idea-form" class="ideaform">
       <label for="idea" class="mono muted">&gt;</label>
-      <input id="idea" class="idea" type="text" autocomplete="off" placeholder="an idea in one line · Enter keeps it in the inbox" aria-label="Write down an idea" aria-describedby="idea-error">
+      <input id="idea" class="idea" type="text" autocomplete="off" placeholder="an idea in one line · Enter saves it" aria-label="Write down an idea" aria-describedby="idea-error">
     </form>
     <span id="idea-error" class="mono err idea-error" role="alert" hidden></span>
 
@@ -33,7 +33,7 @@
       <div id="articles"></div>
       <p id="empty" class="mono muted" hidden>no articles yet · catch an idea above, or + new article</p>
       <p id="list-error" class="mono err" role="alert"></p>
-      <button type="button" id="new-btn" class="t pill">+ new article</button>
+      <button type="button" id="new-btn" class="hb pill">+ new article</button>
       <form id="new" class="slug new" hidden>
         <label for="new-slug" class="help">new article · name it in lowercase words and hyphens · it becomes the folder and the URL</label>
         <div class="slug-row">
@@ -48,7 +48,7 @@
 
   <p id="backup" class="mono backup" hidden></p>
   <footer class="bar mono muted">
-    <span>j k move · enter open · n new · i idea</span>
+    <span class="keys">keys · j k move · enter open · n new · i idea</span>
     <span id="conn"></span>
   </footer>
 </div>

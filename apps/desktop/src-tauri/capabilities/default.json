@@ -3,5 +3,9 @@
   "identifier": "default",
   "description": "The bundled launcher page only. The daemon's own pages are remote and get no IPC.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize"
+  ]
 }

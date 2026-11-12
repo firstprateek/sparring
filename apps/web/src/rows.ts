@@ -36,10 +36,10 @@ export function rowTail(m: SparringMeta, now = Date.now()): TailPart[] {
   // The coach wrote this article's draft: the row says so before anything else.
   if (m.authorship === "drafted") out.push({ text: "drafted", cls: "tag" });
   out.push({ text: stageLabel(m.stage, m.covered) });
-  if (m.wordCount > 0) out.push({ text: `${m.wordCount}w` });
-  if (m.openComments > 0) out.push({ text: `·${m.openComments}` });
+  if (m.wordCount > 0) out.push({ text: `${m.wordCount} words` });
+  if (m.openComments > 0) out.push({ text: `${m.openComments} ${m.openComments === 1 ? "note" : "notes"}` });
   const saved = m.savedAt ? Date.parse(m.savedAt) : Number.NaN;
-  if (!Number.isNaN(saved)) out.push({ text: ago(now - saved), cls: "save" });
+  if (!Number.isNaN(saved)) out.push({ text: `${ago(now - saved)} ago`, cls: "save" });
   if (m.tokens > 0) out.push({ text: tok(m.tokens), cls: "tok" });
   return out;
 }

@@ -55,7 +55,7 @@ export class UpdateWatch {
     this.go.addEventListener("click", () => void this.reload());
     const later = document.createElement("button");
     later.type = "button";
-    later.className = "t muted";
+    later.className = "hb";
     later.textContent = "later";
     later.addEventListener("click", () => {
       this.putOff = this.bar.dataset.build ?? "";

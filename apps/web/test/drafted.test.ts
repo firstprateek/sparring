@@ -165,7 +165,7 @@ describe("the stage menu", () => {
     expect(q(".pend")).toBeNull();
     q<HTMLButtonElement>("[data-flip]")?.click();
     expect(q(".pend")?.textContent).toBe(
-      "the coach writes the draft from dump.md and brief.md·what is on the page moves to the shelf·yes·no",
+      "the coach writes the draft from dump.md and brief.md·what is on the page moves to the shelfyesno",
     );
     expect(document.activeElement).toBe(q('[data-act="yes"]'));
     // the stage confirm and the send-it confirm never show together
@@ -207,7 +207,7 @@ describe("the stage menu", () => {
     expect(document.activeElement).toBe(q("[data-flip]"));
     q<HTMLButtonElement>("[data-flip]")?.click();
     expect(q(".pend")?.textContent).toBe(
-      "discard the coach's draft·your page comes back from the shelf·yes·no",
+      "discard the coach's draft·your page comes back from the shelfyesno",
     );
     q<HTMLButtonElement>('[data-act="yes"]')?.click();
     await settle();

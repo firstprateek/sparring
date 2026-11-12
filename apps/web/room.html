@@ -50,7 +50,7 @@
           <button type="button" id="notes-toggle" class="t notes-toggle" aria-expanded="true" aria-controls="notes-body"></button>
           <span class="notes-title">notes</span>
           <div id="notes-filter" class="filter"></div>
-          <button type="button" id="notes-close" class="t notes-close">close</button>
+          <button type="button" id="notes-close" class="hb notes-close">close</button>
         </div>
         <div id="notes-body" class="notes-body">
           <div id="notes-err" class="mono err" role="alert" hidden></div>
@@ -72,12 +72,12 @@
     </aside>
 
     <div id="log" class="log" role="dialog" aria-label="Transcript" hidden>
-      <div class="mono muted bar"><span>full transcript, with tool calls</span><button type="button" id="log-esc" class="t act text">close</button></div>
+      <div class="mono muted bar"><span>full transcript, with tool calls</span><button type="button" id="log-esc" class="hb">close</button></div>
       <div id="log-list" class="log-list" aria-live="polite"></div>
     </div>
 
     <div id="shelf" class="log shelf" role="dialog" aria-label="Shelf" hidden>
-      <div class="mono muted bar"><span>shelf · your page from before the draft</span><button type="button" id="shelf-esc" class="t act text">close</button></div>
+      <div class="mono muted bar"><span>shelf · your page from before the draft</span><button type="button" id="shelf-esc" class="hb">close</button></div>
       <p class="help">Read-only. Select and copy what you want back into the article.</p>
       <div id="shelf-err" class="mono err" role="alert" hidden></div>
       <div id="shelf-text" class="shelf-text"></div>
@@ -85,8 +85,8 @@
   </div>
 
   <footer class="foot mono muted">
-    <span class="grp"><span id="words">0 words</span><span>·</span><span id="saved">saved</span><span id="tells-foot" class="tells-foot" hidden><span>·</span><button type="button" class="t tells-btn" data-tell="em" aria-expanded="false" aria-controls="tells" title="Em-dashes in the article. Opens the Tells table.">em 0</button><span>·</span><button type="button" class="t tells-btn" data-tell="oneSentence" aria-expanded="false" aria-controls="tells" title="Paragraphs of one sentence. Opens the Tells table.">¶1 0</button><span>·</span><button type="button" class="t tells-btn" data-tell="notXButY" aria-expanded="false" aria-controls="tells" title="It is not X, it is Y. Opens the Tells table.">not-x-but-y 0</button><span class="pasted-sep">·</span><button type="button" id="pasted" class="t pasted-btn" title="Words on the page that were pasted from the coach. Click to step through them.">pasted 0</button></span><span id="quiet" class="quiet" title="The coach holds its notes. /quiet again to hear them." hidden>· quiet</span><span id="yours" class="yours" hidden></span></span>
-    <span class="grp"><button type="button" id="notes-btn" class="t notes-btn" aria-controls="notes" hidden></button><button type="button" id="yours-btn" class="t yours-btn" aria-expanded="false" aria-controls="quiet-block" hidden></button><button type="button" id="shelf-btn" class="t" aria-expanded="false" aria-controls="shelf" hidden>shelf</button><button type="button" id="log-btn" class="t" aria-expanded="false" aria-controls="log">transcript</button></span>
+    <span class="grp"><span id="words">0 words</span><span>·</span><span id="saved">saved</span><span id="tells-foot" class="tells-foot" hidden><span>·</span><button type="button" class="hb tells-btn" data-tell="em" aria-expanded="false" aria-controls="tells" title="Em-dashes in the article. Opens the Tells table.">em 0</button><span>·</span><button type="button" class="hb tells-btn" data-tell="oneSentence" aria-expanded="false" aria-controls="tells" title="Paragraphs of one sentence. Opens the Tells table.">¶1 0</button><span>·</span><button type="button" class="hb tells-btn" data-tell="notXButY" aria-expanded="false" aria-controls="tells" title="It is not X, it is Y. Opens the Tells table.">not-x-but-y 0</button><span class="pasted-sep">·</span><button type="button" id="pasted" class="hb pasted-btn" title="Words on the page that were pasted from the coach. Click to step through them.">pasted 0</button></span><span id="quiet" class="quiet" title="The coach holds its notes. /quiet again to hear them." hidden>· quiet</span><span id="yours" class="yours" hidden></span></span>
+    <span class="grp"><button type="button" id="notes-btn" class="hb notes-btn" aria-controls="notes" hidden></button><button type="button" id="yours-btn" class="hb yours-btn" aria-expanded="false" aria-controls="quiet-block" hidden></button><button type="button" id="shelf-btn" class="hb" aria-expanded="false" aria-controls="shelf" hidden>shelf</button><button type="button" id="log-btn" class="hb" aria-expanded="false" aria-controls="log">transcript</button></span>
   </footer>
 </div>
 <div id="iv" class="iv" hidden>
@@ -119,7 +119,7 @@
         <div id="iv-slash" class="slash mono" role="listbox" aria-label="Commands" hidden></div>
         <label for="iv-composer" class="mono muted prompt">&gt;</label>
         <textarea id="iv-composer" rows="1" aria-label="Answer the coach" aria-controls="iv-slash" aria-autocomplete="list" spellcheck="true"></textarea>
-        <button type="submit" class="t mono text send">send</button>
+        <button type="submit" class="btn primary send">send</button>
       </form>
     </div>
   </div>

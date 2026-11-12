@@ -161,10 +161,12 @@
   gap: 6px;
   color: var(--text);
 }
+/* One line of the letter is running text: it wraps where it must, not once per part. */
 .letter .ln {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  display: block;
+}
+.letter .ln > * {
+  margin-right: 8px;
 }
 .letter .t {
   color: var(--accent);
@@ -604,16 +606,13 @@
 }
 .filter {
   display: flex;
-  gap: 4px 12px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 .filter .f {
   padding: 4px 0;
 }
-.filter .f[aria-pressed="true"] {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
+
 .notes-body {
   overflow: auto;
   min-height: 0;
@@ -700,10 +699,7 @@
   padding: 6px 0;
   margin: 0;
 }
-.note .act.text:not(:disabled) {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
+
 .note .act:disabled {
   color: var(--muted);
 }
@@ -1262,4 +1258,20 @@
     flex: 0 1000 auto;
     min-height: 0;
   }
+}
+
+/* The stage you are in is marked in the menu. */
+.menu .it[aria-current="true"]::after {
+  content: " · you are here";
+  color: var(--accent);
+}
+/* The foot's counts that open something are boxes; the dots between them go. */
+.tells-foot > span {
+  display: none;
+}
+.tells-foot {
+  gap: 4px 6px;
+}
+.foot .grp {
+  gap: 6px 10px;
 }

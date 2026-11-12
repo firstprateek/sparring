@@ -71,7 +71,7 @@ export function renderQuietBlock(el: HTMLElement, p: Provenance): void {
   );
   const close = document.createElement("button");
   close.type = "button";
-  close.className = "t qb-close";
+  close.className = "hb qb-close";
   close.dataset.act = "close";
   close.textContent = "close";
   el.replaceChildren(

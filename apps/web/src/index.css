@@ -67,6 +67,8 @@ header.bar #head-line:empty {
   line-height: 1.6;
 }
 .backup .backup-run {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
   color: var(--muted);
   padding: 6px 0;
   white-space: nowrap;
@@ -159,8 +161,10 @@ main {
   font-family: var(--mono);
   font-size: 12px;
   color: var(--muted);
-  padding: 14px 0;
   align-self: flex-start;
+}
+.hb.hb.hb.pill {
+  margin: 10px 0;
 }
 .pill:hover {
   color: var(--text);
@@ -177,15 +181,15 @@ main {
 .idea {
   flex: 1;
   min-width: 0;
-  background: none;
-  border: 0;
-  border-bottom: 1px solid var(--rule);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
   outline: none;
   font-family: var(--serif);
   font-size: 15px;
   line-height: 1.5;
   color: var(--text);
-  padding: 12px 0;
+  padding: 9px 12px;
 }
 .idea::placeholder {
   color: var(--muted);
@@ -273,6 +277,18 @@ main {
   }
   .row .tail {
     gap: 8px;
+  }
+  /* The counts go under the name: beside it they squeeze it into three lines. */
+  .row .top {
+    flex-direction: column;
+    gap: 2px;
+  }
+  /* j k and friends are keyboard keys: no use on a phone. */
+  footer.bar .keys {
+    display: none;
+  }
+  footer.bar {
+    justify-content: flex-end;
   }
 }
 /* The card is one more item in main's column; a hidden card takes no gap. */

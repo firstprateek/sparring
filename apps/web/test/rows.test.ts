@@ -36,13 +36,20 @@ const texts = (m: SparringMeta) => rowTail(m, NOW).map((p) => p.text);
 
 describe("Articles row tail", () => {
   it("reads stage, words, open notes, save age and tokens", () => {
-    expect(texts(meta())).toEqual(["draft", "612w", "·6", "2h", "18k tok"]);
+    expect(texts(meta())).toEqual(["draft", "612 words", "6 notes", "2h ago", "18k tok"]);
     expect(rowTail(meta(), NOW).map((p) => p.cls)).toEqual([undefined, undefined, undefined, "save", "tok"]);
   });
 
   it("tags a drafted article before the stage", () => {
     const tail = rowTail(meta({ authorship: "drafted", yoursPct: 12 }), NOW);
-    expect(tail.map((p) => p.text)).toEqual(["drafted", "draft", "612w", "·6", "2h", "18k tok"]);
+    expect(tail.map((p) => p.text)).toEqual([
+      "drafted",
+      "draft",
+      "612 words",
+      "6 notes",
+      "2h ago",
+      "18k tok",
+    ]);
     expect(tail[0]?.cls).toBe("tag");
     expect(texts(meta({ authorship: "drafted", prNumber: 5 }))).toEqual(["PR #5"]);
   });
@@ -56,11 +63,11 @@ describe("Articles row tail", () => {
       savedAt: new Date(NOW - 3 * 86_400_000).toISOString(),
       tokens: 6_000,
     });
-    expect(texts(m)).toEqual(["interview 4/6", "·1", "3d", "6k tok"]);
+    expect(texts(m)).toEqual(["interview 4/6", "1 note", "3d ago", "6k tok"]);
   });
 
   it("leaves out zero notes, zero tokens and a missing save", () => {
-    expect(texts(meta({ openComments: 0, tokens: 0, savedAt: null }))).toEqual(["draft", "612w"]);
+    expect(texts(meta({ openComments: 0, tokens: 0, savedAt: null }))).toEqual(["draft", "612 words"]);
   });
 
   it("shows the PR alone once there is one", () => {

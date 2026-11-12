@@ -1,11 +1,12 @@
 :root {
-  --bg: #fdfcfa;
-  --subtle: #f4f2ee;
+  /* Paper, not white: a full-white page is hard on the eyes for an hour of writing. */
+  --bg: #efebe2;
+  --subtle: #e6e1d6;
   --text: #1f1d1a;
-  --muted: #6b6660;
-  --rule: #e2dfd8;
-  --accent: #35697c;
-  --bad: #a3392a;
+  --muted: #5f5a53;
+  --rule: #d3cdc0;
+  --accent: #2f6072;
+  --bad: #99301f;
   --serif: "Source Serif 4", Georgia, serif;
   --mono: "JetBrains Mono", ui-monospace, monospace;
 }
@@ -75,8 +76,12 @@ a:hover {
   text-align: left;
 }
 /* A button in a page's head: a thin box, so it does not read as one of the counts beside it. */
-.hb {
+.hb.hb.hb {
   position: relative;
+  margin: 0;
+  text-decoration: none;
+  text-align: center;
+  flex: none;
   font-family: var(--mono);
   font-size: 12px;
   line-height: 1.4;
@@ -89,13 +94,37 @@ a:hover {
   white-space: nowrap;
 }
 /* The box is small; the place to tap is not. */
+.hb.hb.hb.muted {
+  color: var(--muted);
+}
+.hb.hb.hb[aria-pressed="true"],
+.hb.hb.hb[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.hb.hb.hb:disabled {
+  color: var(--muted);
+  border-style: dashed;
+  cursor: default;
+}
 .hb::after {
   content: "";
   position: absolute;
   inset: -9px -3px;
 }
-.hb:hover {
+.hb.hb.hb:hover:not(:disabled) {
   border-color: var(--muted);
+}
+/* A field to type in: a box, so it does not read as a line of text. */
+.field {
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+.field:focus,
+.field:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .t:disabled {
   cursor: default;
@@ -126,22 +155,18 @@ textarea:focus-visible {
   margin: 40px auto 0;
   display: flex;
   gap: 12px;
-  align-items: baseline;
+  align-items: center;
   flex-wrap: wrap;
 }
 .login input {
   flex: 1;
   min-width: 12ch;
-  background: none;
-  border: 0;
-  border-bottom: 1px solid var(--rule);
-  outline: 0;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
   font: inherit;
   color: var(--text);
-  padding: 4px 0;
-}
-.login .t {
-  padding: 8px 0;
+  padding: 7px 10px;
 }
 .login .status {
   flex-basis: 100%;
@@ -211,4 +236,15 @@ textarea:focus-visible {
 }
 .update .err {
   flex-basis: 100%;
+}
+
+/* In the desktop app a page's head is the window's title bar (src/desktop.ts): it can be dragged, its words are
+   not selected by a drag, and on a Mac it starts to the right of the three window buttons. */
+.in-app :is(header.bar, .head, .iv-head, .login-bar) {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+.in-app.mac:not(.fullscreen) :is(header.bar, .head, .iv-head, .login-bar) {
+  padding-left: 84px;
 }

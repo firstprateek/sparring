@@ -1,8 +1,8 @@
 :root {
-  --bg: #fdfcfa;
+  --bg: #efebe2;
   --fg: #1d1e20;
-  --muted: #6b6d70;
-  --line: #e4e1db;
+  --muted: #5f5a53;
+  --line: #d3cdc0;
   --accent: #35697c;
   --bad: #9a3b2e;
   color-scheme: light;
@@ -32,7 +32,11 @@ body {
     monospace;
 }
 .bar {
-  padding: 14px 20px;
+  /* The window has no title bar of its own: this is it. The left room is for the three window buttons. */
+  padding: 12px 20px 12px 84px;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
   border-bottom: 1px solid var(--line);
 }
 main {

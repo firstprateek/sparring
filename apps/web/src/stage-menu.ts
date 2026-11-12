@@ -259,11 +259,11 @@ export class StageMenu {
     const yes = act("yes");
     yes.disabled = this.flipping;
     if (this.flipping) yes.textContent = "sending…";
-    // `· yes · no` stays on one row.
+    // The two buttons stay on one row.
     const yn = document.createElement("span");
     yn.className = "yn";
     pend.lastElementChild?.remove();
-    yn.append(dot(), yes, dot(), act("no"));
+    yn.append(yes, act("no"));
     pend.append(yn);
     if (this.error) {
       const err = document.createElement("span");
@@ -285,7 +285,7 @@ function dot(): HTMLSpanElement {
 function act(name: "yes" | "no"): HTMLButtonElement {
   const b = document.createElement("button");
   b.type = "button";
-  b.className = "t text";
+  b.className = "hb";
   b.dataset.act = name;
   b.textContent = name;
   return b;

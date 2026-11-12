@@ -167,12 +167,11 @@
   font-size: 15px;
   line-height: 1.5;
   color: var(--text);
-  background: none;
-  border: 0;
-  border-bottom: 1px solid var(--rule);
-  border-radius: 0;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
   outline: 0;
-  padding: 2px 0;
+  padding: 5px 9px;
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
@@ -184,7 +183,7 @@
 .pub .v:focus,
 .pub .v:focus-visible {
   outline: 0;
-  border-bottom-color: var(--accent);
+  border-color: var(--accent);
 }
 .pub textarea.v {
   resize: none;
@@ -192,8 +191,11 @@
   display: block;
   field-sizing: content;
 }
+/* A value you cannot change here has no box. */
 .pub .ro-v {
-  border-bottom-color: transparent;
+  border-color: transparent;
+  background: none;
+  padding-left: 0;
 }
 .pub .field-err {
   grid-column: 1 / -1;

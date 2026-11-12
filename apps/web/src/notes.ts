@@ -329,7 +329,7 @@ export class NotesView {
     els.err.hidden = this.error === "";
     els.filter.replaceChildren(
       ...filterItems(this.notes).map((i) => {
-        const b = el("button", `t f ${i.key === this.filter ? "text" : "muted"}`, `${i.label} ${i.count}`);
+        const b = el("button", `hb f ${i.key === this.filter ? "text" : "muted"}`, `${i.label} ${i.count}`);
         b.type = "button";
         b.dataset.filter = i.key;
         b.setAttribute("aria-pressed", String(i.key === this.filter));
@@ -358,7 +358,7 @@ export class NotesView {
   }
 
   private btn(text: string, act: string, cls = "text", disabled = false): HTMLButtonElement {
-    const b = el("button", `t act ${cls}`, text);
+    const b = el("button", `hb act ${cls}`, text);
     b.type = "button";
     b.dataset.act = act;
     b.disabled = disabled;

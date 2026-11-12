@@ -321,8 +321,8 @@ export class Guide {
       el("span", "", `guide · ${n}`),
       ...(this.passed ? [el("span", "g-passed", `✓ ${this.passed}`)] : []),
       el("span", "g-fill"),
-      this.btn("hide", "t g-x", () => this.set({ small: true })),
-      this.btn("close", "t g-x", () => this.set({ open: false })),
+      this.btn("hide", "hb g-x", () => this.set({ small: true })),
+      this.btn("close", "hb g-x", () => this.set({ open: false })),
     );
     const kids: HTMLElement[] = [head];
     const title = el("h2", "g-title", s.title);

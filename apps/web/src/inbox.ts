@@ -31,7 +31,7 @@ export function inboxRows(items: readonly Idea[], hooks: InboxHooks): HTMLDivEle
     row.dataset.id = idea.id;
     const go = document.createElement("button");
     go.type = "button";
-    go.className = "t mono muted go";
+    go.className = "hb go";
     go.textContent = "→ article";
     go.addEventListener("click", () => {
       const form = buildForm(idea, hooks, () => {

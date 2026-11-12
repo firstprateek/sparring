@@ -80,7 +80,7 @@ export class TellsView {
     if (key === this.shown) return;
     this.shown = key;
     const head = el("div", "tells-head");
-    const close = el("button", "t tells-close", "close");
+    const close = el("button", "hb tells-close", "close");
     close.type = "button";
     close.addEventListener("click", () => this.o.close());
     head.append(el("span", "text", "tells"), el("span", "muted", "in article.md"), close);

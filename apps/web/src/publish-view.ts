@@ -453,7 +453,7 @@ export class PublishSheet {
         ),
       );
       if (rows.length > 1) {
-        const all = el("button", "t text tickall", "tick all");
+        const all = el("button", "hb tickall", "tick all");
         all.type = "button";
         all.dataset.tickAll = "1";
         kids.push(all);
@@ -484,7 +484,7 @@ export class PublishSheet {
         ),
       );
       if (p.spans.length > 1) {
-        const all = el("button", "t text tickall", "tick all");
+        const all = el("button", "hb tickall", "tick all");
         all.type = "button";
         all.dataset.tickAll = "1";
         kids.push(all);
@@ -508,7 +508,7 @@ export class PublishSheet {
     for (const c of p.checks) {
       const line = el("span", c.ok ? "text" : c.warn ? "warn" : "err", `${c.ok ? "✓" : c.warn ? "·" : "✗"} `);
       if (c.id === "slug" && p.diff !== undefined && c.text.endsWith(" · diff")) {
-        const diff = el("button", "t text diff-btn", "diff");
+        const diff = el("button", "hb diff-btn", "diff");
         diff.type = "button";
         diff.dataset.diff = "1";
         diff.setAttribute("aria-expanded", String(this.diffOpen));

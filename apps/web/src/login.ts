@@ -1,6 +1,10 @@
 // The login form: one `token` field and `log in`. Shown when `GET /api/me` answers 401, and again whenever a
 // later call does. The token goes in the POST body only; the daemon answers with the `sparring` cookie.
 import { ApiError, api, onUnauthorized } from "./api.ts";
+import { wireDesktop } from "./desktop.ts";
+
+// Every page logs in through here, so every page gets the desktop app's title bar.
+wireDesktop();
 
 let showing: Promise<void> | null = null;
 
@@ -21,7 +25,7 @@ function build(onDone: () => void): HTMLElement {
   input.required = true;
   const button = document.createElement("button");
   button.type = "submit";
-  button.className = "t text";
+  button.className = "btn primary";
   button.textContent = "log in";
   const status = document.createElement("span");
   status.className = "err status";

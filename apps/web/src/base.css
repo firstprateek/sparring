@@ -74,6 +74,29 @@ a:hover {
   cursor: pointer;
   text-align: left;
 }
+/* A button in a page's head: a thin box, so it does not read as one of the counts beside it. */
+.hb {
+  position: relative;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 3px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+/* The box is small; the place to tap is not. */
+.hb::after {
+  content: "";
+  position: absolute;
+  inset: -9px -3px;
+}
+.hb:hover {
+  border-color: var(--muted);
+}
 .t:disabled {
   cursor: default;
 }

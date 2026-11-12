@@ -21,7 +21,7 @@
   border-bottom: 1px solid var(--rule);
   min-width: 0;
 }
-.pub .head a {
+.pub .head .back {
   padding: 12px 0;
   white-space: nowrap;
 }
@@ -46,13 +46,6 @@
 .pub .guide-slot:empty,
 .pub .guide-slot:has(> .guide[hidden]) {
   padding: 0;
-}
-.pub .guide-btn {
-  padding: 12px 4px;
-  white-space: nowrap;
-}
-.pub .guide-btn:hover {
-  color: var(--text);
 }
 /* The card never takes the sheet's room at desktop width: a long step scrolls inside it. */
 .pub .guide:not(.small) {
@@ -328,11 +321,16 @@
     overflow: visible;
     grid-template-rows: auto auto 1fr auto;
   }
+  /* The whole page scrolls here, so the head stays at the top. */
   .pub .head {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
     flex-wrap: wrap;
     gap: 0 12px;
   }
-  .pub .head a {
+  .pub .head .back {
     padding: 10px 0;
   }
   .pub .body {

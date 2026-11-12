@@ -67,12 +67,6 @@
 .spacer {
   flex: 1;
 }
-.guide-btn {
-  padding: 12px 4px;
-}
-.guide-btn:hover {
-  color: var(--text);
-}
 .stage {
   white-space: nowrap;
 }
@@ -922,9 +916,6 @@
 /* `PR #5` in the head once the article has a pull request: it opens the publish sheet. */
 .pr-link {
   white-space: nowrap;
-  padding: 12px 0;
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
 }
 .menu .publish {
   border-top: 1px solid var(--rule);

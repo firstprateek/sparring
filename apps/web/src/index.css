@@ -12,7 +12,8 @@
   padding-left: var(--gl);
   padding-right: var(--gr);
   padding-block: 0 env(safe-area-inset-bottom, 0px);
-  overflow-x: hidden;
+  /* clip, not hidden: hidden would make this a scroll container, and the header could not stick to the page. */
+  overflow-x: clip;
 }
 .bar {
   height: 40px;
@@ -28,11 +29,30 @@
 .bar > * {
   min-width: 0;
 }
+/* The header stays at the top while the lists scroll under it. */
 header.bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: calc(40px + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  background: var(--bg);
   border-bottom: 1px solid var(--rule);
 }
-header.bar .t {
-  padding: 12px 0;
+header.bar .head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+header.bar #head-line {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+header.bar #head-line:empty {
+  display: none;
 }
 /* The backup line: small and to the right when fine, a red line that wraps when not. */
 .backup {

@@ -30,7 +30,6 @@ const els = {
   empty: $("empty"),
   listError: $("list-error"),
   headLine: $("head-line"),
-  headSep: $("head-sep"),
   conn: $("conn"),
   newBtn: $<HTMLButtonElement>("new-btn"),
   newForm: $<HTMLFormElement>("new"),
@@ -117,7 +116,6 @@ function render(): void {
     : "";
   const head = headLine(sessions.map(metaOf).filter((m) => m !== undefined));
   els.headLine.textContent = head;
-  els.headSep.hidden = head === "";
 }
 
 function renderConn(): void {

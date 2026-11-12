@@ -1,7 +1,9 @@
 // The page: one textarea per block, blocks being the blank-line split of the file. Enter on an empty line
 // starts a new block; Backspace at the start of a block joins it to the one above. With a gutter, each block is
 // a `.prow` of a `.gut` and its textarea, and `setMarks` puts a mark in the gutter of the blocks it names: the
-// mono `?` of a brief quote, or the solid bar of a live note, which is a button that opens the note.
+// mono `?` of a brief quote, or the solid bar of a live note, which is a button that opens the note. In a drafted
+// article `setProv` adds the dotted provenance bar before it: accent for a block still the coach's, muted for one
+// the writer edited, none once it is the writer's. `showReveal` lands a draft block by block.
 import { joinBlocks, splitBlocks } from "@sparring/protocol/blocks";
 
 export interface PageOptions {
@@ -14,8 +16,17 @@ export interface PageOptions {
 /** What a block's gutter shows: `?` for a brief quote, or the bar of the note on it. */
 export type Mark = { kind: "q" } | { kind: "note"; id: string; label: string };
 
+/** A block's provenance bar: the coach's words, the coach's words edited, or none. */
+export type Prov = "coach" | "edited" | null;
+
+const PROV_SAYS = { coach: "written by the coach", edited: "written by the coach, edited by you" };
+
 export class Page {
   private mark: ((block: string) => Mark | null) | null = null;
+  private prov: ((block: string) => Prov) | null = null;
+  private readOnly = false;
+  /** The reveal in flight, if one is. */
+  private landing: { timer: ReturnType<typeof setTimeout> | undefined } | null = null;
   private readonly gutter: boolean;
   /** The block the caret was last in. */
   private last: HTMLTextAreaElement | null = null;
@@ -27,7 +38,7 @@ export class Page {
   ) {
     this.gutter = opts.gutter === true;
     root.addEventListener("input", (e) => {
-      if (e.target instanceof HTMLTextAreaElement) {
+      if (e.target instanceof HTMLTextAreaElement && !this.landing) {
         autosize(e.target);
         this.markOne(e.target);
         this.onInput(this.text());
@@ -45,12 +56,73 @@ export class Page {
 
   /** Shows a file, one block per textarea. The placeholder shows in the first block while it is empty. */
   show(text: string, label: string, placeholder = ""): void {
+    this.stopReveal();
     this.root.replaceChildren(
       ...splitBlocks(text).map((b, i) => this.row(this.block(b, `${label} block ${i + 1}`))),
     );
     const first = this.blocks()[0];
     if (first && placeholder) first.placeholder = placeholder;
     for (const ta of this.blocks()) autosize(ta);
+    this.markAll();
+  }
+
+  /**
+   * Lands a draft block by block, one every `stepMs` (all at once when it is 0, as under reduced motion). The
+   * page is read-only until the last block is in, so nothing typed can be saved over half a draft.
+   */
+  showReveal(text: string, label: string, stepMs: number, done: () => void = () => {}): void {
+    const blocks = splitBlocks(text);
+    if (stepMs <= 0 || blocks.length <= 1) {
+      this.show(text, label);
+      done();
+      return;
+    }
+    this.stopReveal();
+    this.root.replaceChildren();
+    const state: { timer: ReturnType<typeof setTimeout> | undefined } = { timer: undefined };
+    this.landing = state;
+    let i = 0;
+    const next = () => {
+      if (this.landing !== state) return;
+      const ta = this.block(blocks[i] as string, `${label} block ${i + 1}`);
+      ta.readOnly = true;
+      const row = this.row(ta);
+      row.classList.add("landing");
+      this.root.append(row);
+      autosize(ta);
+      this.markOne(ta);
+      row.scrollIntoView({ block: "nearest" });
+      i++;
+      if (i < blocks.length) {
+        state.timer = setTimeout(next, stepMs);
+        return;
+      }
+      this.landing = null;
+      for (const b of this.blocks()) b.readOnly = this.readOnly;
+      done();
+    };
+    next();
+  }
+
+  /** True while a draft is landing. */
+  get revealing(): boolean {
+    return this.landing !== null;
+  }
+
+  private stopReveal(): void {
+    if (this.landing) clearTimeout(this.landing.timer);
+    this.landing = null;
+  }
+
+  /** While the coach drafts, the page can be read and not typed in. */
+  setReadOnly(on: boolean): void {
+    this.readOnly = on;
+    if (!this.landing) for (const ta of this.blocks()) ta.readOnly = on;
+  }
+
+  /** The provenance bar of each block, in a drafted article; null clears every bar. */
+  setProv(prov: ((block: string) => Prov) | null): void {
+    this.prov = prov;
     this.markAll();
   }
 
@@ -119,6 +191,7 @@ export class Page {
     ta.rows = 1;
     ta.spellcheck = true;
     ta.value = text;
+    ta.readOnly = this.readOnly;
     ta.setAttribute("aria-label", label);
     return ta;
   }
@@ -147,16 +220,27 @@ export class Page {
     const gut = ta.previousElementSibling;
     if (!(gut instanceof HTMLElement) || !gut.classList.contains("gut")) return;
     const m = this.mark?.(ta.value) ?? null;
-    const key = m === null ? "" : m.kind === "q" ? "q" : `note:${m.id}:${m.label}`;
-    if ((gut.dataset.mark ?? "") === key) return;
+    const p = this.prov?.(ta.value) ?? null;
+    const key = `${p ?? ""}|${m === null ? "" : m.kind === "q" ? "q" : `note:${m.id}:${m.label}`}`;
+    if ((gut.dataset.mark ?? "|") === key) return;
     gut.dataset.mark = key;
-    if (m === null) gut.replaceChildren();
+    if (p) ta.setAttribute("aria-description", PROV_SAYS[p]);
+    else ta.removeAttribute("aria-description");
+    // The dotted provenance bar comes first, then the note's solid one.
+    const kids: HTMLElement[] = [];
+    if (p) {
+      const bar = document.createElement("span");
+      bar.className = p === "edited" ? "prov mixed" : "prov";
+      bar.setAttribute("aria-hidden", "true");
+      kids.push(bar);
+    }
+    if (m === null) gut.replaceChildren(...kids);
     else if (m.kind === "q") {
       const q = document.createElement("span");
       q.className = "qmark";
       q.setAttribute("aria-hidden", "true");
       q.textContent = "?";
-      gut.replaceChildren(q);
+      gut.replaceChildren(...kids, q);
     } else {
       const bar = document.createElement("button");
       bar.type = "button";
@@ -164,13 +248,13 @@ export class Page {
       bar.dataset.note = m.id;
       bar.title = m.label;
       bar.setAttribute("aria-label", `Open the note on this paragraph · ${m.label}`);
-      gut.replaceChildren(bar);
+      gut.replaceChildren(...kids, bar);
     }
   }
 
   private key(e: KeyboardEvent): void {
     const ta = e.target;
-    if (!(ta instanceof HTMLTextAreaElement) || e.isComposing) return;
+    if (!(ta instanceof HTMLTextAreaElement) || e.isComposing || ta.readOnly) return;
     const pos = ta.selectionStart;
     if (pos !== ta.selectionEnd) return;
     if (e.key === "Enter" && !e.shiftKey && pos > 0 && ta.value[pos - 1] === "\n") {

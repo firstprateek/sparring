@@ -9,6 +9,13 @@
 // dismissed, and after time away it opens with the resume letter. `/ask` takes the paragraph the caret is in.
 // `/quiet` folds the notes and puts `quiet` in the foot. At phone width in `interview` the
 // Room becomes the phone interview screen (interview.ts).
+//
+// Drafted mode: `send it` in the stage menu (or `/sendit`) shows its confirm line, and yes makes the authorship
+// call. While the coach drafts the stage word reads `drafting…` and the article is read-only; when the draft is
+// accepted the Room fetches the snapshot and lands it block by block. From then on each block carries its
+// provenance bar, the head and the foot say `N% yours`, the letter carries the status strip, the quiet block
+// stands where the notes do until `/critique` or `/pass`, and `shelf` in the foot opens the page from before the
+// draft. `coached again` puts that page back.
 import "@fontsource/source-serif-4/400.css";
 import "@fontsource/source-serif-4/400-italic.css";
 import "@fontsource/source-serif-4/600.css";
@@ -20,16 +27,18 @@ import "./guide.css";
 import { joinBlocks, splitBlocks, wordCount } from "@sparring/protocol/blocks";
 import { PASSES, parseCommand } from "@sparring/protocol/commands";
 import { isLive, type Note } from "@sparring/protocol/notes";
+import { type Baseline, baselineOf, type Provenance, provenance } from "@sparring/protocol/provenance";
 import { checkOutgoing } from "./actions.ts";
 import { ahp, useAhp } from "./ahp/hub.ts";
-import { api, type BriefNote, type FileName, type Snapshot } from "./api.ts";
+import { ApiError, api, type BriefNote, type FileName, type Snapshot } from "./api.ts";
 import { adoptBrief, briefNotesOf, quoteMarks, renderQuotes } from "./brief.ts";
 import { Composer } from "./composer.ts";
+import { provOf, renderQuietBlock, revealStep, tagText } from "./drafted.ts";
 import { Guide } from "./guide.ts";
-import { LEAF_HELP, stageHelp } from "./help.ts";
+import { DRAFTED_HELP, DRAFTING_HELP, LEAF_HELP, stageHelp } from "./help.ts";
 import { InterviewScreen, interviewDone, PHONE_QUERY } from "./interview.ts";
 import { Leaf } from "./leaf.ts";
-import { letterRows, resumeRows, tickerText } from "./letter.ts";
+import { letterRows, resumeRows, stripRow, tickerText } from "./letter.ts";
 import { renderTurns, Transcript } from "./log.ts";
 import { ensureLogin } from "./login.ts";
 import { NotesView } from "./notes.ts";
@@ -75,6 +84,16 @@ const els = {
   logEsc: $<HTMLButtonElement>("log-esc"),
   notesBtn: $<HTMLButtonElement>("notes-btn"),
   quiet: $("quiet"),
+  modeTag: $("mode-tag"),
+  yours: $("yours"),
+  quietBlock: $("quiet-block"),
+  room: $("room"),
+  yoursBtn: $<HTMLButtonElement>("yours-btn"),
+  shelf: $("shelf"),
+  shelfText: $("shelf-text"),
+  shelfErr: $("shelf-err"),
+  shelfBtn: $<HTMLButtonElement>("shelf-btn"),
+  shelfEsc: $<HTMLButtonElement>("shelf-esc"),
 };
 const leafButtons = [...document.querySelectorAll<HTMLButtonElement>("button[data-leaf]")];
 
@@ -87,6 +106,11 @@ let briefNotes: BriefNote[] = [];
 let notes: Note[] = [];
 /** True once the snapshot is in and the leaves exist. */
 let loaded = false;
+/** The coach's draft of a drafted article, from the snapshot: what provenance is computed against. */
+let draft: { commit: string; base: Baseline } | null = null;
+/** The article's authorship and whether a draft turn runs, as the session last said. */
+let mode: { authorship: string; drafting: boolean } | undefined;
+let snapAuthorship = "coached";
 
 const page = new Page(
   els.paras,
@@ -132,7 +156,114 @@ const stageMenu = new StageMenu(
     if (!sessionUri) return NO_SESSION;
     return setStage(conn, sessionUri, stage, stageRefused);
   },
+  (to) => flip(to),
 );
+
+// ───────────────────────────── drafted mode ─────────────────────────────
+
+const isDrafted = () => (currentMeta()?.authorship ?? snapAuthorship) === "drafted";
+
+/**
+ * The yes click of `send it` or `coached again`: the one call that changes authorship. The page is saved first,
+ * since what is on it moves to the shelf. Resolves with why it did not go through, or null.
+ */
+async function flip(to: "coached" | "drafted"): Promise<string | null> {
+  const leaf = leaves.get("article");
+  if (leaf?.state.kind === "conflict") return "choose keep mine or take disk first";
+  if (leaf?.dirty) await leaf.saveNow(false);
+  if (leaf && (leaf.dirty || leaf.state.kind !== "saved"))
+    return "article.md is not saved yet · try again once the foot says saved";
+  try {
+    await api.authorship(slug, to);
+  } catch (e) {
+    return e instanceof ApiError ? e.message : "could not reach the daemon";
+  }
+  // The draft lands on the article leaf, and so does the page that comes back.
+  if (active !== "article") showLeaf("article");
+  if (to === "coached") setShelf(false);
+  return null;
+}
+
+/** The provenance of the page as it is typed; null in a coached article. Computed again only when the text moves. */
+let provMemo: { key: string; p: Provenance } | null = null;
+function currentProv(): Provenance | null {
+  if (!draft || !isDrafted()) return null;
+  const text = leaves.get("article")?.text ?? "";
+  const key = `${draft.commit}\n${text}`;
+  if (provMemo?.key !== key) provMemo = { key, p: provenance(draft.base, text) };
+  return provMemo.p;
+}
+
+/** The snapshot's draft becomes the baseline, and the article page gets its bars (or loses them). */
+function takeDraft(snap: Snapshot): void {
+  snapAuthorship = snap.authorship;
+  draft =
+    snap.authorship === "drafted" && snap.draft
+      ? { commit: snap.draft.commit, base: baselineOf(snap.draft.text) }
+      : null;
+  provMemo = null;
+  markPage();
+}
+
+/**
+ * Authorship changed under the Room (the draft was accepted, or the page came back): the snapshot is fetched
+ * again and the article leaf takes what is on disk. A draft that was just accepted lands block by block.
+ */
+let landNext = false;
+async function modeChanged(landed: boolean): Promise<void> {
+  try {
+    const snap = await api.snapshot(slug);
+    takeNotes(snap);
+    const leaf = leaves.get("article");
+    landNext = landed && active === "article" && !interview.visible;
+    takeDraft(snap);
+    // Refused while the writer has unsent text: the next save then meets the base_sha check and asks.
+    leaf?.adopt(snap.files.article.text, snap.files.article.sha);
+    landNext = false;
+    problem("mode", null);
+  } catch (e) {
+    landNext = false;
+    problem("mode", `the page did not refresh · ${e instanceof Error ? e.message : e} · reload to see it`);
+  }
+  render();
+}
+
+/** The shelf: the page from before the draft, read-only, beside the article so it can be copied from. */
+async function setShelf(open: boolean): Promise<void> {
+  els.shelf.hidden = !open;
+  els.shelfBtn.setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  els.shelfErr.hidden = true;
+  els.shelfText.textContent = "";
+  try {
+    const { text } = await api.shelf(slug);
+    if (text.trim() === "") {
+      const p = document.createElement("p");
+      p.className = "help";
+      p.textContent = "The page was empty before the draft.";
+      els.shelfText.replaceChildren(p);
+    } else
+      els.shelfText.replaceChildren(
+        ...splitBlocks(text).map((b) => {
+          const p = document.createElement("p");
+          p.textContent = b;
+          return p;
+        }),
+      );
+  } catch (e) {
+    els.shelfErr.textContent = `the shelf did not open · ${e instanceof Error ? e.message : e}`;
+    els.shelfErr.hidden = false;
+  }
+}
+els.shelfBtn.addEventListener("click", () => {
+  void setShelf(els.shelf.hidden === true).then(() => {
+    if (!els.shelf.hidden) els.shelfEsc.focus();
+  });
+});
+els.shelfEsc.addEventListener("click", () => {
+  void setShelf(false);
+  els.shelfBtn.focus();
+});
 
 /**
  * The turns stay on their last line while the writer has not scrolled away, also when the notes above them or the
@@ -202,6 +333,7 @@ function sendLine(from: Composer, text: string, asked = false): boolean {
 const composer = new Composer($<HTMLTextAreaElement>("composer"), $("slash"), $("comp-note"), $("queued"), {
   line: (text) => void sendLine(composer, text),
   log: () => setLog(true),
+  sendit: () => stageMenu.openSendit(),
   escape: () => setLog(false),
 });
 const ivComposer = new Composer(
@@ -212,6 +344,7 @@ const ivComposer = new Composer(
   {
     line: (text) => void sendLine(ivComposer, text),
     log: () => interview.fold(false),
+    sendit: () => interview.openSendit(),
     escape: () => {},
   },
 );
@@ -248,6 +381,7 @@ const interview = new InterviewScreen(
     if (!sessionUri) return NO_SESSION;
     return setStage(conn, sessionUri, stage, stageRefused);
   },
+  () => flip("drafted"),
 );
 phone.addEventListener("change", () => renderAhp());
 
@@ -327,7 +461,7 @@ const transcriptView = new Transcript(els.logList, els.log);
 /** Made once the writer is logged in, so the card never sits over the login form. */
 let guide: Guide | undefined;
 /** What renderAhp last saw, for the guide. */
-let seen = { stage: "", covered: 0, said: 0 };
+let seen = { stage: "", covered: 0, said: 0, drafted: false };
 /** The session's strictness and the article's quiet switch, as renderAhp last saw them. */
 let strictness = "normal";
 let quiet: boolean | undefined;
@@ -393,13 +527,23 @@ function renderAhp(): void {
   const meta = currentMeta();
   const stage = stageOf(session, meta, snapStage);
   const offline = meta?.offline === true;
-  stageMenu.set(stage, meta?.covered, meta?.drafting === true, offline);
+  const drafting = meta?.drafting === true;
+  const drafted = isDrafted();
+  stageMenu.set(stage, meta?.covered, drafting, offline, drafted ? "drafted" : "coached");
+  if (meta) {
+    const now = { authorship: meta.authorship, drafting };
+    // The draft was accepted, or the page came back from the shelf: what is on disk is not what is on screen.
+    if (mode && mode.authorship !== now.authorship) void modeChanged(now.authorship === "drafted");
+    mode = now;
+  }
+  // While the coach drafts, the article can be read and not typed in.
+  page.setReadOnly(drafting && active === "article");
   const chat = chatUri ? conn.chat(chatUri) : undefined;
   const said = transcript(chat);
   if (!els.log.hidden) transcriptView.render(said);
   renderTurns(els.turns, said, interviewDone(meta?.covered), stageHelp(stage));
   const covered = meta?.covered?.length ?? 0;
-  seen = { stage, covered, said: said.filter((l) => l.kind === "you").length };
+  seen = { stage, covered, said: said.filter((l) => l.kind === "you").length, drafted };
   const strict = session?.config?.values.strictness;
   strictness = typeof strict === "string" && strict ? strict : "normal";
   if (meta) {
@@ -421,7 +565,8 @@ function renderAhp(): void {
   }
 
   interview.set({ slug, stage, covered: meta?.covered ?? [], offline, lines: said });
-  setInterview(loaded && phone.matches && stage === "interview");
+  // A draft in the making is watched on the article leaf, not from the interview screen.
+  setInterview(loaded && phone.matches && stage === "interview" && !drafting);
   renderLetter();
 }
 
@@ -449,6 +594,7 @@ async function refetch(): Promise<void> {
     try {
       const snap = await api.snapshot(slug);
       takeNotes(snap);
+      if (snap.draft?.commit !== draft?.commit) takeDraft(snap);
       const brief = leaves.get("brief");
       if (brief) adoptBrief(brief, snap.files.brief);
       problem("refetch", null);
@@ -489,6 +635,8 @@ function markPage(): void {
         : null;
     });
   else page.setMarks(null);
+  // In a drafted article each block the coach wrote carries its dotted bar, beside the note's solid one.
+  page.setProv(active === "article" && draft && isDrafted() ? provOf(draft.base) : null);
 }
 
 /** The coach panel's head: the stage with what it counts, the strictness when it is not normal, and `quiet`. */
@@ -503,13 +651,14 @@ function renderCoachStage(): void {
   ];
   if (strictness !== "normal") parts.push(strictness);
   if (quiet) parts.push("quiet");
+  if (seen.drafted) parts.unshift("drafted");
   els.coachStage.textContent = parts.join(" · ");
 }
 
 /** The notes list and the foot's notes button, from the snapshot's notes and the article as it is typed. */
 function renderNotes(): void {
   notesView.set(notes, leaves.get("article")?.text ?? "");
-  els.notesBtn.hidden = notes.length === 0;
+  els.notesBtn.hidden = notes.length === 0 || !els.quietBlock.hidden;
   const open = notesView.open;
   els.notesBtn.textContent = `${open} open ${open === 1 ? "note" : "notes"} ▴`;
   els.notesBtn.setAttribute("aria-expanded", String(notesView.sheetOpen));
@@ -547,9 +696,61 @@ els.logEsc.addEventListener("click", () => {
 
 // ───────────────────────────── page, foot and letter ─────────────────────────────
 
+/** Is the quiet block's sheet open (under 760px)? */
+let quietSheet = false;
+els.yoursBtn.addEventListener("click", () => {
+  quietSheet = !quietSheet;
+  render();
+});
+els.quietBlock.addEventListener("click", (e) => {
+  if (!(e.target as HTMLElement).closest('[data-act="close"]')) return;
+  quietSheet = false;
+  render();
+  els.yoursBtn.focus();
+});
+
+/** The tag in the head, `N% yours` in the foot, the quiet block and the shelf button: all drafted mode's. */
+function renderDrafted(): void {
+  const p = currentProv();
+  const drafted = isDrafted();
+  els.modeTag.hidden = !p;
+  els.yours.hidden = !p;
+  els.shelfBtn.hidden = !drafted;
+  if (!drafted && !els.shelf.hidden) void setShelf(false);
+  if (p) {
+    els.modeTag.textContent = tagText(p.yoursPct);
+    els.yours.textContent = `· ${p.yoursPct}% yours`;
+  }
+  // The quiet block stands where the notes do while the coach holds them.
+  const quietBlock = !!p && currentMeta()?.coachQuiet === true;
+  els.quietBlock.hidden = !quietBlock;
+  els.room.classList.toggle("drafted-quiet", quietBlock);
+  if (!quietBlock) quietSheet = false;
+  // Under 760px the block is a sheet, opened from the foot's `N% yours` in place of the notes count.
+  els.quietBlock.classList.toggle("sheet-open", quietSheet);
+  els.yoursBtn.hidden = !quietBlock;
+  els.yoursBtn.setAttribute("aria-expanded", String(quietSheet));
+  if (p && quietBlock) {
+    renderQuietBlock(els.quietBlock, p);
+    els.yoursBtn.textContent = `${p.yoursPct}% yours ▴`;
+  }
+  if (quietBlock && notesView.sheetOpen) notesView.openSheet(false);
+  const drafting = currentMeta()?.drafting === true;
+  const help =
+    active !== "article"
+      ? LEAF_HELP[active].help
+      : drafting
+        ? DRAFTING_HELP
+        : drafted
+          ? DRAFTED_HELP
+          : LEAF_HELP.article.help;
+  if (els.leafHelp.textContent !== help) els.leafHelp.textContent = help;
+}
+
 /** The foot and the letter, from the active leaf and the socket. */
 function render(): void {
   updateGuide();
+  if (loaded) renderDrafted();
   if (loaded) renderNotes();
   const leaf = leaves.get(active);
   if (leaf) {
@@ -579,6 +780,8 @@ function render(): void {
     rows.push(errRow("this browser is not keeping unsaved text · it lives only in this tab until it saves"));
   }
   if (loaded && list?.loaded && !list.bySlug(slug)) rows.push(noSessionRow());
+  // Under 760px, while the coach is quiet, the strip is in the quiet block's sheet and not in the short panel.
+  if (loaded && isDrafted() && !(narrow.matches && !els.quietBlock.hidden)) rows.push(strip);
   const tick = tickerRow();
   if (tick) rows.push(tick);
   rows.push(...hostLetter(), ...resumeEls);
@@ -590,6 +793,9 @@ function render(): void {
     rows.length === els.letter.children.length && rows.every((r, i) => r === els.letter.children[i]);
   if (!same) els.letter.replaceChildren(...rows);
 }
+
+/** The status strip of a drafted article: one element, so the letter is not rebuilt for it. */
+const strip = stripRow();
 
 /** The conflict row, kept across renders so a click in flight keeps its disabled buttons. */
 let conflictEl: { leaf: Leaf; el: HTMLDivElement } | null = null;
@@ -761,8 +967,12 @@ function onLeafChange(leaf: Leaf, commit?: string): void {
   const fresh = !leaf.dirty && leaf.state.kind === "saved";
   if (interview.visible) {
     if (leaf.file === "dump" && fresh && ivPage.text() !== leaf.text) ivPage.show(leaf.text, "dump");
-  } else if (leaf.file === active && fresh && page.text() !== leaf.text) {
-    page.show(leaf.text, leaf.file, LEAF_HELP[leaf.file].placeholder);
+  } else if (leaf.file === active && fresh && !page.revealing && page.text() !== leaf.text) {
+    // The coach's draft lands block by block; anything else is shown at once.
+    if (landNext && leaf.file === "article")
+      page.showReveal(leaf.text, "article", revealStep(), () => render());
+    else page.show(leaf.text, leaf.file, LEAF_HELP[leaf.file].placeholder);
+    markPage();
   }
   render();
 }
@@ -771,6 +981,7 @@ async function load(): Promise<void> {
   const snap = await api.snapshot(slug);
   snapStage = snap.stage;
   takeNotes(snap);
+  takeDraft(snap);
   for (const f of ["article", "dump", "brief"] as const) {
     const leaf = new Leaf(slug, f, snap.files[f].text, snap.files[f].sha, onLeafChange);
     leaves.set(f, leaf);
@@ -855,6 +1066,13 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "Escape" && notesView.sheetOpen && narrow.matches) {
     notesView.openSheet(false);
     els.notesBtn.focus();
+  } else if (e.key === "Escape" && quietSheet) {
+    quietSheet = false;
+    render();
+    els.yoursBtn.focus();
+  } else if (e.key === "Escape" && !els.shelf.hidden) {
+    void setShelf(false);
+    els.shelfBtn.focus();
   } else if (e.key === "Escape" && !els.log.hidden) {
     setLog(false);
     els.logBtn.focus();

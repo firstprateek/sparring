@@ -190,3 +190,43 @@ describe("/ask", () => {
     expect(hostQueued(chat)).toEqual(["/pass cut"]);
   });
 });
+
+describe("the draft turn in the transcript", () => {
+  it("shows the host's send-it line, the host lines, the draft's tool line and the coach's sentence as the coach's", () => {
+    const chat = {
+      turns: [
+        {
+          id: "d",
+          startedAt: "2026-11-11T10:00:00Z",
+          message: {
+            text: "send it · the coach is drafting from dump.md and brief.md",
+            origin: { kind: "systemNotification" },
+          },
+          responseParts: [
+            {
+              kind: "toolCall",
+              toolCall: {
+                toolName: "other",
+                displayName: "write_draft",
+                pastTenseMessage: "write_draft",
+                content: [{ type: "text", text: "article.md · 12 ¶ from dump.md and brief.md" }],
+              },
+            },
+            {
+              kind: "systemNotification",
+              content: "mode coached → drafted · never-write is off for this article",
+              _meta: { "sparring.line": "mode" },
+            },
+            { kind: "markdown", content: "Drafted from your sentences where you had them." },
+          ],
+        },
+      ],
+    } as unknown as ChatState;
+    expect(transcript(chat).map((l) => [l.kind, l.text])).toEqual([
+      ["host", "send it · the coach is drafting from dump.md and brief.md"],
+      ["tool", "write_draft article.md · 12 ¶ from dump.md and brief.md"],
+      ["host", "mode coached → drafted · never-write is off for this article"],
+      ["coach", "Drafted from your sentences where you had them."],
+    ]);
+  });
+});

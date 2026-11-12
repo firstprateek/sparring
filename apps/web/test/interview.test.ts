@@ -89,11 +89,12 @@ function screen() {
   document.body.innerHTML = `
     <div id="iv" hidden>
       <span id="title"></span><button id="btn"><span id="word"></span> ▾</button>
-      <div id="menu" hidden><ul id="stages"></ul><button id="sendit">send it</button><p id="line" hidden></p><p id="err" hidden></p></div>
+      <div id="menu" hidden><ul id="stages"></ul><button id="sendit">send it</button><div id="line" hidden></div><p id="err" hidden></p></div>
       <div id="sheet"><span id="topics"></span><button id="fold">▾</button><div id="body"><div id="thread"></div></div></div>
     </div>`;
   const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
   const pick = vi.fn((_s: string) => null as string | null);
+  const sendIt = vi.fn(async () => null as string | null);
   const iv = new InterviewScreen(
     {
       root: $("iv"),
@@ -112,8 +113,9 @@ function screen() {
       thread: $("thread"),
     },
     pick,
+    sendIt,
   );
-  return { iv, pick, $ };
+  return { iv, pick, $, sendIt };
 }
 
 describe("the interview screen", () => {
@@ -155,14 +157,40 @@ describe("the interview screen", () => {
     expect(document.body.textContent).not.toContain("advance to");
   });
 
-  it("answers `send it` with `arrives in a later build step`", () => {
-    const { iv, $ } = screen();
+  it("shows the confirm line under `send it`; no backs out, yes makes the call and closes the menu", async () => {
+    const { iv, $, sendIt } = screen();
     iv.set({ slug: "a", stage: "interview", covered: [], offline: false, lines: [] });
     iv.show(true);
     $<HTMLButtonElement>("btn").click();
     $<HTMLButtonElement>("sendit").click();
     expect($("line").hidden).toBe(false);
-    expect($("line").textContent).toBe("arrives in a later build step");
+    expect($("line").textContent).toBe(
+      "the coach writes the draft from dump.md and brief.md·what is on the page moves to the shelf·yes·no",
+    );
+    $("line").querySelector<HTMLButtonElement>('[data-act="no"]')?.click();
+    expect($("line").hidden).toBe(true);
+    expect(sendIt).not.toHaveBeenCalled();
+    $<HTMLButtonElement>("sendit").click();
+    $("line").querySelector<HTMLButtonElement>('[data-act="yes"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(sendIt).toHaveBeenCalledTimes(1);
+    expect($("menu").hidden).toBe(true);
+  });
+
+  it("says in the menu why a send it did not start, and stays open", async () => {
+    const { iv, $, sendIt } = screen();
+    sendIt.mockResolvedValueOnce("nothing to draft from · dump.md is empty");
+    iv.set({ slug: "a", stage: "interview", covered: [], offline: false, lines: [] });
+    iv.show(true);
+    $<HTMLButtonElement>("btn").click();
+    $<HTMLButtonElement>("sendit").click();
+    $("line").querySelector<HTMLButtonElement>('[data-act="yes"]')?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect($("err").hidden).toBe(false);
+    expect($("err").textContent).toBe("not started · nothing to draft from · dump.md is empty");
+    expect($("menu").hidden).toBe(false);
   });
 
   it("reads `offline` while the article is offline", () => {

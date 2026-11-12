@@ -24,6 +24,8 @@ export interface Snapshot {
   comments?: Note[];
   /** The resume letter: set when the article was not opened for a day, or notes were left while it was closed. */
   resume?: Resume | null;
+  /** The coach's draft of a drafted article: the baseline provenance is computed against. */
+  draft?: { n: number; commit: string; text: string } | null;
 }
 
 /** One line of `~/writing/inbox.md`. */
@@ -90,6 +92,14 @@ export const api = {
       base_sha,
       commit,
     }),
+  /** The one call that flips an article between coached and drafted. The yes click of a confirm line makes it. */
+  authorship: (slug: string, to: "coached" | "drafted") =>
+    call<{ authorship: string; drafting?: boolean }>("POST", `/api/articles/${enc(slug)}/authorship`, {
+      to,
+      confirm: true,
+    }),
+  /** The page from before the coach's draft. */
+  shelf: (slug: string) => call<{ text: string; commit: string }>("GET", `/api/articles/${enc(slug)}/shelf`),
   stash: (slug: string, file: FileName, text: string) =>
     call<{ commit: string }>("POST", `/api/articles/${enc(slug)}/stash`, { file, text }),
 };

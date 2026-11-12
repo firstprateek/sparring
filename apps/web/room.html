@@ -13,6 +13,7 @@
     <span id="slug" class="title"></span>
     <span class="spacer"></span>
     <button type="button" id="guide-btn" class="t muted guide-btn">guide</button>
+    <span id="mode-tag" class="muted mode-tag" hidden></span>
     <button type="button" id="stage-btn" class="btn stage" aria-haspopup="true" aria-expanded="false" aria-controls="stage-menu">stage · <span id="stage-word"></span> ▾</button>
     <div id="stage-menu" class="menu mono" hidden></div>
   </header>
@@ -41,6 +42,7 @@
     <aside class="coach" aria-label="Coach">
       <div class="coach-head mono"><span>coach</span><span id="coach-stage" class="muted"></span></div>
       <div id="letter" class="letter mono" hidden></div>
+      <section id="quiet-block" class="quietb mono muted" aria-label="The coach is quiet" hidden></section>
       <section id="notes" class="notes" aria-label="Notes on the article" hidden>
         <div class="notes-head mono">
           <button type="button" id="notes-toggle" class="t notes-toggle" aria-expanded="true" aria-controls="notes-body"></button>
@@ -71,11 +73,18 @@
       <div class="mono muted bar"><span>full transcript, with tool calls</span><button type="button" id="log-esc" class="t act text">close</button></div>
       <div id="log-list" class="log-list" aria-live="polite"></div>
     </div>
+
+    <div id="shelf" class="log shelf" role="dialog" aria-label="Shelf" hidden>
+      <div class="mono muted bar"><span>shelf · your page from before the draft</span><button type="button" id="shelf-esc" class="t act text">close</button></div>
+      <p class="help">Read-only. Select and copy what you want back into the article.</p>
+      <div id="shelf-err" class="mono err" role="alert" hidden></div>
+      <div id="shelf-text" class="shelf-text"></div>
+    </div>
   </div>
 
   <footer class="foot mono muted">
-    <span class="grp"><span id="words">0 words</span><span>·</span><span id="saved">saved</span><span id="quiet" class="quiet" title="The coach holds its notes. /quiet again to hear them." hidden>· quiet</span></span>
-    <span class="grp"><button type="button" id="notes-btn" class="t notes-btn" aria-controls="notes" hidden></button><button type="button" id="log-btn" class="t" aria-expanded="false" aria-controls="log">transcript</button></span>
+    <span class="grp"><span id="words">0 words</span><span>·</span><span id="saved">saved</span><span id="quiet" class="quiet" title="The coach holds its notes. /quiet again to hear them." hidden>· quiet</span><span id="yours" class="yours" hidden></span></span>
+    <span class="grp"><button type="button" id="notes-btn" class="t notes-btn" aria-controls="notes" hidden></button><button type="button" id="yours-btn" class="t yours-btn" aria-expanded="false" aria-controls="quiet-block" hidden></button><button type="button" id="shelf-btn" class="t" aria-expanded="false" aria-controls="shelf" hidden>shelf</button><button type="button" id="log-btn" class="t" aria-expanded="false" aria-controls="log">transcript</button></span>
   </footer>
 </div>
 <div id="iv" class="iv" hidden>
@@ -88,7 +97,7 @@
   <div class="imenu mono" id="iv-menu" hidden>
     <ul id="iv-stages" aria-label="Stages"></ul>
     <button type="button" class="t muted sendit" id="iv-sendit" aria-expanded="false" aria-controls="iv-sendit-line">send it</button>
-    <p class="err pend" id="iv-sendit-line" role="alert" hidden></p>
+    <div class="muted pend" id="iv-sendit-line" hidden></div>
     <p class="err pend" id="iv-menu-error" role="alert" hidden></p>
   </div>
 

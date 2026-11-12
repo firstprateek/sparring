@@ -216,6 +216,31 @@ html.iv-on #room {
 .imenu .pend {
   margin: 0;
 }
+/* The send-it confirm line: its words wrap, and yes and no are tall enough for a thumb. */
+.imenu div.pend {
+  line-height: 1.7;
+  padding-bottom: 6px;
+}
+.imenu div.pend > * {
+  margin-right: 8px;
+}
+.imenu div.pend .yn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+/* yes and no have a row of their own here, so the `·` before yes has nothing to part. */
+.imenu div.pend .yn > span:first-child {
+  display: none;
+}
+.imenu div.pend .yn > .t:first-of-type {
+  padding-left: 0;
+}
+.imenu div.pend .t {
+  padding: 10px 12px;
+  text-decoration: underline;
+}
 /* `.t` resets font and colour after `.mono` and `.muted`; say them again where a button needs them. */
 .imenu .t.muted,
 .iv-head .stage-count.muted {

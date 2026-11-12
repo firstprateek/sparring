@@ -814,7 +814,8 @@
   }
   .body {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(0, 46%);
+    /* The coach keeps room for its head, a few lines and the composer, also while a guide card is open above. */
+    grid-template-rows: minmax(0, 1fr) minmax(min(62%, 272px), 46%);
   }
   .menu {
     top: 100%;
@@ -841,5 +842,171 @@
 @media (max-width: 760px) {
   .turns {
     min-height: 3.5rem;
+  }
+}
+
+/* Drafted mode. The tag in the head, the dotted provenance bar in the gutter, the quiet block where the notes
+   stand, the status strip in the letter, and the shelf beside the page. */
+.mode-tag {
+  white-space: nowrap;
+}
+.foot .yours {
+  color: var(--text);
+}
+.prov {
+  width: 2px;
+  align-self: stretch;
+  flex: none;
+  background: repeating-linear-gradient(to bottom, var(--accent) 0 3px, transparent 3px 6px);
+}
+.prov.mixed {
+  background: repeating-linear-gradient(to bottom, var(--muted) 0 3px, transparent 3px 6px);
+}
+.gut .prov {
+  margin-bottom: 1.25rem;
+}
+/* Beside a provenance bar the note's bar is narrower, so the two sit side by side in the gutter, 4px apart. */
+.gut:has(.prov) .mark {
+  width: 10px;
+}
+.gut:has(.prov) .mark::before {
+  left: 4px;
+}
+.gut:has(.prov) .mark:hover::before {
+  left: 3px;
+}
+.prow.landing {
+  animation: land 200ms ease-out;
+}
+@keyframes land {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prow.landing {
+    animation: none;
+  }
+}
+.letter .strip {
+  color: var(--muted);
+}
+.quietb {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg);
+}
+.quietb .qb-head {
+  color: var(--text);
+}
+.quietb .legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin-top: 2px;
+}
+.quietb .lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.quietb .legend .prov {
+  height: 12px;
+  align-self: auto;
+}
+.sp.drafted-quiet .notes {
+  display: none;
+}
+.quietb .qb-strip,
+.quietb .qb-close,
+.yours-btn {
+  display: none;
+}
+.menu {
+  width: 260px;
+}
+.menu .flip {
+  border-top: 1px solid var(--rule);
+  margin-top: 4px;
+  padding-top: 8px;
+}
+.menu .flip:disabled {
+  color: var(--muted);
+}
+.menu .pend .err {
+  flex-basis: 100%;
+}
+.menu .pend .yn {
+  display: inline-flex;
+  gap: 8px;
+  white-space: nowrap;
+}
+.menu .pend.flow {
+  display: block;
+  line-height: 1.7;
+}
+.menu .pend.flow > * {
+  margin-right: 8px;
+}
+.menu .pend.flow .err {
+  display: block;
+  margin: 4px 0 0;
+}
+.shelf .help {
+  margin: 0;
+}
+.shelf-text {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  user-select: text;
+}
+.shelf-text p {
+  margin: 0 0 1.25rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  /* The panel is short under the page: the quiet block is a sheet that rises from the foot's `N% yours`. */
+  .quietb {
+    display: none;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    gap: 6px;
+    border-top: 1px solid var(--accent);
+    border-bottom: 0;
+    padding: 14px max(16px, env(safe-area-inset-left, 0px)) calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  .quietb.sheet-open {
+    display: flex;
+  }
+  .quietb .qb-strip {
+    display: block;
+    padding-bottom: 6px;
+    border-bottom: 1px dotted var(--rule);
+  }
+  .quietb .qb-close {
+    display: block;
+    align-self: flex-end;
+    padding: 10px 0 6px 12px;
+    color: var(--text);
+    text-decoration: underline;
+  }
+  .yours-btn:not([hidden]) {
+    display: inline;
+  }
+  /* The button says it, so the foot does not say it twice. */
+  .sp.drafted-quiet .foot .yours,
+  .sp.drafted-quiet .foot .quiet {
+    display: none;
   }
 }

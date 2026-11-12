@@ -3,7 +3,8 @@
 // its own. The secret names the article, so no tool takes a slug. Every check and every write happens here.
 //
 // read_article, read_source and note_brief came with step 3; comment and resolve_comment with step 4. write_draft
-// is refused without a live grant, and the refusal is a letter line.
+// (step 6) is refused without a live grant, and the refusal is a letter line; under a grant its blocks are
+// checked against the draft rules and handed to the coach, which accepts the draft once.
 
 import { randomBytes } from "node:crypto";
 import { TOPICS } from "@sparring/protocol/commands";
@@ -17,6 +18,7 @@ import {
   type Note,
 } from "@sparring/protocol/notes";
 import type { ArticleRow, Articles } from "./articles.ts";
+import { draftProblem } from "./draft.ts";
 
 type Json = Record<string, unknown>;
 type Topic = (typeof TOPICS)[number];
@@ -35,8 +37,10 @@ export interface ToolHooks {
   refused(articleId: string, text: string): void;
   /** Something `_meta.sparring` shows changed: send it now. */
   changed(articleId: string): void;
-  /** Is a single-use draft grant live? (Step 6; never before it.) */
+  /** Is a single-use draft grant live for the article? */
   grantLive?(articleId: string): boolean;
+  /** Accepts a checked draft under the grant, which it spends. Answers the tool's result line; throws on failure. */
+  draft?(articleId: string, blocks: string[]): Promise<string>;
   /** The coach turn that is running for the article, if one is: a note belongs to it. */
   turn?(articleId: string): { turnId: string; pass: string } | undefined;
 }
@@ -112,7 +116,7 @@ export class Tools {
         case "resolve_comment":
           return await this.resolveComment(row, a);
         case "write_draft":
-          return this.writeDraft(row);
+          return await this.writeDraft(row, a);
         default:
           return no(`no tool ${String(tool).slice(0, 40)}`);
       }
@@ -256,11 +260,19 @@ export class Tools {
     return ok(`${noteText({ ...note, body_v2: body }, at ? at.index + 1 : null)}\n${note.id} v2`);
   }
 
-  private writeDraft(row: ArticleRow): ToolReply {
-    if (this.hooks.grantLive?.(row.id)) return no("write_draft is not in this step");
-    this.hooks.refused(row.id, WRITE_REFUSED);
-    return no(
-      "write refused: there is no draft grant. Only the writer can start a draft turn. Point, don't write.",
-    );
+  /**
+   * write_draft({blocks}). The grant is checked here again, so the guard does not depend on the adapter asking
+   * permission. A failed rule answers the rule and leaves the grant live, so the coach may retry in the same turn.
+   */
+  private async writeDraft(row: ArticleRow, a: Json): Promise<ToolReply> {
+    if (!this.hooks.grantLive?.(row.id) || !this.hooks.draft) {
+      this.hooks.refused(row.id, WRITE_REFUSED);
+      return no(
+        "write refused: there is no draft grant. Only the writer can start a draft turn. Point, don't write.",
+      );
+    }
+    const problem = draftProblem(a.blocks);
+    if (problem) return no(problem);
+    return ok(await this.hooks.draft(row.id, a.blocks as string[]));
   }
 }

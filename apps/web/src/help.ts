@@ -17,6 +17,14 @@ export const LEAF_HELP: Record<FileName, { help: string; placeholder: string }> 
   },
 };
 
+/** The article leaf's help line in a drafted article. */
+export const DRAFTED_HELP =
+  "article · the coach wrote this draft because you said send it. A dotted bar marks each block that is still its words. Rewrite a block and the bar fades, then goes.";
+
+/** The same line while the draft turn runs. */
+export const DRAFTING_HELP =
+  "article · read-only while the coach writes the draft. Your page moves to the shelf when the draft lands.";
+
 /** Whether the coach has anything to do in a stage yet. */
 export const BUILT: ReadonlySet<Stage> = new Set<Stage>([
   "ideas",
@@ -35,7 +43,7 @@ export const STAGE_HELP: Record<Stage, string> = {
   outline:
     "Outline: on the article page, type a ## heading for each section with a one-line note under it. Then say anything here and the coach checks the outline against your brief: what each section gives the reader, and where the counter-argument lives. It never proposes a heading.",
   draft:
-    "Draft: write the article. The coach stays quiet until you speak. /next names the section to write; say done when it is in the file and it leaves up to five notes on it. /ask <question> parks a question at the paragraph your cursor is in.",
+    "Draft: write the article. The coach stays quiet until you speak. /next names the section to write; say done when it is in the file and it leaves up to five notes on it. /ask <question> parks a question at the paragraph your cursor is in. Stuck? /sendit has the coach write one draft for you to review.",
   critique:
     "Critique: type /critique and the coach reads the whole article and leaves up to ten notes, each tied to an exact phrase. A bar marks the paragraph. Change the text, disagree or dismiss each note. /reader has the coach read as the reader in your brief.",
   polish:

@@ -21,6 +21,12 @@
 // `/ask` leaves one note on the paragraph the question was parked at. A named pass (`/pass filler`, or one of a
 // `/queue`) reads the page and flags what a few fixed patterns find, fewer or more by the strictness in the
 // header: `filler`, `repeats`, `passive`, `typos` and `cut` can leave notes, every other pass finds nothing.
+//
+// The draft turn (the header's pass is `sendit`) reads the dump and the brief and writes one draft with
+// `write_draft`: a heading, the dump's paragraphs, what the brief adds, and a closing block of its own. A plain
+// message that asks it to write (`write it for me`, `rewrite this`) makes it try `write_draft` with no draft turn
+// behind it, so the refusal shows: in a coached article, and again after a draft, when the grant is spent. In a
+// drafted article `/next`, `/ask` and plain messages get a short answer and no notes.
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -86,6 +92,61 @@ export const DEMO_LIMIT: Record<string, number> = { "howlers only": 1, normal: 2
 const FILLER = /\b(very|really|quite|actually|basically|just|simply|kind of|sort of)\s+[\w'’-]+/gi;
 const PASSIVE = /\b(?:was|were|is|are|been|being|be)\s+\w+ed\b/g;
 const DOUBLED = /\b([A-Za-z]+)\s+\1\b/g;
+
+export const DRAFTED_SAYS =
+  "Drafted from your sentences where you had them. The review is yours; I stay quiet until you ask.";
+export const DRAFT_NOT_WRITTEN = "The draft was not written. Your page is as it was.";
+export const WRITE_REFUSED_SAYS =
+  "I asked to write and the host refused, as it should. What are you trying to say there?";
+export const DRAFTED_QUIET_SAYS =
+  "This review is yours, so I am leaving no notes. /critique when you want them.";
+export const DRAFTED_NEXT_SAYS =
+  "The page is yours to review. Start with the block that sounds least like you and say it your way.";
+/** The closing block of the scripted draft: the coach's own words, there to be rewritten. */
+export const DEMO_CLOSER =
+  "This is where the piece should land. Say what you want the reader to do next, and say it the way you would say it out loud.";
+/** What the scripted coach tries to write when it is asked to with no draft turn. */
+export const DEMO_UNASKED = "A sentence the coach wrote without being asked to draft.";
+const WRITE_ASK = /\b(?:re)?write (?:it|this|that|the (?:draft|article|piece|paragraph))\b/i;
+
+/** The scripted draft: a heading, the dump's paragraphs, what the brief adds, a closing block. */
+export function demoDraft(dump: string, brief: string): string[] {
+  const clean = (b: string) =>
+    b
+      .split("\n")
+      .map((l) => l.replace(/^\s*(?:[-*]|#+)\s+/, "").trim())
+      .filter(Boolean)
+      .join(" ");
+  const paras = dump
+    .split(/\n\s*\n/)
+    .map(clean)
+    .filter((b) => b && !b.startsWith("("))
+    .slice(0, 8);
+  const title = (paras[0] ?? "The draft")
+    .replace(/[^\p{L}\p{N}'’ -]/gu, "")
+    .split(/\s+/)
+    .slice(0, 5)
+    .join(" ");
+  const extra = brief
+    .split("\n")
+    .filter((l) => l.trim() && !l.trim().startsWith("#") && !l.trim().startsWith("("))
+    .map((l) =>
+      l
+        .replace(/^\s*[-*]\s+/, "")
+        .replace(/^[a-z]+:\s*/, "")
+        .replace(/^"(.*)"$/, "$1")
+        .trim(),
+    )
+    .filter((l) => l && !paras.some((p) => p.includes(l)))
+    .slice(0, 4);
+  return [
+    `## ${title || "The draft"}`,
+    ...paras,
+    ...(extra.length > 0 ? ["## What it is for", ...extra] : []),
+    "## Where it lands",
+    DEMO_CLOSER,
+  ];
+}
 
 export const SHARPENED =
   "Sharpened. The sentence still names no source. Say where it comes from, or say it is a guess.";
@@ -364,6 +425,7 @@ export class DemoCoach {
   private async askNote(sessionId: string, s: DemoSession, prompt: string): Promise<string> {
     const para = /<paragraph>\n([\s\S]*?)\n<\/paragraph>/.exec(prompt)?.[1];
     if (/^The writer asked for quiet\.$/m.test(prompt)) return QUIET_ANSWER;
+    if (DRAFTED.test(prompt)) return DRAFTED_QUIET_SAYS;
     if (para === undefined) return NO_PARAGRAPH;
     const made = await this.tool(sessionId, s, "comment", {
       anchor: firstSentence(para),
@@ -374,6 +436,20 @@ export class DemoCoach {
     return made === undefined
       ? "I could not leave a note on that paragraph."
       : "Answered in a note on that paragraph.";
+  }
+
+  /** The draft turn: reads the dump and the brief, then writes the one draft. */
+  private async draft(sessionId: string, s: DemoSession): Promise<string> {
+    const dump = (await this.tool(sessionId, s, "read_source", { name: "dump" })) ?? "";
+    const brief = (await this.tool(sessionId, s, "read_source", { name: "brief" })) ?? "";
+    const done = await this.tool(sessionId, s, "write_draft", { blocks: demoDraft(dump, brief) });
+    return done === undefined ? DRAFT_NOT_WRITTEN : DRAFTED_SAYS;
+  }
+
+  /** Asked to write with no draft turn: it tries `write_draft`, and the host refuses. */
+  private async unasked(sessionId: string, s: DemoSession): Promise<string> {
+    const done = await this.tool(sessionId, s, "write_draft", { blocks: [DEMO_UNASKED] });
+    return done === undefined ? WRITE_REFUSED_SAYS : "The host let me write. That should never happen.";
   }
 
   /** A named pass: what its fixed patterns find, as notes, at most as many as the strictness allows. */
@@ -468,6 +544,8 @@ export class DemoCoach {
     // A named pass comes with its file: `Pass: filler · from passes/filler.md`.
     if (pass && new RegExp(`^Pass: ${pass} · from passes/${pass}\\.md$`, "m").test(text))
       return end(can ? await this.pass(sessionId, s, pass, strictness) : NOTHING);
+    if (pass === "sendit") return end(can ? await this.draft(sessionId, s) : DRAFT_NOT_WRITTEN);
+    if (pass === "next" && DRAFTED.test(text)) return end(DRAFTED_NEXT_SAYS);
     if (pass === "next") return end(can ? await this.next(sessionId, s) : NO_HEADINGS);
     if (pass === "section") return end(can ? await this.section(sessionId, s) : NOTHING);
     if (pass === "ask") return end(can ? await this.askNote(sessionId, s, text) : NO_PARAGRAPH);
@@ -475,6 +553,11 @@ export class DemoCoach {
       const said = s.critiqued ? NOTHING : await this.critique(sessionId, s);
       return { stopReason: await this.say(sessionId, said) };
     }
+    // Asked to write, with no draft turn: the attempt is refused and shown.
+    const message = String(blocks.filter((b) => b.type === "text").at(-1)?.text ?? "");
+    if (pass === "" && can && WRITE_ASK.test(message)) return end(await this.unasked(sessionId, s));
+    if (DRAFTED.test(text) && /^.*leave no notes: comment is refused/m.test(text))
+      return end(DRAFTED_QUIET_SAYS);
     // The later stages, each with its own move. None of them uses up an interview question.
     if (stage === "outline") return end(can ? await this.outline(sessionId, s) : NO_HEADINGS);
     if (stage === "draft") return end(DRAFT_SAYS);
@@ -552,6 +635,9 @@ export class DemoCoach {
     };
   }
 }
+
+/** The host's words for a drafted article, in a prompt. */
+const DRAFTED = /This article is drafted and the review is the writer's alone\./;
 
 /** The first sentence of a paragraph, the anchor of a note about the whole of it. */
 const firstSentence = (b: string) => (/^[^.!?\n]+[.!?]?/.exec(b)?.[0] ?? b).trim();

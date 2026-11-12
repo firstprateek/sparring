@@ -236,7 +236,7 @@ export type Line =
   | { kind: "host"; text: string; at: string | undefined; bad?: true };
 
 const SPARRING_TOOL = "mcp__sparring__";
-const NOTE_TOOLS: ReadonlySet<string> = new Set(["comment", "resolve_comment", "note_brief"]);
+const NOTE_TOOLS: ReadonlySet<string> = new Set(["comment", "resolve_comment", "note_brief", "write_draft"]);
 
 const plain = (v: unknown): string =>
   typeof v === "string" ? v : v && typeof v === "object" && "markdown" in v ? String(v.markdown) : "";
@@ -264,7 +264,9 @@ export function toolLine(tc: {
   const result = NOTE_TOOLS.has(name) && typeof first === "string" ? (first.split("\n", 1)[0] ?? "") : "";
   const told = plain(tc.pastTenseMessage) || plain(tc.invocationMessage);
   const said = oneLine(told && told !== name && told !== tc.displayName ? told : result || told);
-  return said && said !== name && said !== tc.displayName ? `${name} · ${said}` : name;
+  if (!said || said === name || said === tc.displayName) return name;
+  // The draft's line reads `write_draft article.md · 12 ¶ from dump.md and brief.md`.
+  return name === "write_draft" ? `${name} ${said}` : `${name} · ${said}`;
 }
 
 interface TurnError {
@@ -290,17 +292,13 @@ export function errorLine(error: TurnError | undefined): string {
   return `error · ${message || "the turn failed"}`;
 }
 
-function partsToLines(
-  parts: ResponsePart[],
-  at: string | undefined,
-  streaming: boolean,
-  host: boolean,
-): Line[] {
+function partsToLines(parts: ResponsePart[], at: string | undefined, streaming: boolean): Line[] {
   const out: Line[] = [];
   let text = "";
+  // Text is always the coach's, also in a turn the host started (the draft turn): the host's own lines are
+  // SystemNotification parts.
   const flush = (open: boolean) => {
-    if (text.trim())
-      out.push(host ? { kind: "host", text, at } : { kind: "coach", text, at, streaming: open });
+    if (text.trim()) out.push({ kind: "coach", text, at, streaming: open });
     text = "";
   };
   for (const p of parts) {
@@ -379,7 +377,7 @@ export function transcript(chat: ChatState | undefined): Line[] {
         at,
       });
     const streaming = n === turns.length - 1 && chat.activeTurn !== undefined;
-    out.push(...partsToLines(t.responseParts, at, streaming, host));
+    out.push(...partsToLines(t.responseParts, at, streaming));
   });
   return out;
 }

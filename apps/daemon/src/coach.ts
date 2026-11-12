@@ -13,6 +13,11 @@
 // and spoken to through acp-connection and acp-mapper. Every permission request it makes is answered by
 // policy.ts. Each turn has a `turns` row, a turn-start commit, a 10-minute limit and the tripwire; a child idle
 // for 15 minutes is let go, and a new child's first prompt opens with the continuation brief.
+//
+// Drafted mode (design section 4): `flip` is the one way authorship changes, called by the authorship route. To
+// `drafted` it makes the single-use grant and starts the draft turn itself, with no client message; the turn's
+// one accepted `write_draft` does the rest (`acceptDraft`), and a draft turn that ends without one clears the
+// grant and says the draft failed. To `coached` it restores the page from the shelf.
 import {
   type AgentInfo,
   AhpErrorCodes,
@@ -20,7 +25,14 @@ import {
   type SessionConfigState,
 } from "@microsoft/agent-host-protocol";
 import { splitBlocks, wordCount } from "@sparring/protocol/blocks";
-import { BUILT_COMMANDS, STAGES, STRICTNESS, type Stage, strictnessOf } from "@sparring/protocol/commands";
+import {
+  BUILT_COMMANDS,
+  STAGES,
+  STRICTNESS,
+  type Stage,
+  strictnessOf,
+  TOPICS,
+} from "@sparring/protocol/commands";
 import { META_KEY } from "@sparring/protocol/meta";
 import { blockEdited, isLive, type NoteAction, parseNoteAction } from "@sparring/protocol/notes";
 import { AcpConnection, EXITED, type RpcReply, TIMED_OUT } from "./ahp/acp-connection.ts";
@@ -38,10 +50,23 @@ import { type AhpHost, RpcError } from "./ahp/host.ts";
 import { ActionType, type Json, PendingMessageKind, ResponsePartKind, USER_ORIGIN } from "./ahp/wire.ts";
 import { type ArticleRow, type Articles, HttpError, sessionUri, type TurnStatus } from "./articles.ts";
 import { DISALLOWED_TOOLS, killRecordedGroups } from "./claude.ts";
+import {
+  DRAFT_EMPTY,
+  DRAFT_FAILED,
+  draftText,
+  draftWritten,
+  MODE_COACHED,
+  MODE_DRAFTED,
+  SENDIT_LINE,
+  stageMoved,
+} from "./draft.ts";
 import { type Decision, decide, SPARRING_PREFIX } from "./policy.ts";
 import {
   articleBlock,
   continuationBrief,
+  DRAFTED_QUIET_LINE,
+  DRAFTED_RULES,
+  draftAsk,
   header,
   type PastTurn,
   PROMPTS_DIR,
@@ -156,7 +181,12 @@ interface Rewrite {
   text: string;
   /** Done once the turn is sure to reach the coach: a stage change, a note marked disagreed. */
   apply?: () => void;
+  /** The host started this turn (the draft turn): its row says so, and it carries no stage or pass prompt. */
+  host?: true;
 }
+
+/** The pass the header names in the draft turn. */
+export const DRAFT_PASS = "sendit";
 
 const oneLine = (s: string, max = 200) => {
   const t = s.replace(/\s+/g, " ").trim();
@@ -185,6 +215,9 @@ export const SECTION_ASK =
   'tool, pass "section": an unclear referent, an unsupported claim, hand-waving, a missing lived detail, the ' +
   "place where the reader named in the brief stops. Then say in one line how many you left and stop. If the " +
   'section needs none, say "nothing in this pass".';
+const DRAFTED_ALONE = "This article is drafted and the review is the writer's alone.";
+/** `/next` in a drafted article: a short chat reply and no notes. */
+export const DRAFTED_NEXT_ASK = `The writer asks what to work on next. ${DRAFTED_ALONE} Answer in chat in one or two sentences, with no wording for the piece, and leave no notes.`;
 const CHAT_ONLY =
   "Answer in chat in one or two sentences, with no wording for the piece, and leave no notes.";
 /** `/ask` as the coach gets it: the question, and the paragraph it was parked at when there is one. */
@@ -251,6 +284,10 @@ export class Coach implements AgentBackend {
   private readonly queuedPasses = new Map<string, number>();
   /** Providers whose engine answered -32000: their articles behave as if offline until /offline is toggled. */
   private readonly signedOut = new Set<string>();
+  /** Draft turns the host started that have not run yet, by turn id. */
+  private readonly draftTurns = new Set<string>();
+  /** Articles whose running draft turn has had its `write_draft` accepted. */
+  private readonly drafted = new Set<string>();
   private readonly metaTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private sweeper: ReturnType<typeof setInterval> | undefined;
   private readonly log: (m: string) => void;
@@ -285,6 +322,8 @@ export class Coach implements AgentBackend {
       ownerMessages: (id) => this.ownerMessages(id),
       refused: (id, text) => this.refused(id, text),
       changed: (id) => this.pushMeta(id),
+      grantLive: (id) => this.grantLive(id),
+      draft: (id, blocks) => this.acceptDraft(id, blocks),
       turn: (id) => {
         const t = this.started.get(id)?.turn;
         return t ? { turnId: t.turnId, pass: t.pass } : undefined;
@@ -299,6 +338,8 @@ export class Coach implements AgentBackend {
   async start(): Promise<void> {
     if (this.o.runDir) killRecordedGroups(this.o.runDir, this.log);
     const interrupted = new Set(this.articles.interruptRunning());
+    // A grant the last daemon left unspent: its draft turn died with it.
+    const ungranted = new Set(this.articles.clearGrants());
     for (const row of this.articles.all()) {
       try {
         await this.open(row);
@@ -306,6 +347,10 @@ export class Coach implements AgentBackend {
         if (interrupted.has(row.id) && chat) {
           this.articles.addLetter(row.id, "interrupted", INTERRUPTED);
           this.line(row, chat, INTERRUPTED, "divider");
+        }
+        if (ungranted.has(row.id)) {
+          this.articles.addLetter(row.id, "draftFailed", DRAFT_FAILED);
+          if (chat) this.line(row, chat, DRAFT_FAILED, "refused");
         }
         this.pushMeta(row.id);
       } catch (e) {
@@ -398,6 +443,7 @@ export class Coach implements AgentBackend {
   async runTurn(run: TurnRun): Promise<TurnOutcome> {
     const row = this.articleOfSession(run.session);
     if (!row) return { kind: "error", errorType: "no_article", message: "this session has no article" };
+    if (this.draftTurns.delete(run.turnId)) return this.draftTurn(row, run);
     let rewrite: Rewrite | undefined;
     const action = run.command ? null : parseNoteAction(run.message.text);
     const handled = action
@@ -422,6 +468,13 @@ export class Coach implements AgentBackend {
     }
     rewrite?.apply?.();
     return this.coachTurn(this.articles.byId(row.id) ?? row, run, launch, rewrite);
+  }
+
+  /** A draft turn cancelled before it ever ran: the grant goes with it. */
+  cancelTurn(run: TurnRun): void {
+    if (!this.draftTurns.delete(run.turnId)) return;
+    const row = this.articleOfSession(run.session);
+    if (row) this.draftFailed(row, run.chat);
   }
 
   /** Every confirmation is answered by the host's policy, never left to a client: nothing waits here. */
@@ -540,8 +593,11 @@ export class Coach implements AgentBackend {
         this.articles.setQuiet(row.id, !quiet);
         this.line(row, chat, quiet ? QUIET_OFF : QUIET_ON, "mode");
         return true;
-      case "next":
-        return { pass: "next", text: rest ? `${NEXT_ASK}\n\nThe writer adds: ${rest}` : NEXT_ASK };
+      case "next": {
+        // In a drafted article the review is the writer's alone: a short chat reply and no notes.
+        const ask = row.authorship === "drafted" ? DRAFTED_NEXT_ASK : NEXT_ASK;
+        return { pass: "next", text: rest ? `${ask}\n\nThe writer adds: ${rest}` : ask };
+      }
       case "ask": {
         if (!rest) {
           this.line(row, chat, "nothing asked · /ask <question>");
@@ -555,7 +611,7 @@ export class Coach implements AgentBackend {
         const noNote = quiet
           ? "The writer asked for quiet."
           : row.authorship === "drafted"
-            ? "This article is drafted and the review is the writer's alone."
+            ? DRAFTED_ALONE
             : block === undefined
               ? "No paragraph of article.md came with the question."
               : "";
@@ -631,6 +687,8 @@ export class Coach implements AgentBackend {
    */
   private sectionDone(row: ArticleRow, run: TurnRun): false | Rewrite {
     if (!/^done[.!]?$/i.test(run.message.text.trim())) return false;
+    // In a drafted article `/next` left nothing to hand over.
+    if (row.authorship === "drafted") return false;
     if (this.articles.lastCoachPass(row.id, run.turnId) !== "next") return false;
     return { pass: "section", text: SECTION_ASK };
   }
@@ -750,6 +808,146 @@ export class Coach implements AgentBackend {
     return msgs.filter((m) => m.origin?.kind === "user" && m.text).map((m) => m.text);
   }
 
+  // ───────────────────────────── drafted mode ─────────────────────────────
+
+  private grantLive(articleId: string): boolean {
+    const g = this.articles.byId(articleId)?.draft_grant;
+    return typeof g === "string" && g !== "";
+  }
+
+  /**
+   * `POST /api/articles/:slug/authorship {to, confirm: true}`: the only way authorship changes. Agent text, a
+   * tool result or a config key can never reach it.
+   *
+   * To `drafted`, from any stage: 409 while the article is drafted already, offline, or busy with a turn, with
+   * no host line. An empty dump is refused with a host line and a letter line. Otherwise the grant is made,
+   * `drafting` goes out, and the host starts the draft turn. Authorship still reads `coached` and the page is
+   * untouched until the draft is accepted.
+   *
+   * To `coached`: the page comes back from the shelf and the stage returns to where it was.
+   */
+  async flip(slug: string, to: "coached" | "drafted"): Promise<Record<string, unknown>> {
+    const row = this.articles.row(slug);
+    const chat = row.chat;
+    const busy = () =>
+      this.runs.has(row.id) || (chat ? this.h.hasActiveTurn(chat) : false) || this.grantLive(row.id);
+    if (to === "coached") {
+      if (row.authorship !== "drafted")
+        throw new HttpError(409, { error: "this article is coached already" });
+      if (busy())
+        throw new HttpError(409, { error: "the coach is in the middle of a turn · try again after it" });
+      const { from, stage } = await this.articles.backToCoached(slug);
+      this.h.apply(sessionUri(row.id), { type: ActionType.SessionConfigChanged, config: { stage } });
+      const fresh = this.articles.byId(row.id) ?? row;
+      if (chat) {
+        this.line(fresh, chat, MODE_COACHED, "mode");
+        if (from !== stage) this.line(fresh, chat, stageMoved(from, stage), "stage");
+      }
+      this.pushMeta(row.id);
+      return { authorship: "coached", stage, sha: fresh.article_sha };
+    }
+    if (row.authorship === "drafted") throw new HttpError(409, { error: "this article is drafted already" });
+    if (Number(row.offline ?? 0) === 1 || this.signedOut.has(row.provider))
+      throw new HttpError(409, { error: "the article is offline · /offline brings the coach back" });
+    if (!chat || !this.o.launches[row.provider as Provider])
+      throw new HttpError(409, { error: "this article has no coach to write the draft" });
+    if (busy())
+      throw new HttpError(409, { error: "the coach is in the middle of a turn · try again after it" });
+    if ((await this.articles.read(slug, "dump")).trim() === "") {
+      this.articles.addLetter(row.id, "draftEmpty", DRAFT_EMPTY);
+      this.line(row, chat, DRAFT_EMPTY, "refused");
+      throw new HttpError(409, { error: DRAFT_EMPTY });
+    }
+    this.articles.setDraftGrant(row.id, crypto.randomUUID());
+    const turnId = this.h.startHostTurn(chat, SENDIT_LINE);
+    if (!turnId) {
+      this.articles.setDraftGrant(row.id, null);
+      throw new HttpError(409, { error: "the coach is in the middle of a turn · try again after it" });
+    }
+    this.draftTurns.add(turnId);
+    this.pushMeta(row.id);
+    return { authorship: "coached", drafting: true };
+  }
+
+  /**
+   * The draft turn, in the article's own coach session. Its prompt asks for one `write_draft` call. If the turn
+   * ends with none accepted (it failed, was cancelled, hit the limit, or the agent exited), the grant is cleared
+   * and the host says the draft failed; the page was never touched.
+   */
+  private async draftTurn(row: ArticleRow, run: TurnRun): Promise<TurnOutcome> {
+    this.drafted.delete(row.id);
+    const launch = this.o.launches[row.provider as Provider];
+    try {
+      if (!launch || !this.grantLive(row.id)) return { kind: "complete" };
+      const notes = JSON.parse(String(row.brief_notes_json ?? "[]")) as { topic?: unknown }[];
+      const covered = new Set(notes.map((n) => n.topic));
+      const uncovered = TOPICS.filter((t) => !covered.has(t));
+      const text = draftAsk(
+        {
+          answers: this.earlyAnswers(row),
+          uncovered: row.stage === "interview" || covered.size > 0 ? uncovered : [],
+        },
+        this.o.promptsDir ?? PROMPTS_DIR,
+      );
+      return await this.coachTurn(row, run, launch, { pass: DRAFT_PASS, text, host: true });
+    } finally {
+      if (!this.drafted.delete(row.id)) this.draftFailed(row, run.chat);
+    }
+  }
+
+  /** No draft was accepted: the grant is cleared and the host says so. Nothing was written. */
+  private draftFailed(row: ArticleRow, chat: string): void {
+    this.articles.setDraftGrant(row.id, null);
+    this.articles.addLetter(row.id, "draftFailed", DRAFT_FAILED);
+    this.line(this.articles.byId(row.id) ?? row, chat, DRAFT_FAILED, "refused");
+  }
+
+  /** The writer's own messages from the ideas and interview stages, oldest first, commands left out. */
+  private earlyAnswers(row: ArticleRow): string[] {
+    const chat = row.chat ? this.h.chatState(row.chat) : undefined;
+    const byId = new Map((chat?.turns ?? []).map((t) => [t.id, t]));
+    const out: string[] = [];
+    for (const r of this.articles.coachTurns(row.id)) {
+      if (r.stage !== "ideas" && r.stage !== "interview") continue;
+      const m = byId.get(r.turn_id)?.message;
+      const text = m?.origin?.kind === "user" ? m.text.trim() : "";
+      if (text && !text.startsWith("/")) out.push(text);
+    }
+    return out;
+  }
+
+  /**
+   * An accepted `write_draft`: the page moves to the shelf, the draft is written and committed, authorship is
+   * `drafted`, the stage `draft`, the coach quiet and the grant spent (all in `Articles.writeDraft`). Then the
+   * session's stage and the host's two lines. Answers the tool's result.
+   */
+  private async acceptDraft(articleId: string, blocks: string[]): Promise<string> {
+    const row = this.articles.byId(articleId);
+    if (!row) throw new Error("the article is gone");
+    const text = draftText(blocks);
+    let done: { n: number; commit: string; stageBefore: string };
+    try {
+      done = await this.articles.writeDraft(row.slug, text);
+    } catch (e) {
+      // The transaction rolled back and the page is as it was. The draft turn ends as a failed draft.
+      this.articles.setDraftGrant(row.id, null);
+      this.log(`draft ${row.slug}: ${errText(e)}`);
+      throw new Error(`the draft was not written: ${errText(e)}`);
+    }
+    this.drafted.add(row.id);
+    const fresh = this.articles.byId(row.id) ?? row;
+    this.log(`draft ${row.slug}: draft ${done.n} at ${done.commit.slice(0, 7)} · never-write is off`);
+    if (done.stageBefore !== "draft")
+      this.h.apply(sessionUri(row.id), { type: ActionType.SessionConfigChanged, config: { stage: "draft" } });
+    if (fresh.chat) {
+      this.line(fresh, fresh.chat, MODE_DRAFTED, "mode");
+      if (done.stageBefore !== "draft")
+        this.line(fresh, fresh.chat, stageMoved(done.stageBefore, "draft"), "stage");
+    }
+    this.pushMeta(row.id);
+    return draftWritten(splitBlocks(text).length);
+  }
+
   // ───────────────────────────── meta ─────────────────────────────
 
   /** Sends the article's `_meta.sparring` now, if it changed, merged into the session's `_meta`. */
@@ -804,7 +1002,7 @@ export class Coach implements AgentBackend {
     this.articles.turnStarted({
       turnId: run.turnId,
       articleId: row.id,
-      origin: fromQueue ? "queue" : "writer",
+      origin: rewrite?.host ? "host" : fromQueue ? "queue" : "writer",
       stage: row.stage,
       pass,
       commitBefore,
@@ -821,7 +1019,7 @@ export class Coach implements AgentBackend {
         return this.startFailed(row, run.chat, e);
       }
       live.turn = turn;
-      const blocks = await this.promptFor(row, live, run, commitBefore, pass, rewrite?.text);
+      const blocks = await this.promptFor(row, live, run, commitBefore, pass, rewrite?.text, rewrite?.host);
       const sent = await this.send(row, live, run, blocks, turn);
       status = sent.status;
       return sent.outcome;
@@ -885,6 +1083,8 @@ export class Coach implements AgentBackend {
     commitBefore: string,
     pass: string,
     rewritten?: string,
+    /** The draft turn: its own message is the whole instruction, so no stage or pass prompt goes with it. */
+    bare = false,
   ): Promise<Json[]> {
     const fresh = this.articles.byId(row.id) ?? row;
     const blocks: Json[] = [];
@@ -909,11 +1109,16 @@ export class Coach implements AgentBackend {
       }),
     );
     // A named pass runs the same from any stage: its stage prompt is polish's, which says how every pass runs.
-    const passText = pass && pass !== fresh.stage ? await this.articles.pass(pass) : undefined;
-    const stage = stagePrompt(passText ? "polish" : fresh.stage, this.o.promptsDir ?? PROMPTS_DIR);
+    const passText = pass && pass !== fresh.stage && !bare ? await this.articles.pass(pass) : undefined;
+    const stage = bare
+      ? undefined
+      : stagePrompt(passText ? "polish" : fresh.stage, this.o.promptsDir ?? PROMPTS_DIR);
     if (stage) text(stage);
     if (pass && passText) text(passBlock({ pass, strictness: fresh.strictness, text: passText }));
-    if (Number(fresh.coach_quiet ?? 0) === 1) text(QUIET_LINE);
+    const isDrafted = fresh.authorship === "drafted";
+    // A critique or a pass over a drafted article: the draft is the writer's page now.
+    if (isDrafted && !bare && (pass === "critique" || passText)) text(DRAFTED_RULES);
+    if (Number(fresh.coach_quiet ?? 0) === 1 && !bare) text(isDrafted ? DRAFTED_QUIET_LINE : QUIET_LINE);
     const seen = typeof fresh.agent_seen_commit === "string" ? fresh.agent_seen_commit : null;
     const diff =
       seen && seen !== commitBefore ? await this.articles.articleDiff(row.slug, seen, commitBefore) : "";
@@ -1189,7 +1394,7 @@ export class Coach implements AgentBackend {
    */
   private async onAgentRequest(articleId: string, method: string, params: Json): Promise<unknown> {
     if (method !== "session/request_permission") throw new Error(`not offered: ${method}`);
-    const d = decide(params, { grantLive: false });
+    const d = decide(params, { grantLive: this.grantLive(articleId) });
     const row = this.articles.byId(articleId);
     this.log(`policy ${row?.slug ?? articleId}: ${d.title.slice(0, 80)} → ${d.picked}`);
     if (!d.allowed) this.refused(articleId, refusalLine(d, params));

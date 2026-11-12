@@ -63,7 +63,7 @@ export async function rig(
   });
   const host = new AhpHost({ db, backend: coach, limits: { snapshotMinBytes: 0, snapshotMinMs: 0 } });
   await coach.start();
-  const api = restHandler(articles);
+  const api = restHandler(articles, coach);
   const call = async (method: string, path: string, body?: unknown): Promise<Any> => {
     const res = await api(
       new Request(`http://127.0.0.1:7421${path}`, {

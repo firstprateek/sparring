@@ -82,6 +82,37 @@ export function passBlock(o: { pass: string; strictness: string; text: string })
 export const QUIET_LINE =
   "The writer asked for quiet. Answer what was asked in chat and leave no notes: comment is refused until the writer runs /critique or /pass.";
 
+/** Sent with a plain message in a drafted article while the coach is quiet. */
+export const DRAFTED_QUIET_LINE =
+  "This article is drafted and the review is the writer's alone. Answer what was asked in chat, in three sentences at most, and leave no notes: comment is refused until the writer runs /critique or /pass.";
+
+/** The three rules a critique or a pass over a drafted article adds. */
+export const DRAFTED_RULES =
+  "This article is drafted: you wrote its first draft, and it is the writer's page now. Do not defend the draft. Judge every block as the writer's own, yours included. No fix text.";
+
+/** `prompts/draft-turn.md`: what the draft turn asks for. */
+export function draftTurnPrompt(dir = PROMPTS_DIR): string {
+  return readOr(join(dir, "draft-turn.md")).trim();
+}
+
+/**
+ * The draft turn's own message: the instruction, then the writer's interview answers word for word and the
+ * topics the interview has not covered, when there are any.
+ */
+export function draftAsk(
+  o: { answers: readonly string[]; uncovered: readonly string[] },
+  dir = PROMPTS_DIR,
+): string {
+  const out = [draftTurnPrompt(dir)];
+  if (o.answers.length > 0) {
+    out.push("", "The writer's messages from the ideas and interview stages, word for word, oldest first:");
+    for (const a of o.answers) out.push(`- ${a}`);
+  }
+  if (o.uncovered.length > 0)
+    out.push("", `Interview topics not covered yet, so leave them out: ${o.uncovered.join(", ")}.`);
+  return out.join("\n");
+}
+
 /** What the coach is shown of article.md: a diff since it last saw it, the whole text, or a pointer. */
 export function articleBlock(o: {
   seen: string | null;

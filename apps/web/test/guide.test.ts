@@ -100,8 +100,8 @@ describe("the outline, draft and polish steps", () => {
       expect(typeof s?.done, title).toBe("function");
       expect(s?.target, title).toBeTruthy();
     }
-    // what is still to come belongs to drafted mode and publish
-    expect(STEPS.filter((s) => s.later).map((s) => s.title)).toEqual(["Stuck? Send it", "Publish"]);
+    // what is still to come belongs to publish
+    expect(STEPS.filter((s) => s.later).map((s) => s.title)).toEqual(["Publish"]);
   });
 
   it("the outline step waits for two headings on the article page", () => {
@@ -138,5 +138,36 @@ describe("the outline, draft and polish steps", () => {
     expect(document.querySelector(".g-tag")).toBeNull();
     g.update({ where: "room", passes: 1 });
     expect(loadState().step).toBe(step + 1);
+  });
+});
+
+describe("the send it step", () => {
+  const step = at("Stuck? Send it");
+
+  it("is built: it waits for the article to be drafted and moves on once it is", () => {
+    expect(STEPS[step]?.later).toBeUndefined();
+    expect(advance(step, { where: "room", stage: "draft", drafted: false }).step).toBe(step);
+    expect(advance(step, { where: "room", stage: "draft", drafted: true })).toEqual({
+      step: step + 1,
+      passed: "Stuck? Send it",
+    });
+  });
+
+  it("points at the stage menu and the composer, with no not-built tag", () => {
+    localStorage.setItem("sparring-guide", JSON.stringify({ open: true, step, seen: true, small: false }));
+    const ids = ["stage-btn", "composer"].map((id) => {
+      const el = document.createElement("button");
+      el.id = id;
+      document.body.append(el);
+      return el;
+    });
+    const g = new Guide("room", null);
+    for (const el of ids) expect(el.classList.contains("guide-target")).toBe(true);
+    expect(document.querySelector(".g-tag")).toBeNull();
+    expect(document.querySelector(".g-wait")?.textContent).toBe("moves on when you have done it");
+    g.update({ where: "room", drafted: true });
+    expect(loadState().step).toBe(step + 1);
+    // the step after it is the one part still to come
+    expect(document.querySelector(".g-tag")?.textContent).toBe("not built yet");
   });
 });

@@ -2078,6 +2078,27 @@ export class AhpHost {
   }
 
   /**
+   * A turn the host starts itself, with no client message (the draft turn): its message comes from the system,
+   * and the backend runs it through the same chain as any other turn. Undefined, and nothing started, when the
+   * chat is busy or gone.
+   */
+  startHostTurn(chat: string, text: string): string | undefined {
+    const st = this.chatState(chat);
+    const sessionUri = this.chatSession.get(chat);
+    if (!st || !sessionUri || st.activeTurn || this.runs.has(chat) || this.closed) return undefined;
+    const turnId = crypto.randomUUID();
+    const message = { text, origin: SYSTEM_ORIGIN } as Message;
+    this.apply(chat, {
+      type: ActionType.ChatTurnStarted,
+      turnId,
+      startedAt: new Date(this.now()).toISOString(),
+      message,
+    });
+    this.startRun(chat, sessionUri, turnId, message, null);
+    return turnId;
+  }
+
+  /**
    * A line from the host itself, not the agent (`stage critique`): one SystemNotification part carrying `_meta`
    * (`{"sparring.line": "stage"}`). With a turn running it goes into that turn. Otherwise the host opens and
    * completes a turn of its own, whose message is empty and comes from the system; no backend runs for it.

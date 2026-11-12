@@ -2,7 +2,7 @@
 
 A writing coach that lives in the margin. You give it rough ideas, it interviews you, and then it critiques while you write the article yourself. The page is the article. The coach never writes it, with one explicit exception you have to ask for.
 
-**Status: in progress.** Steps 0 to 5 of the build order in [docs/design.md](docs/design.md) work: the daemon, login, the Articles screen, the room, the interview with a real Claude coach, notes (`/critique` leaves notes anchored to your text, which you fix, disagree with or dismiss, and `/reader` has the coach read as your reader), and every stage and pass: the outline check, `/next` and `/ask` while drafting, `/pass filler` and the other passes from `~/writing/passes/`, `/queue` to run several with the page closed, `/strict` and `/quiet`. "Send it", the tells counts and publishing come next.
+**Status: in progress.** Steps 0 to 6 of the build order in [docs/design.md](docs/design.md) work: the daemon, login, the Articles screen, the room, the interview with a real Claude coach, notes (`/critique` leaves notes anchored to your text, which you fix, disagree with or dismiss, and `/reader` has the coach read as your reader), and every stage and pass: the outline check, `/next` and `/ask` while drafting, `/pass filler` and the other passes from `~/writing/passes/`, `/queue` to run several with the page closed, `/strict` and `/quiet`. "Send it" works too: `send it` in the stage menu (or `/sendit`) has the coach write one draft from your dump and brief, a dotted bar marks each block that is still its words, the head says how much is yours, your old page waits on the shelf, and `coached again` puts it back. The tells counts and publishing come next.
 
 ## How it is meant to work
 

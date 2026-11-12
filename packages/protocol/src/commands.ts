@@ -87,4 +87,5 @@ export const BUILT_COMMANDS: ReadonlySet<string> = new Set([
   "queue",
   "strict",
   "quiet",
+  "sendit",
 ]);

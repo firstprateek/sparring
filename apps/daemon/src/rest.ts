@@ -1,7 +1,13 @@
 // The /api/* routes: the inbox, create an article (with its AHP session and chat, from an idea or not), read its
 // snapshot, save its files, stash on `take disk`, act on a letter line, mark notes seen. The REST guard (login, Host, Origin) wraps
-// this in main.ts.
+// this in main.ts. `authorship` is the one call that flips an article between coached and drafted; the coach
+// does it, since the draft turn is its to start. `shelf` is the page from before the draft.
 import { type Articles, FILES, type FileName, HttpError, sessionUri } from "./articles.ts";
+
+/** What the routes need from the coach. */
+export interface Flipper {
+  flip(slug: string, to: "coached" | "drafted"): Promise<Record<string, unknown>>;
+}
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -30,7 +36,7 @@ const fileOf = (name: string): FileName => {
   return name as FileName;
 };
 
-export function restHandler(articles: Articles) {
+export function restHandler(articles: Articles, coach?: Flipper) {
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent); // ["api", ...]
@@ -133,6 +139,17 @@ export function restHandler(articles: Articles) {
             }
             return json({ ok: true });
           }
+          if (parts.length === 4 && parts[3] === "authorship" && m === "POST") {
+            const b = await body(req);
+            articles.row(slug);
+            if (b.to !== "coached" && b.to !== "drafted")
+              throw new HttpError(400, { error: "to is coached or drafted" });
+            if (b.confirm !== true) throw new HttpError(400, { error: "confirm must be true" });
+            if (!coach) throw new HttpError(503, { error: "no coach is attached" });
+            return json(await coach.flip(slug, b.to));
+          }
+          if (parts.length === 4 && parts[3] === "shelf" && m === "GET")
+            return json(await articles.shelf(slug));
           if (parts.length === 4 && parts[3] === "stash" && m === "POST") {
             const b = await body(req);
             const commit = await articles.stash(slug, fileOf(str(b.file, "file")), str(b.text, "text"));

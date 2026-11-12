@@ -1,6 +1,6 @@
 // The guide: a tutorial card that walks the writer from an idea to a finished article in the real app. Each step
 // says what to do and points at the control; steps that can be checked (an idea kept, 100 words dumped, the
-// interview covered, an outline's headings, a critique's notes on the page, a pass that ran) move on by themselves
+// interview covered, an outline's headings, a critique's notes on the page, a pass that ran, a draft sent for) move on by themselves
 // once done. Steps for parts not built yet say so. Where the writer is
 // in the guide is kept in localStorage, so it follows them from Articles into a Room; it is a convenience only.
 import type { FileName } from "./api.ts";
@@ -21,6 +21,8 @@ export interface GuideFacts {
   headings?: number;
   /** Named passes that have run: their notes, and their results in the letter. */
   passes?: number;
+  /** The article is drafted: the coach wrote its draft. */
+  drafted?: boolean;
 }
 
 export interface Step {
@@ -120,9 +122,10 @@ export const STEPS: readonly Step[] = [
   },
   {
     title: "Stuck? Send it",
-    body: "Coming later. /sendit has the coach write one draft from your dump and brief. Every block it wrote stays marked until you rewrite it or tick it.",
-    where: "any",
-    later: true,
+    body: "Optional. Pick send it in the stage menu, or type /sendit, and confirm with yes: the coach writes one draft from your dump and brief, and your page moves to the shelf. A dotted bar marks each block it wrote until you rewrite it. coached again puts your page back. Skip this to write every word yourself.",
+    where: "room",
+    target: "#stage-btn, #composer",
+    done: (f) => f.drafted === true,
   },
   {
     title: "Publish",

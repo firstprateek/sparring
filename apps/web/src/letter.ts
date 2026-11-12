@@ -13,6 +13,7 @@ const COPY: Partial<Record<LetterKind, string>> = {
   quarantine: "article.md changed outside a save · quarantined as article.agent.md",
   passEmpty: "nothing in this pass",
   draftEmpty: "nothing to draft from · dump.md is empty",
+  draftFailed: "draft failed · nothing was written · your page is unchanged",
   interrupted: "the coach was interrupted · ask again",
 };
 
@@ -40,7 +41,34 @@ export function letterParts(line: LetterLine): string[] {
 
 export type Restore = (id: string) => Promise<void>;
 
-const PASS_KINDS: ReadonlySet<LetterKind> = new Set<LetterKind>(["passDone", "passEmpty"]);
+/** The kinds with a `dismiss`: a pass result, and a draft that failed or had nothing to start from. */
+const PASS_KINDS: ReadonlySet<LetterKind> = new Set<LetterKind>([
+  "passDone",
+  "passEmpty",
+  "draftFailed",
+  "draftEmpty",
+]);
+/** The kinds that are failures: drawn in red. */
+const BAD_KINDS: ReadonlySet<LetterKind> = new Set<LetterKind>([
+  "refused",
+  "quarantine",
+  "draftFailed",
+  "draftEmpty",
+  "interrupted",
+]);
+
+/** The status strip of a drafted article, in the letter. */
+export const DRAFTED_STRIP = ["drafted", "the coach wrote article.md", "never-write is off for this article"];
+
+export function stripRow(): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "ln strip";
+  DRAFTED_STRIP.forEach((p, i) => {
+    if (i > 0) row.append(span("·"));
+    row.append(span(p));
+  });
+  return row;
+}
 
 /**
  * One `.ln` row per line, ready for the letter. `restore` posts the restore and throws on failure; `dismiss`, when
@@ -53,7 +81,7 @@ export function letterRows(
 ): HTMLDivElement[] {
   return letterLines(letter).map((line) => {
     const row = document.createElement("div");
-    row.className = "ln";
+    row.className = BAD_KINDS.has(line.kind) ? "ln err" : "ln";
     row.dataset.id = line.id;
     row.dataset.kind = line.kind;
     letterParts(line).forEach((p, i) => {
@@ -118,7 +146,12 @@ export function tickerText(
   if (!run) return waiting ? `${waiting} · starting…` : "";
   const began = Date.parse(run.startedAt);
   const secs = Number.isNaN(began) ? 0 : Math.max(0, Math.floor((now - began) / 1000));
-  const what = run.pass ? `running ${run.pass}…` : "the coach is answering…";
+  const what =
+    run.pass === "sendit"
+      ? "the coach is writing the draft…"
+      : run.pass
+        ? `running ${run.pass}…`
+        : "the coach is answering…";
   return [`${what} ${secs}s`, waiting].filter(Boolean).join(" · ");
 }
 

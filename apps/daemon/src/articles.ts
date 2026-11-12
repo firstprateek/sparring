@@ -9,6 +9,7 @@ import { wordCount } from "@sparring/protocol/blocks";
 import { PASSES, type Stage, type TOPICS } from "@sparring/protocol/commands";
 import type { LetterKind, SparringMeta } from "@sparring/protocol/meta";
 import type { Note, NoteStatus } from "@sparring/protocol/notes";
+import { provenance } from "@sparring/protocol/provenance";
 import { slugProblem } from "@sparring/protocol/slug";
 import type { Db } from "./db.ts";
 import { GitQueue } from "./git.ts";
@@ -88,6 +89,8 @@ export class Articles {
   private readonly commitEveryMs: number;
   private readonly lastCommitAt = new Map<string, number>();
   private readonly pending = new Map<string, ReturnType<typeof setTimeout>>();
+  /** The coach's draft of each drafted article, as its `draft_commit` holds it: the provenance baseline. */
+  private readonly baselines = new Map<string, { commit: string; text: string }>();
   /** Set by the coach: makes a new article's session and chat before `create` answers. */
   onCreated: ((row: ArticleRow) => Promise<void>) | undefined;
   /** Set by the coach: a save or a commit changed what `metaFor` reads. */
@@ -126,6 +129,7 @@ export class Articles {
       }
       await this.seedPasses();
     });
+    for (const row of this.all()) if (row.authorship === "drafted") await this.draftBaseline(row.slug);
   }
 
   private get passesDir(): string {
@@ -207,9 +211,10 @@ export class Articles {
       stage: row.stage as Stage,
       covered,
       authorship: row.authorship === "drafted" ? "drafted" : "coached",
-      drafting: false,
+      drafting: typeof row.draft_grant === "string" && row.draft_grant !== "",
       coachQuiet: Number(row.coach_quiet ?? 0) === 1,
       offline: Number(row.offline ?? 0) === 1,
+      ...this.provenanceMeta(row, text),
       wordCount: wordCount(text),
       savedAt: row.saved_at ?? null,
       articleSha: row.article_sha ?? null,
@@ -230,6 +235,14 @@ export class Articles {
       tokens: Number(row.tokens_in ?? 0) + Number(row.tokens_out ?? 0),
       ...this.metaExtra?.(row),
     };
+  }
+
+  /** `yoursPct` and `blocks` of a drafted article, from the page and the coach's draft. */
+  private provenanceMeta(row: ArticleRow, text: string): Pick<SparringMeta, "yoursPct" | "blocks"> {
+    const base = row.authorship === "drafted" ? this.baselines.get(row.slug) : undefined;
+    if (!base || base.commit !== row.draft_commit) return {};
+    const p = provenance(base.text, text);
+    return { yoursPct: p.yoursPct, blocks: p.counts };
   }
 
   row(slug: string): ArticleRow {
@@ -667,6 +680,128 @@ export class Articles {
     this.db.run("UPDATE articles SET agent_seen_commit = ? WHERE id = ?", commit, id);
   }
 
+  // ───────────────────────────── drafted mode ─────────────────────────────
+
+  /** The single-use draft grant: a random string while live, null once spent or taken back. */
+  setDraftGrant(id: string, grant: string | null): void {
+    this.db.run("UPDATE articles SET draft_grant = ? WHERE id = ?", grant, id);
+  }
+
+  /** At start: every unspent grant is cleared. Answers the articles that had one. */
+  clearGrants(): string[] {
+    const ids = this.db
+      .all<{ id: string }>("SELECT id FROM articles WHERE draft_grant IS NOT NULL")
+      .map((r) => r.id);
+    this.db.run("UPDATE articles SET draft_grant = NULL WHERE draft_grant IS NOT NULL");
+    return ids;
+  }
+
+  /**
+   * The accepted `write_draft`, as one job in the git queue. Commits the page as it is (`page_before_commit`) and
+   * keeps the stage (`stage_before_draft`); writes article.md from the draft and commits it (`draft_commit`, also
+   * `refs/sparring/drafts/<slug>/<n>`, whose parent is the page before it); then, in one statement, sets
+   * authorship `drafted`, the stage `draft`, the coach quiet, what the coach last saw, and spends the grant. If
+   * any step fails the page is put back from `page_before_commit` and nothing else has changed.
+   */
+  async writeDraft(slug: string, text: string): Promise<{ n: number; commit: string; stageBefore: string }> {
+    return this.git.serial(async () => {
+      const row = this.row(slug);
+      const path = this.path(slug, "article");
+      await this.commitLocked(slug, "before draft");
+      const pageBefore = (await this.git.raw(["rev-parse", "HEAD"])).stdout.trim();
+      const n = Number(row.draft_n ?? 0) + 1;
+      try {
+        await atomicWrite(path, text);
+        // A draft that is the page word for word changes no file: it is still a commit of its own.
+        const commit =
+          (await this.commitLocked(slug, `draft ${n}`)) ??
+          (
+            await this.git.raw(["commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", `draft ${n} ${slug}`])
+          ).stdout.trim();
+        await this.git.raw(["update-ref", `refs/sparring/drafts/${slug}/${n}`, commit]);
+        this.db.run(
+          `UPDATE articles SET authorship = 'drafted', stage = 'draft', coach_quiet = 1, draft_grant = NULL,
+             draft_n = ?, page_before_commit = ?, draft_commit = ?, stage_before_draft = ?,
+             agent_seen_commit = ?, article_sha = ?, saved_at = ? WHERE id = ?`,
+          n,
+          pageBefore,
+          commit,
+          row.stage,
+          commit,
+          sha256(text),
+          now(),
+          row.id,
+        );
+        this.baselines.set(slug, { commit, text });
+        this.changed(slug);
+        return { n, commit, stageBefore: row.stage };
+      } catch (e) {
+        const before = await this.git.raw(["show", `${pageBefore}:${slug}/article.md`], { ok: [0, 128] });
+        const old = before.code === 0 ? before.stdout : "";
+        await atomicWrite(path, old);
+        this.db.run("UPDATE articles SET article_sha = ? WHERE id = ?", sha256(old), row.id);
+        await this.commitLocked(slug, "draft rolled back").catch(() => null);
+        this.changed(slug);
+        throw e;
+      }
+    });
+  }
+
+  /**
+   * `coached again`: commits the current page, restores the page from `page_before_commit`, returns the stage to
+   * `stage_before_draft`, sets authorship `coached` and turns the quiet off. The coach's draft stays as its ref.
+   */
+  async backToCoached(slug: string): Promise<{ from: string; stage: string }> {
+    return this.git.serial(async () => {
+      const row = this.row(slug);
+      const pageBefore = typeof row.page_before_commit === "string" ? row.page_before_commit : "";
+      if (row.authorship !== "drafted" || !pageBefore)
+        throw new HttpError(409, { error: "this article is not drafted" });
+      await this.commitLocked(slug, "before coached again");
+      const held = await this.git.raw(["show", `${pageBefore}:${slug}/article.md`], { ok: [0, 128] });
+      const text = held.code === 0 ? held.stdout : "";
+      await atomicWrite(this.path(slug, "article"), text);
+      const stage = typeof row.stage_before_draft === "string" ? row.stage_before_draft : row.stage;
+      this.db.run(
+        `UPDATE articles SET authorship = 'coached', stage = ?, coach_quiet = 0, draft_grant = NULL,
+           page_before_commit = NULL, draft_commit = NULL, stage_before_draft = NULL,
+           article_sha = ?, saved_at = ? WHERE id = ?`,
+        stage,
+        sha256(text),
+        now(),
+        row.id,
+      );
+      this.baselines.delete(slug);
+      await this.commitLocked(slug, "coached again");
+      this.changed(slug);
+      return { from: row.stage, stage };
+    });
+  }
+
+  /** `GET shelf`: the page from before the draft, read from git at `page_before_commit`. 404 when nothing is there. */
+  async shelf(slug: string): Promise<{ text: string; commit: string }> {
+    const row = this.row(slug);
+    const commit = typeof row.page_before_commit === "string" ? row.page_before_commit : "";
+    if (row.authorship !== "drafted" || !commit)
+      throw new HttpError(404, { error: "nothing is on the shelf" });
+    const held = await this.git.run(["show", `${commit}:${slug}/article.md`], { ok: [0, 128] });
+    return { text: held.code === 0 ? held.stdout : "", commit };
+  }
+
+  /** The coach's draft of a drafted article (the provenance baseline), read from git once and kept. */
+  async draftBaseline(slug: string): Promise<{ n: number; commit: string; text: string } | null> {
+    const row = this.row(slug);
+    const commit = typeof row.draft_commit === "string" ? row.draft_commit : "";
+    if (row.authorship !== "drafted" || !commit) return null;
+    let have = this.baselines.get(slug);
+    if (have?.commit !== commit) {
+      const held = await this.git.run(["show", `${commit}:${slug}/article.md`], { ok: [0, 128] });
+      have = { commit, text: held.code === 0 ? held.stdout : "" };
+      this.baselines.set(slug, have);
+    }
+    return { n: Number(row.draft_n ?? 0), ...have };
+  }
+
   // ───────────────────────────── the letter ─────────────────────────────
 
   /** Adds a host line to the article's letter (the margin keeps the last three). Answers its id. */
@@ -812,6 +947,8 @@ export class Articles {
       comments,
       briefNotes: JSON.parse(String(row.brief_notes_json ?? "[]")),
       resume,
+      // The coach's draft, the baseline the browser computes provenance against. Null in a coached article.
+      draft: await this.draftBaseline(slug),
     };
   }
 

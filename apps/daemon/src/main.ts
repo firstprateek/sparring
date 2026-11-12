@@ -75,7 +75,7 @@ transport.start();
 
 const rest = restGuard(
   { token: config.token, hosts: config.hosts, spendCode: (code) => spendCode(home, code) },
-  restHandler(articles),
+  restHandler(articles, coach),
 );
 const web = serveWebFrom(join(import.meta.dir, "../../web/dist"));
 

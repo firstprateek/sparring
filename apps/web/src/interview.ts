@@ -1,14 +1,15 @@
 // The phone interview: the Room at phone width while the stage is `interview`. The dump is the page (an ordinary
 // leaf, saved like any other). The head reads `<slug> · dump` and the button `interview N/6 ▾`, whose menu lists
-// the six stages (a pick goes out at once, with no `advance to` line) and `send it`. The sheet over the page holds
+// the six stages (a pick goes out at once, with no `advance to` line) and `send it`, which shows its confirm line;
+// yes makes the authorship call and the Room opens the article leaf. The sheet over the page holds
 // the strip `interview · thesis reader evidence counter uncertainty scar` marked from `covered`, the chat turns,
 // and the `>` composer with `send`. The frame follows the visual viewport so the iOS keyboard never hides the
 // composer.
 import { STAGES, type Stage, TOPICS } from "@sparring/protocol/commands";
-import { LATER } from "./composer.ts";
 import { renderTurns } from "./log.ts";
 import { stageLabel } from "./rows.ts";
 import type { Line } from "./session.ts";
+import { SENDIT_ASK } from "./stage-menu.ts";
 
 /** Phone width: at or below this the Room in `interview` becomes the interview screen. */
 export const PHONE_QUERY = "(max-width: 480px)";
@@ -76,20 +77,22 @@ export class InterviewScreen {
     private readonly els: InterviewEls,
     /** Sends the stage change; returns an error in words, or null when it went out. */
     private readonly pick: (stage: Stage) => string | null,
+    /** `send it`, confirmed: makes the authorship call; resolves with an error in words, or null. */
+    private readonly sendIt: () => Promise<string | null> = async () => "not available here",
   ) {
     els.stageBtn.addEventListener("click", () => (this.menuOpen ? this.close() : this.open()));
     els.stages.addEventListener("click", (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>("[data-stage]");
       if (b) this.choose(b.dataset.stage as Stage);
     });
-    els.sendit.addEventListener("click", () => {
-      const on = els.senditLine.hidden !== false;
-      els.senditLine.hidden = !on;
-      els.sendit.setAttribute("aria-expanded", String(on));
-      els.sendit.classList.toggle("text", on);
-      els.sendit.classList.toggle("muted", !on);
+    els.sendit.addEventListener("click", () => this.confirmSendit(els.senditLine.hidden !== false));
+    els.senditLine.addEventListener("click", (e) => {
+      const act = (e.target as HTMLElement).closest<HTMLElement>("[data-act]")?.dataset.act;
+      if (act === "no") {
+        this.confirmSendit(false);
+        els.sendit.focus();
+      } else if (act === "yes") void this.yes();
     });
-    els.senditLine.textContent = LATER;
     document.addEventListener(
       "click",
       (e) => {
@@ -137,6 +140,12 @@ export class InterviewScreen {
     if (this.visible) this.draw(false);
   }
 
+  /** `/sendit` from the interview's composer: the menu opens on the confirm line. */
+  openSendit(): void {
+    if (!this.menuOpen) this.open();
+    this.confirmSendit(true);
+  }
+
   /** Folds the sheet to its strip so the dump can be read and edited, or opens it again. */
   fold(folded: boolean): void {
     this.els.sheetBody.hidden = folded;
@@ -172,13 +181,69 @@ export class InterviewScreen {
     renderTurns(this.els.thread, s.lines, interviewDone(s.covered));
   }
 
+  /** Shows or hides the confirm line under `send it`: its words, then `yes · no`. */
+  private confirmSendit(on: boolean): void {
+    const { sendit, senditLine } = this.els;
+    senditLine.hidden = !on;
+    sendit.setAttribute("aria-expanded", String(on));
+    sendit.classList.toggle("text", on);
+    sendit.classList.toggle("muted", !on);
+    if (!on) return;
+    this.els.menuError.hidden = true;
+    const kids: HTMLElement[] = [];
+    const say = (text: string) => {
+      const s = document.createElement("span");
+      s.textContent = text;
+      kids.push(s);
+    };
+    SENDIT_ASK.forEach((w, i) => {
+      if (i > 0) say("·");
+      say(w);
+    });
+    // `· yes · no` stays on one row.
+    const yn = document.createElement("span");
+    yn.className = "yn";
+    for (const name of ["yes", "no"]) {
+      const dot = document.createElement("span");
+      dot.textContent = "·";
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "t text";
+      b.dataset.act = name;
+      b.textContent = name;
+      yn.append(dot, b);
+    }
+    senditLine.replaceChildren(...kids, yn);
+    senditLine.querySelector<HTMLElement>('[data-act="yes"]')?.focus();
+  }
+
+  private sending = false;
+  private async yes(): Promise<void> {
+    if (this.sending) return;
+    this.sending = true;
+    const yes = this.els.senditLine.querySelector<HTMLButtonElement>('[data-act="yes"]');
+    if (yes) {
+      yes.disabled = true;
+      yes.textContent = "sending…";
+    }
+    const err = await this.sendIt();
+    this.sending = false;
+    if (err) {
+      if (yes) {
+        yes.disabled = false;
+        yes.textContent = "yes";
+      }
+      this.els.menuError.textContent = `not started · ${err}`;
+      this.els.menuError.hidden = false;
+      return;
+    }
+    this.close(false);
+  }
+
   private open(): void {
     this.menuOpen = true;
     this.els.menuError.hidden = true;
-    this.els.senditLine.hidden = true;
-    this.els.sendit.setAttribute("aria-expanded", "false");
-    this.els.sendit.classList.add("muted");
-    this.els.sendit.classList.remove("text");
+    this.confirmSendit(false);
     this.renderMenu();
     this.els.menu.hidden = false;
     this.els.stageBtn.setAttribute("aria-expanded", "true");

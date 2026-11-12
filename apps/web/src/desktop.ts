@@ -6,8 +6,9 @@
 const HEADS = "header.bar, .head, .iv-head, .login-bar";
 const LIVE = "button, a, input, textarea, select, .menu, .imenu";
 
+/** True in a build of the desktop app that has no system title bar; it sets this mark on every page. */
 export function inDesktopApp(): boolean {
-  return "__TAURI_INTERNALS__" in window;
+  return "__SPARRING_TITLEBAR__" in window;
 }
 
 export function wireDesktop(): void {

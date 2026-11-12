@@ -45,6 +45,14 @@ fn launcher_url(change: bool) -> Url {
 
 fn main() {
     tauri::Builder::default()
+        // The window has no system title bar (tauri.conf.json): each page's head is the title bar. This mark
+        // tells the daemon's pages so, on every page load; an older build of this app does not set it, and
+        // there the pages keep their plain head (apps/web/src/desktop.ts).
+        .plugin(
+            tauri::plugin::Builder::<tauri::Wry, ()>::new("titlebar")
+                .js_init_script("window.__SPARRING_TITLEBAR__ = true;".to_string())
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![local_daemon, default_daemon])
         .setup(|app| {
             let menu = Menu::default(app.handle())?;

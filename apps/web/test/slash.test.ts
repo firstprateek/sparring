@@ -7,7 +7,9 @@ const names = (text: string) => slashMatches(text)?.map((c) => c.name) ?? null;
 describe("slash list", () => {
   it("opens on a bare slash with every listed command and its hint", () => {
     expect(names("/")).toEqual(LISTED.map((c) => c.name));
-    expect(slashMatches("/")?.find((c) => c.name === "quiet")?.hint).toBe("no coach for this article");
+    expect(slashMatches("/")?.find((c) => c.name === "quiet")?.hint).toBe(
+      "no notes until /quiet again, /pass or /critique",
+    );
   });
 
   it("filters by the start of the name", () => {

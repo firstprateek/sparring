@@ -21,7 +21,7 @@ export const LISTED: readonly Command[] = [
   },
   { name: "queue", hint: "run passes unattended", kind: "host" },
   { name: "strict", hint: "howlers only · normal · every nit", kind: "host" },
-  { name: "quiet", hint: "no coach for this article", kind: "host" },
+  { name: "quiet", hint: "no notes until /quiet again, /pass or /critique", kind: "host" },
   { name: "sendit", hint: "the coach writes the draft; you review alone", kind: "client" },
   { name: "publish", hint: "open the publish sheet", kind: "client" },
 ];

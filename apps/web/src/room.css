@@ -211,8 +211,10 @@
   }
 }
 .turns {
-  flex: 1;
-  min-height: 0;
+  flex: 1 0 auto;
+  /* The conversation keeps room for a few lines however many notes and letter lines sit above it. */
+  height: 0;
+  min-height: 9rem;
   overflow: auto;
   padding: 16px;
   display: flex;
@@ -541,7 +543,7 @@
   flex-direction: column;
   flex: 0 1 auto;
   min-height: 0;
-  max-height: 52%;
+  max-height: 46%;
   border-bottom: 1px solid var(--rule);
   background: var(--bg);
 }
@@ -833,5 +835,11 @@
   .foot {
     flex-wrap: wrap;
     padding-block: 6px;
+  }
+}
+/* Under the page the coach panel is short: the conversation asks for less, so the composer stays on screen. */
+@media (max-width: 760px) {
+  .turns {
+    min-height: 3.5rem;
   }
 }

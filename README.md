@@ -2,7 +2,7 @@
 
 A writing coach that lives in the margin. You give it rough ideas, it interviews you, and then it critiques while you write the article yourself. The page is the article. The coach never writes it, with one explicit exception you have to ask for.
 
-**Status: in progress.** Steps 0 to 3 of the build order in [docs/design.md](docs/design.md) work: the daemon, login, the Articles screen, the room and the interview with a real Claude coach. Notes, passes, "send it" and publishing come next.
+**Status: in progress.** Steps 0 to 4 of the build order in [docs/design.md](docs/design.md) work: the daemon, login, the Articles screen, the room, the interview with a real Claude coach, and notes: `/critique` leaves notes anchored to your text, which you fix, disagree with or dismiss, and `/reader` has the coach read as your reader. Passes, "send it" and publishing come next.
 
 ## How it is meant to work
 

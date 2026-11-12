@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { Articles, appendUnder } from "../src/articles.ts";
+import { Articles, appendUnder, sha256 } from "../src/articles.ts";
 import { type Db, openDb } from "../src/db.ts";
 import { listenMcp, type McpSocket } from "../src/mcp-socket.ts";
 import { migrate } from "../src/schema.ts";
@@ -124,16 +124,6 @@ describe("the other tools", () => {
     });
     expect((await tools.call(secret, "read_source", { name: "pass:../../etc/passwd" })).ok).toBe(false);
     expect((await tools.call(secret, "read_source", { name: "article" })).ok).toBe(false);
-  });
-
-  it("answers comment and resolve_comment with not in this step", async () => {
-    expect(
-      await tools.call(secret, "comment", { anchor: "x", kind: "unclear", body: "y", pass: "" }),
-    ).toEqual({
-      ok: false,
-      error: "comment is not in this step · notes arrive in step 4",
-    });
-    expect((await tools.call(secret, "resolve_comment", { id: "c1", action: "withdraw" })).ok).toBe(false);
   });
 
   it("refuses write_draft without a grant, with the letter line", async () => {
@@ -265,5 +255,227 @@ describe("the MCP socket", () => {
     } finally {
       child.kill();
     }
+  });
+});
+
+// The sample article, dump, brief and notes of the approved mocks, read from the mock pages themselves.
+const MOCKS = join(import.meta.dirname, "../../../mocks");
+function mockArray(html: string, name: string): string[] {
+  const m = new RegExp(`const ${name} = \\[([\\s\\S]*?)\\n\\];`).exec(html);
+  if (!m) throw new Error(`no ${name} in the mock`);
+  return new Function(`return [${m[1]}];`)() as string[];
+}
+interface MockNote {
+  id: string;
+  kind: string;
+  brief: string;
+  span: string;
+  body: string;
+  v2?: string;
+}
+function mockNotes(html: string): MockNote[] {
+  return [...html.matchAll(/^\s*(\{ id: 'c\d+', kind: .*\}),?\s*$/gm)].map(
+    (m) => new Function(`return ${m[1]};`)() as MockNote,
+  );
+}
+
+describe("comment", () => {
+  const room = readFileSync(join(MOCKS, "room.html"), "utf8");
+  const phone = readFileSync(join(MOCKS, "phone.html"), "utf8");
+  const ARTICLE = `${mockArray(room, "ARTICLE").join("\n\n")}\n`;
+  const SAMPLE_DUMP = `${mockArray(room, "DUMP").join("\n\n")}\n`;
+  const BRIEF = `${mockArray(room, "BRIEF").join("\n\n")}\n`;
+  const comment = (args: Record<string, unknown>) => tools.call(secret, "comment", args);
+  const resolve = (args: Record<string, unknown>) => tools.call(secret, "resolve_comment", args);
+
+  beforeEach(async () => {
+    const put = async (file: "article" | "dump" | "brief", text: string) => {
+      const disk = readFileSync(join(dir, "a", `${file}.md`), "utf8");
+      await articles.save("a", file, text, sha256(disk), true);
+    };
+    await put("article", ARTICLE);
+    await put("dump", SAMPLE_DUMP);
+    await put("brief", BRIEF);
+    changed = 0;
+  });
+
+  it("accepts every sample note in the mocks, and the sharpened one", async () => {
+    const samples = [...mockNotes(room), ...mockNotes(phone)];
+    const byId = new Map(samples.map((n) => [n.id, n]));
+    expect([...byId.keys()].sort()).toEqual(["c07", "c08", "c09", "c10", "c11", "c12"]);
+    // the room and the phone show the same notes
+    for (const n of samples) expect(byId.get(n.id)).toMatchObject({ span: n.span, body: n.body });
+    const made = new Map<string, string>();
+    for (const n of byId.values()) {
+      const r = await comment({
+        anchor: n.span,
+        kind: n.kind,
+        body: n.body,
+        pass: n.kind === "filler" || n.kind === "voice" ? n.kind : "critique",
+        brief_line: n.brief,
+      });
+      expect(r, `${n.id}: ${n.body}`).toMatchObject({ ok: true });
+      made.set(n.id, (r as { text: string }).text.slice(0, 3));
+    }
+    const notes = articles.comments(id);
+    expect(notes).toHaveLength(6);
+    expect(notes.map((n) => n.brief_line)).toEqual(["arc", "evidence", null, "counter", "scar", "thesis"]);
+    expect(notes[0]).toMatchObject({
+      id: "c01",
+      kind: "unclear",
+      pass: "critique",
+      span: "about six things nobody wrote down",
+      status: "open",
+    });
+    expect(notes[0]?.block_orig).toMatch(/^The setup is ordinary\./);
+    expect(articles.row("a").comments_rev).toBe(6);
+    expect(changed).toBe(6);
+    // c09's v2, as the mock has it, passes the same rule
+    const v2 = byId.get("c09")?.v2 ?? "";
+    expect(v2).toContain('"on wake, the daemon reconciles"');
+    const sharp = await resolve({ id: made.get("c09"), action: "sharpen", body: v2 });
+    expect(sharp).toMatchObject({ ok: true });
+    expect(articles.comment(id, made.get("c09") ?? "")).toMatchObject({ status: "disagreed", body_v2: v2 });
+  });
+
+  it("answers with the note as text: id, kind and paragraph, span, body", async () => {
+    const r = await comment({
+      anchor: "It is important to note that",
+      kind: "filler",
+      body: "Six words before the sentence starts.",
+      pass: "filler",
+    });
+    expect(r).toEqual({
+      ok: true,
+      text: 'c01 · filler · ¶6\n"It is important to note that"\nSix words before the sentence starts.',
+    });
+  });
+
+  it("refuses a body with a quoted phrase that is in none of the four sources", async () => {
+    owner = ["I measured it once, on the office wifi."];
+    const anchor = "the server dropped it after thirty seconds of silence";
+    const r = await comment({
+      anchor,
+      kind: "unsupported",
+      body: 'Which server? Say "the gateway closed idle sockets after half a minute" or cut the number.',
+      pass: "critique",
+    });
+    expect(r).toEqual({
+      ok: false,
+      error:
+        '"the gateway closed idle sockets after half a minute" is not the writer\'s text: every double-quoted span must be an exact substring of article.md, dump.md, brief.md or a writer message',
+    });
+    expect(articles.comments(id)).toEqual([]);
+    expect(changed).toBe(0);
+    // each of the four sources is enough: the article, the dump, the brief, an owner message
+    for (const quote of [
+      "Every component is healthy.",
+      "it just dropped",
+      "They lose the week I lost.",
+      "I measured it once",
+    ]) {
+      const body = `You say "${quote}" and the page does not carry it.`;
+      expect(
+        await comment({
+          anchor: `${anchor.slice(0, 20 + articles.comments(id).length)}`,
+          kind: "unclear",
+          body,
+          pass: "",
+        }),
+        quote,
+      ).toMatchObject({ ok: true });
+    }
+  });
+
+  it("refuses fix text, even made of the writer's words", async () => {
+    const r = await comment({
+      anchor: "It is important to note that",
+      kind: "filler",
+      body: 'Filler. Consider: "none of this is a crash"',
+      pass: "filler",
+    });
+    expect(r).toMatchObject({ ok: false, error: expect.stringMatching(/^no fix text/) });
+  });
+
+  it("refuses an anchor that is not in the article word for word, or that runs across paragraphs", async () => {
+    const body = "Unclear.";
+    expect(
+      await comment({ anchor: "about six things nobody wrote up", kind: "unclear", body, pass: "" }),
+    ).toEqual({
+      ok: false,
+      error: "quote the text exactly: the anchor must be an exact substring of article.md as it is now",
+    });
+    const across = "nobody wrote down.\n\n## What actually dies";
+    expect(ARTICLE).toContain(across);
+    expect(await comment({ anchor: across, kind: "unclear", body, pass: "" })).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/inside one paragraph/),
+    });
+  });
+
+  it("refuses a bad kind, a long body, another file, a second note on a flagged span and an eleventh in a turn", async () => {
+    const anchor = "Every component is healthy.";
+    const ok = { anchor, kind: "unclear", body: "Unclear.", pass: "" };
+    expect(await comment({ ...ok, kind: "praise" })).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/^kind is one of/),
+    });
+    expect(await comment({ ...ok, body: "x".repeat(281) })).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/at most 280/),
+    });
+    expect(await comment({ ...ok, file: "dump" })).toMatchObject({ ok: false });
+    expect(await comment({ ...ok, pass: "Not A Pass" })).toMatchObject({ ok: false });
+    expect(await comment(ok)).toMatchObject({ ok: true });
+    expect(await comment(ok)).toEqual({ ok: false, error: "c01 already flags this span" });
+    // a note left outside a named pass is filed under the stage
+    expect(articles.comments(id)[0]?.pass).toBe("ideas");
+    tools.hooks.turn = () => ({ turnId: "t1", pass: "critique" });
+    const words = ARTICLE.match(/[A-Za-z]{6,}/g) ?? [];
+    let made = 0;
+    for (const w of new Set(words)) {
+      const r = await comment({ ...ok, anchor: w });
+      if (!r.ok) {
+        expect(r.error).toBe("at most 10 notes in one turn: stop here");
+        break;
+      }
+      made++;
+    }
+    expect(made).toBe(10);
+  });
+
+  it("refuses a note while the coach is quiet", async () => {
+    articles.setQuiet(id, true);
+    expect(
+      await comment({ anchor: "Every component is healthy.", kind: "unclear", body: "Unclear.", pass: "" }),
+    ).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/^the coach is quiet/),
+    });
+  });
+
+  it("resolve_comment withdraws or sharpens a live note, and nothing else", async () => {
+    await comment({ anchor: "Every component is healthy.", kind: "unclear", body: "Unclear.", pass: "" });
+    expect(await resolve({ id: "c09", action: "withdraw" })).toEqual({ ok: false, error: "no note c09" });
+    expect(await resolve({ id: "c01", action: "delete" })).toMatchObject({ ok: false });
+    expect(await resolve({ id: "c01", action: "sharpen" })).toEqual({
+      ok: false,
+      error: "a sharpened note needs a body",
+    });
+    expect(await resolve({ id: "c01", action: "sharpen", body: 'Try: "All of it is fine."' })).toMatchObject({
+      ok: false,
+    });
+    expect(await resolve({ id: "c01", action: "withdraw", body: "Fair. The next line covers it." })).toEqual({
+      ok: true,
+      text: "c01 withdrawn",
+    });
+    expect(articles.comment(id, "c01")).toMatchObject({
+      status: "withdrawn",
+      body_v2: "Fair. The next line covers it.",
+    });
+    expect(await resolve({ id: "c01", action: "sharpen", body: "Again." })).toEqual({
+      ok: false,
+      error: "c01 is withdrawn: nothing to resolve",
+    });
   });
 });

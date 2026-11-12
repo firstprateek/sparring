@@ -1,6 +1,6 @@
 // The guide: a tutorial card that walks the writer from an idea to a finished article in the real app. Each step
 // says what to do and points at the control; steps that can be checked (an idea kept, 100 words dumped, the
-// interview covered) move on by themselves once done. Steps for parts not built yet say so. Where the writer is
+// interview covered, a critique's notes on the page) move on by themselves once done. Steps for parts not built yet say so. Where the writer is
 // in the guide is kept in localStorage, so it follows them from Articles into a Room; it is a convenience only.
 import type { FileName } from "./api.ts";
 
@@ -14,6 +14,8 @@ export interface GuideFacts {
   covered?: number;
   /** Lines the writer has sent to the coach in this article. */
   said?: number;
+  /** Notes the coach has left on the article. */
+  notes?: number;
 }
 
 export interface Step {
@@ -92,9 +94,10 @@ export const STEPS: readonly Step[] = [
   },
   {
     title: "Get critiqued",
-    body: "Coming in the next build. /critique leaves up to ten notes beside your text, each tied to an exact phrase and to a line in your brief. You fix, disagree with or dismiss each one. /reader has the coach play the reader your brief describes.",
-    where: "any",
-    later: true,
+    body: "Type /critique in the coach panel's box and press Enter. The coach reads the whole article and leaves up to ten notes, each tied to an exact phrase; a bar marks the paragraph. Change the text and click done, or disagree, or dismiss. /reader has the coach read as the reader your brief describes.",
+    where: "room",
+    target: "#composer, #notes, #notes-btn",
+    done: (f) => (f.notes ?? 0) > 0,
   },
   {
     title: "Polish",

@@ -62,3 +62,32 @@ describe("the guide card", () => {
     expect(document.querySelector(".g-where")?.textContent).toContain("Articles screen");
   });
 });
+
+describe("the critique step", () => {
+  const step = at("Get critiqued");
+
+  it("is built: it waits for the coach's notes and moves on once there is one", () => {
+    expect(STEPS[step]?.later).toBeUndefined();
+    expect(advance(step, { where: "room", stage: "critique", notes: 0 }).step).toBe(step);
+    expect(advance(step, { where: "room", stage: "critique", notes: 2 })).toEqual({
+      step: step + 1,
+      passed: "Get critiqued",
+    });
+  });
+
+  it("points at the composer and at the notes", () => {
+    localStorage.setItem("sparring-guide", JSON.stringify({ open: true, step, seen: true, small: false }));
+    const composer = document.createElement("textarea");
+    composer.id = "composer";
+    const notes = document.createElement("section");
+    notes.id = "notes";
+    document.body.append(composer, notes);
+    const g = new Guide("room", null);
+    expect(composer.classList.contains("guide-target")).toBe(true);
+    expect(notes.classList.contains("guide-target")).toBe(true);
+    expect(document.querySelector(".g-tag")).toBeNull();
+    expect(document.querySelector(".g-wait")?.textContent).toBe("moves on when you have done it");
+    g.update({ where: "room", notes: 1 });
+    expect(loadState().step).toBe(step + 1);
+  });
+});

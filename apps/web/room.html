@@ -41,6 +41,19 @@
     <aside class="coach" aria-label="Coach">
       <div class="coach-head mono"><span>coach</span><span id="coach-stage" class="muted"></span></div>
       <div id="letter" class="letter mono" hidden></div>
+      <section id="notes" class="notes" aria-label="Notes on the article" hidden>
+        <div class="notes-head mono">
+          <button type="button" id="notes-toggle" class="t notes-toggle" aria-expanded="true" aria-controls="notes-body"></button>
+          <span class="notes-title">notes</span>
+          <div id="notes-filter" class="filter"></div>
+          <button type="button" id="notes-close" class="t notes-close">close</button>
+        </div>
+        <div id="notes-body" class="notes-body">
+          <div id="notes-err" class="mono err" role="alert" hidden></div>
+          <div id="notes-list" class="notes-list"></div>
+        </div>
+      </section>
+      <div class="turns-head mono muted" aria-hidden="true">conversation</div>
       <div id="turns" class="turns" aria-live="polite"></div>
       <div class="comp-wrap">
         <div id="queued" class="queued mono muted" hidden></div>
@@ -62,7 +75,7 @@
 
   <footer class="foot mono muted">
     <span class="grp"><span id="words">0 words</span><span>·</span><span id="saved">saved</span></span>
-    <span class="grp"><button type="button" id="log-btn" class="t" aria-expanded="false" aria-controls="log">transcript</button></span>
+    <span class="grp"><button type="button" id="notes-btn" class="t notes-btn" aria-controls="notes" hidden></button><button type="button" id="log-btn" class="t" aria-expanded="false" aria-controls="log">transcript</button></span>
   </footer>
 </div>
 <div id="iv" class="iv" hidden>

@@ -3,7 +3,9 @@
 // `_meta.sparring.slug`; the stage menu changes the session's `stage`; the composer sends chat lines, kept in
 // the outbox while the socket is down; `⋯` opens the transcript. The margin's letter shows the host lines in
 // `_meta.sparring.letter`; the dump leaf's blocks quoted by `briefNotes` carry `?`, and the brief leaf's margin
-// lists those quotes. A bump of `commentsRev` fetches the snapshot again. At phone width in `interview` the
+// lists those quotes. The coach's notes on the article are listed in the coach panel (notes.ts), each block with
+// a live note carries a bar in the gutter, and the two jump to each other. A bump of `commentsRev` fetches the
+// snapshot again. At phone width in `interview` the
 // Room becomes the phone interview screen (interview.ts).
 import "@fontsource/source-serif-4/400.css";
 import "@fontsource/source-serif-4/400-italic.css";
@@ -13,8 +15,9 @@ import "./base.css";
 import "./room.css";
 import "./interview.css";
 import "./guide.css";
-import { wordCount } from "@sparring/protocol/blocks";
+import { joinBlocks, splitBlocks, wordCount } from "@sparring/protocol/blocks";
 import type { Stage } from "@sparring/protocol/commands";
+import { isLive, type Note } from "@sparring/protocol/notes";
 import { checkOutgoing } from "./actions.ts";
 import { ahp, useAhp } from "./ahp/hub.ts";
 import { api, type BriefNote, type FileName, type Snapshot } from "./api.ts";
@@ -27,6 +30,7 @@ import { Leaf } from "./leaf.ts";
 import { letterRows } from "./letter.ts";
 import { renderTurns, Transcript } from "./log.ts";
 import { ensureLogin } from "./login.ts";
+import { NotesView } from "./notes.ts";
 import { Outbox } from "./outbox.ts";
 import { Page } from "./page.ts";
 import { ago } from "./rows.ts";
@@ -66,6 +70,7 @@ const els = {
   logList: $("log-list"),
   logBtn: $<HTMLButtonElement>("log-btn"),
   logEsc: $<HTMLButtonElement>("log-esc"),
+  notesBtn: $<HTMLButtonElement>("notes-btn"),
 };
 const leafButtons = [...document.querySelectorAll<HTMLButtonElement>("button[data-leaf]")];
 
@@ -74,13 +79,28 @@ const leaves = new Map<FileName, Leaf>();
 let shownCommit: { sha: string; until: number } | null = null;
 let snapStage = "";
 let briefNotes: BriefNote[] = [];
+/** The coach's notes on the article, as the last snapshot had them. */
+let notes: Note[] = [];
 /** True once the snapshot is in and the leaves exist. */
 let loaded = false;
 
-const page = new Page(els.paras, (text) => leaves.get(active)?.edit(text), { gutter: true });
+const page = new Page(
+  els.paras,
+  (text) => {
+    leaves.get(active)?.edit(text);
+    // The foot and the notes follow the typing at once: Done goes live with the keystroke that earns it.
+    render();
+  },
+  {
+    gutter: true,
+    onMark: (id) => notesView.focus(id),
+  },
+);
 /** The phone interview's page: always the dump. */
 const ivPage = new Page($("iv-paras"), (text) => leaves.get("dump")?.edit(text));
 const phone = window.matchMedia(PHONE_QUERY);
+/** Under this width the coach panel is below the page and the notes are a sheet. */
+const narrow = window.matchMedia("(max-width: 760px)");
 
 // ───────────────────────────── AHP state ─────────────────────────────
 
@@ -110,6 +130,20 @@ const stageMenu = new StageMenu(
   },
 );
 
+/**
+ * The turns stay on their last line while the writer has not scrolled away, also when the notes above them or the
+ * composer below change height.
+ */
+let turnsStuck = true;
+els.turns.addEventListener("scroll", () => {
+  turnsStuck = els.turns.scrollHeight - els.turns.scrollTop - els.turns.clientHeight < 24;
+});
+if (typeof ResizeObserver !== "undefined") {
+  new ResizeObserver(() => {
+    if (turnsStuck) els.turns.scrollTop = els.turns.scrollHeight;
+  }).observe(els.turns);
+}
+
 /** Problems the letter shows in red until they clear: a stage the host refused, a session that failed. */
 const problems = new Map<string, string>();
 function problem(key: string, text: string | null): void {
@@ -130,7 +164,10 @@ function sendLine(from: Composer, text: string): boolean {
     return false;
   }
   const went = outbox.push(text) === "sent";
+  // What was just said is what the writer wants to see: the turns go back to their last line.
+  turnsStuck = true;
   renderAhp();
+  els.turns.scrollTop = els.turns.scrollHeight;
   return went;
 }
 
@@ -186,6 +223,78 @@ const interview = new InterviewScreen(
 );
 phone.addEventListener("change", () => renderAhp());
 
+/** Note ids already reported as seen, so each is sent once. */
+const seenSent = new Set<string>();
+
+const notesView = new NotesView(
+  {
+    root: $("notes"),
+    toggle: $<HTMLButtonElement>("notes-toggle"),
+    close: $<HTMLButtonElement>("notes-close"),
+    filter: $("notes-filter"),
+    body: $("notes-body"),
+    err: $("notes-err"),
+    list: $("notes-list"),
+  },
+  {
+    act: async (line) => {
+      // Done is judged on what is on disk: the page is saved first.
+      if (line.startsWith("done ")) {
+        const leaf = leaves.get("article");
+        if (leaf?.dirty) await leaf.saveNow(false);
+        if (leaf && (leaf.dirty || leaf.state.kind !== "saved"))
+          return "article.md is not saved yet · try again once the foot says saved";
+      }
+      const problem = checkOutgoing(line);
+      if (problem) return problem;
+      outbox.push(line);
+      renderAhp();
+      return null;
+    },
+    jump: (note) => {
+      if (active !== "article") showLeaf("article");
+      const at = page.find(note.span);
+      if (at < 0) return;
+      if (narrow.matches) notesView.openSheet(false);
+      page.reveal(at);
+    },
+    saveBlock: (note, text) => {
+      const leaf = leaves.get("article");
+      if (!leaf) return "the article is not loaded";
+      if (leaf.state.kind === "conflict") return "choose keep mine or take disk first";
+      const blocks = splitBlocks(leaf.text);
+      const at = blocks.findIndex((b) => b.includes(note.span));
+      if (at < 0) return "that paragraph is no longer in the article";
+      if (active === "article" && !interview.visible && page.setBlock(page.find(note.span), text))
+        return null;
+      blocks[at] = text;
+      leaf.edit(joinBlocks(blocks));
+      render();
+      return null;
+    },
+    seen: (ids) => {
+      const fresh = ids.filter((id) => !seenSent.has(id));
+      if (fresh.length === 0) return;
+      for (const id of fresh) seenSent.add(id);
+      api.seen(slug, fresh).then(
+        () => problem("seen", null),
+        (e: unknown) => {
+          for (const id of fresh) seenSent.delete(id);
+          problem("seen", `notes not marked as read · ${e instanceof Error ? e.message : e}`);
+        },
+      );
+    },
+  },
+);
+els.notesBtn.addEventListener("click", () => {
+  if (narrow.matches) notesView.openSheet(!notesView.sheetOpen);
+  else {
+    notesView.fold(false);
+    $("notes").scrollIntoView({ block: "nearest" });
+    $<HTMLButtonElement>("notes-toggle").focus();
+  }
+});
+
 const transcriptView = new Transcript(els.logList, els.log);
 /** Made once the writer is logged in, so the card never sits over the login form. */
 let guide: Guide | undefined;
@@ -200,6 +309,7 @@ function updateGuide(): void {
     leaf: active,
     dumpWords: words("dump"),
     articleWords: words("article"),
+    notes: notes.length,
     ...seen,
   });
 }
@@ -253,12 +363,7 @@ function renderAhp(): void {
   renderTurns(els.turns, said, interviewDone(meta?.covered), stageHelp(stage));
   const covered = meta?.covered?.length ?? 0;
   seen = { stage, covered, said: said.filter((l) => l.kind === "you").length };
-  els.coachStage.textContent =
-    stage === "interview"
-      ? `interview · ${covered}/6 covered`
-      : BUILT.has(stage as Stage)
-        ? stage
-        : `${stage} · not built yet`;
+  renderCoachStage();
   renderQueued();
 
   if (meta && typeof meta.commentsRev === "number") {
@@ -301,7 +406,7 @@ async function refetch(): Promise<void> {
     } catch (e) {
       problem(
         "refetch",
-        `the brief did not refresh · ${e instanceof Error ? e.message : e} · reload to try again`,
+        `the notes and the brief did not refresh · ${e instanceof Error ? e.message : e} · reload to try again`,
       );
     }
   })();
@@ -315,14 +420,49 @@ async function refetch(): Promise<void> {
 
 function takeNotes(snap: Snapshot): void {
   briefNotes = briefNotesOf(snap.briefNotes);
+  notes = Array.isArray(snap.comments) ? snap.comments : [];
   markPage();
+  renderNotes();
   renderQuotes(els.asideBrief, briefNotes);
   els.quotes.hidden = active !== "brief" || briefNotes.length === 0;
 }
 
-/** The `?` marks: on the dump leaf, the blocks a brief quote comes from. */
+/** The gutter: on the dump leaf `?` by the blocks a brief quote comes from, on the article a bar by a live note. */
 function markPage(): void {
-  page.setMarks(active === "dump" ? (b) => quoteMarks([b], briefNotes)[0] === true : null);
+  if (active === "dump")
+    page.setMarks((b) => (quoteMarks([b], briefNotes)[0] === true ? { kind: "q" } : null));
+  else if (active === "article")
+    page.setMarks((b) => {
+      const on = notes.filter((n) => isLive(n) && b.includes(n.span));
+      const first = on[0];
+      return first
+        ? { kind: "note", id: first.id, label: on.map((n) => `${n.id} ${n.kind}`).join(" · ") }
+        : null;
+    });
+  else page.setMarks(null);
+}
+
+/** The coach panel's head: the stage, with what it counts. */
+function renderCoachStage(): void {
+  const { stage, covered } = seen;
+  els.coachStage.textContent =
+    stage === "interview"
+      ? `interview · ${covered}/6 covered`
+      : stage === "critique" && notes.length > 0
+        ? `critique · ${notesView.open} open`
+        : BUILT.has(stage as Stage)
+          ? stage
+          : `${stage} · not built yet`;
+}
+
+/** The notes list and the foot's notes button, from the snapshot's notes and the article as it is typed. */
+function renderNotes(): void {
+  notesView.set(notes, leaves.get("article")?.text ?? "");
+  els.notesBtn.hidden = notes.length === 0;
+  const open = notesView.open;
+  els.notesBtn.textContent = `${open} open ${open === 1 ? "note" : "notes"} ▴`;
+  els.notesBtn.setAttribute("aria-expanded", String(notesView.sheetOpen));
+  if (seen.stage) renderCoachStage();
 }
 
 conn.onChange((uris) => {
@@ -359,6 +499,7 @@ els.logEsc.addEventListener("click", () => {
 /** The foot and the letter, from the active leaf and the socket. */
 function render(): void {
   updateGuide();
+  if (loaded) renderNotes();
   const leaf = leaves.get(active);
   if (leaf) {
     els.words.textContent = `${wordCount(leaf.text)} words`;
@@ -615,6 +756,9 @@ document.addEventListener("keydown", (e) => {
     if (leaf?.state.kind === "conflict")
       problem("conflict", "not saved · choose keep mine or take disk first");
     else void leaf?.saveNow(true);
+  } else if (e.key === "Escape" && notesView.sheetOpen && narrow.matches) {
+    notesView.openSheet(false);
+    els.notesBtn.focus();
   } else if (e.key === "Escape" && !els.log.hidden) {
     setLog(false);
     els.logBtn.focus();

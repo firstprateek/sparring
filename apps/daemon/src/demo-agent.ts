@@ -10,6 +10,10 @@
 // daemon's tool handler directly, with the session's secret from `session/new`, and each is announced as a
 // `tool_call` named `mcp__sparring__<tool>` and preceded by a `session/request_permission` offering `allow_once`
 // and `reject_once`. If the Edit were allowed it would really write the file.
+//
+// In a critique turn (the header's pass or stage is `critique`) it reads article.md and leaves two notes with
+// `comment`, once per session. A `re c09: …` turn is answered with `resolve_comment`: it sharpens the note, or
+// withdraws it when the writer's reply asks for that. A `/reader` turn reads the brief and answers as the reader.
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -40,6 +44,19 @@ export const QUESTIONS = [
 
 export const NO_MORE = "I have no more questions. The brief is yours to write now.";
 
+export const NOTHING = "nothing in this pass";
+export const EMPTY_PAGE = "article.md is empty. Write a few paragraphs, then ask again.";
+export const READER_SAYS =
+  "Reading as the reader your brief names. I got through the opening, and I still do not know what I lose if I stop here. Where do you tell me?";
+export const NOTE_BODIES = [
+  "Nothing here says how you know this. What did you see first-hand? The reader named in the brief will ask.",
+  (words: string) =>
+    `You open with "${words}" and the paragraph does not come back to it. What does the reader know after it that they did not before?`,
+] as const;
+export const SHARPENED =
+  "Sharpened. The sentence still names no source. Say where it comes from, or say it is a guess.";
+export const WITHDRAWN = "Withdrawn. Your reply covers it.";
+
 export interface DemoOptions {
   /** Pause between streamed pieces, in ms. Tests pass 0. */
   delayMs?: number;
@@ -54,6 +71,8 @@ interface DemoSession {
   played: number;
   editAsked: boolean;
   quoted: Set<string>;
+  /** The critique's two notes are left once per session. */
+  critiqued: boolean;
 }
 
 /** One move of the script: what the coach does with one prompt. Resolves with the ACP stop reason. */
@@ -225,6 +244,56 @@ export class DemoCoach {
     }
   }
 
+  /** The critique: reads the page and leaves two notes, each anchored to the first sentence of a paragraph. */
+  private async critique(sessionId: string, s: DemoSession): Promise<string> {
+    if (!this.o.tools || !s.secret) return NOTHING;
+    const numbered = (await this.tool(sessionId, s, "read_article", {})) ?? "";
+    if (numbered.startsWith("(")) return EMPTY_PAGE;
+    const text = numbered
+      .split("\n")
+      .map((l) => l.replace(/^\s*\d+ {2}/, ""))
+      .join("\n");
+    const paras = text
+      .split(/\n\s*\n/)
+      .map((b) => b.trim())
+      .filter((b) => b && !b.startsWith("#"));
+    const first = (b: string) => (/^[^.!?\n]+[.!?]?/.exec(b)?.[0] ?? b).trim();
+    const anchors = [...new Set([paras[0], paras.at(-1)].filter((b) => b !== undefined).map(first))];
+    if (anchors.length === 0) return EMPTY_PAGE;
+    s.critiqued = true;
+    let left = 0;
+    for (const [i, anchor] of anchors.entries()) {
+      const words = anchor.split(/\s+/).slice(0, 3).join(" ");
+      const made = await this.tool(
+        sessionId,
+        s,
+        "comment",
+        i === 0
+          ? { anchor, kind: "unsupported", body: NOTE_BODIES[0], pass: "critique", brief_line: "evidence" }
+          : { anchor, kind: "unclear", body: NOTE_BODIES[1](words), pass: "critique" },
+      );
+      if (made !== undefined) left++;
+    }
+    if (left === 0) return NOTHING;
+    return left === 1
+      ? "One item. It cites a brief line. Nothing on structure."
+      : "Two items. One cites a brief line. Nothing on structure.";
+  }
+
+  /** The answer to `re c09: …`: one resolve_comment, sharpen unless the writer's reply asks to withdraw. */
+  private async resolve(sessionId: string, s: DemoSession, id: string, prompt: string): Promise<string> {
+    const reply = /^The writer's reply: (.*)$/m.exec(prompt)?.[1] ?? "";
+    const withdraw = /\bwithdraw\b/i.test(reply);
+    const done = await this.tool(
+      sessionId,
+      s,
+      "resolve_comment",
+      withdraw ? { id, action: "withdraw", body: WITHDRAWN } : { id, action: "sharpen", body: SHARPENED },
+    );
+    if (done === undefined) return `I could not resolve ${id}.`;
+    return withdraw ? `${id} withdrawn.` : `${id} v2`;
+  }
+
   /** Streams text a few words at a time, the way a model does. */
   private async say(sessionId: string, text: string): Promise<"end_turn" | "cancelled"> {
     for (const piece of text.match(/\S+\s*/g) ?? []) {
@@ -249,10 +318,25 @@ export class DemoCoach {
       played: 0,
       editAsked: false,
       quoted: new Set(),
+      critiqued: false,
     };
     this.sessions.set(sessionId, s);
+    const head = /^<sparring stage="([a-z]+)" pass="([a-z0-9-]*)"/m.exec(text);
+    const stage = head?.[1];
+    const pass = head?.[2] ?? "";
+    // The notes: a disagreement, the reader, the critique. None of them uses up an interview question.
+    const disputed = /^The writer disagrees with your note (c\d+)/m.exec(text)?.[1];
+    if (disputed)
+      return { stopReason: await this.say(sessionId, await this.resolve(sessionId, s, disputed, text)) };
+    if (pass === "reader") {
+      if (this.o.tools && s.secret) await this.tool(sessionId, s, "read_source", { name: "brief" });
+      return { stopReason: await this.say(sessionId, READER_SAYS) };
+    }
+    if (pass === "critique" || stage === "critique") {
+      const said = s.critiqued ? NOTHING : await this.critique(sessionId, s);
+      return { stopReason: await this.say(sessionId, said) };
+    }
     const n = s.played++;
-    const stage = /^<sparring stage="([a-z]+)"/m.exec(text)?.[1];
     if (stage === "interview") await this.interviewTools(sessionId, s, n);
     if (this.cancelled.has(sessionId)) return { stopReason: "cancelled" };
     const move = this.script[Math.min(n, this.script.length - 1)] as Move;
@@ -287,6 +371,7 @@ export class DemoCoach {
           played: 0,
           editAsked: false,
           quoted: new Set(),
+          critiqued: false,
         });
         return reply({ sessionId, modes: MODES });
       }

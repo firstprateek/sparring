@@ -4,9 +4,10 @@
 // keys with no agent running: stage, pass and strictness. Its `_meta.sparring` is `metaFor(article)`, pushed with
 // `session/metaChanged` whenever it changes (a stage at once, saves and commits debounced).
 //
-// A client turn first meets its slash command, if the host read one: `/stage`, `/offline`, `/idea` and the
-// client-only commands are answered with a host line and start no agent. Anything else goes to the article's
-// coach, an ACP agent started on the first prompt (the pinned claude adapter, or the scripted coach for `demo`)
+// A client turn first meets its slash command, if the host read one, or its note action (`done c08`): `/stage`,
+// `/offline`, `/idea`, `/mute`, `done`, `dismiss` and the client-only commands are answered with a host line and
+// start no agent. `/critique`, `/reader` and `re c09: …` are rewritten into prompt text. Anything else goes to
+// the article's coach as it is, an ACP agent started on the first prompt (the pinned claude adapter, or the scripted coach for `demo`)
 // and spoken to through acp-connection and acp-mapper. Every permission request it makes is answered by
 // policy.ts. Each turn has a `turns` row, a turn-start commit, a 10-minute limit and the tripwire; a child idle
 // for 15 minutes is let go, and a new child's first prompt opens with the continuation brief.
@@ -16,9 +17,10 @@ import {
   JsonRpcErrorCodes,
   type SessionConfigState,
 } from "@microsoft/agent-host-protocol";
-import { wordCount } from "@sparring/protocol/blocks";
+import { splitBlocks, wordCount } from "@sparring/protocol/blocks";
 import { BUILT_COMMANDS, STAGES, STRICTNESS, type Stage } from "@sparring/protocol/commands";
 import { META_KEY } from "@sparring/protocol/meta";
+import { blockEdited, isLive, type NoteAction, parseNoteAction } from "@sparring/protocol/notes";
 import { AcpConnection, EXITED, type RpcReply, TIMED_OUT } from "./ahp/acp-connection.ts";
 import { promptBlocks, TurnMapper } from "./ahp/acp-mapper.ts";
 import type { Launch } from "./ahp/agent-process.ts";
@@ -109,6 +111,8 @@ export interface CoachOptions {
 /** The turn a live coach is working on. */
 interface Turn {
   turnId: string;
+  /** The pass it runs: the session's, or the one its command names (`critique`, `reader`). */
+  pass: string;
   /** Everything the coach said in it. */
   text: string;
   violation: boolean;
@@ -131,6 +135,29 @@ interface Live {
   /** When its last turn ended (or it started), for the idle kill. */
   lastEnded: number;
 }
+
+/** A writer line the host rewrote into prompt text: `/critique`, `/reader`, `re c09: …`. */
+interface Rewrite {
+  /** The pass the header names for this turn. */
+  pass: string;
+  /** What the coach is sent in place of the writer's line. */
+  text: string;
+  /** Done once the turn is sure to reach the coach: a stage change, a note marked disagreed. */
+  apply?: () => void;
+}
+
+const oneLine = (s: string, max = 200) => {
+  const t = s.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+};
+
+export const CRITIQUE_ASK =
+  "Run the critique pass over the whole draft now, as the stage instructions say. Leave each item with the comment tool.";
+export const READER_ASK =
+  "Role-play the reader named in brief.md. Read the brief with read_source (brief) and the draft with " +
+  "read_article. Answer as that reader, in the first person: where you stopped reading, what you did not " +
+  "believe, what you still do not know, and what you lose if you stop. Point at a place by quoting the writer " +
+  "exactly. Leave no notes and suggest no wording. If the brief names no reader, say so and ask who reads this.";
 
 class StartError extends Error {
   constructor(
@@ -201,6 +228,10 @@ export class Coach implements AgentBackend {
       ownerMessages: (id) => this.ownerMessages(id),
       refused: (id, text) => this.refused(id, text),
       changed: (id) => this.pushMeta(id),
+      turn: (id) => {
+        const t = this.started.get(id)?.turn;
+        return t ? { turnId: t.turnId, pass: t.pass } : undefined;
+      },
     };
   }
 
@@ -310,7 +341,15 @@ export class Coach implements AgentBackend {
   async runTurn(run: TurnRun): Promise<TurnOutcome> {
     const row = this.articleOfSession(run.session);
     if (!row) return { kind: "error", errorType: "no_article", message: "this session has no article" };
-    if (run.command && (await this.hostCommand(row, run.chat, run.command))) return { kind: "complete" };
+    let rewrite: Rewrite | undefined;
+    const action = run.command ? null : parseNoteAction(run.message.text);
+    const handled = action
+      ? await this.noteAction(row, run.chat, action)
+      : run.command
+        ? await this.hostCommand(row, run.chat, run.command)
+        : false;
+    if (handled === true) return { kind: "complete" };
+    if (handled !== false) rewrite = handled;
     if (Number(row.offline ?? 0) === 1) {
       this.line(row, run.chat, OFFLINE_TURN, "mode");
       return { kind: "complete" };
@@ -324,7 +363,8 @@ export class Coach implements AgentBackend {
       this.line(row, run.chat, `no coach for ${row.provider}`);
       return { kind: "complete" };
     }
-    return this.coachTurn(row, run, launch);
+    rewrite?.apply?.();
+    return this.coachTurn(this.articles.byId(row.id) ?? row, run, launch, rewrite);
   }
 
   /** Every confirmation is answered by the host's policy, never left to a client: nothing waits here. */
@@ -351,13 +391,37 @@ export class Coach implements AgentBackend {
   // Commands the daemon can act on in this build. Any other listed command gets a host line saying it is not
   // built yet, rather than reaching the coach as plain text and seeming to do nothing.
 
-  /** A command the host answers itself, with one host line and no agent. False: it goes to the coach as text. */
+  /**
+   * A command the host answers itself, with one host line and no agent (true), or rewrites into prompt text for
+   * the coach. False: it goes to the coach as text.
+   */
   private async hostCommand(
     row: ArticleRow,
     chat: string,
     { command, rest }: ParsedCommand,
-  ): Promise<boolean> {
+  ): Promise<boolean | Rewrite> {
     switch (command.name) {
+      case "critique":
+        // `/critique` is the critique stage's pass: the article moves there if it is somewhere else, and a quiet
+        // coach speaks again.
+        return {
+          pass: "critique",
+          text: rest ? `${CRITIQUE_ASK}\n\nThe writer adds: ${rest}` : CRITIQUE_ASK,
+          apply: () => {
+            if (Number(row.coach_quiet ?? 0) === 1) this.articles.setQuiet(row.id, false);
+            if (row.stage !== "critique") this.stage(row, "critique", true, chat);
+          },
+        };
+      case "reader":
+        return { pass: "reader", text: rest ? `${READER_ASK}\n\nThe writer adds: ${rest}` : READER_ASK };
+      case "mute": {
+        const id = /^c\d+$/i.test(rest) ? rest.toLowerCase() : "";
+        if (!id) {
+          this.line(row, chat, "nothing muted · /mute c11");
+          return true;
+        }
+        return this.noteAction(row, chat, { action: "mute", id });
+      }
       case "stage": {
         const stage = STAGES.find((s) => s === rest);
         if (stage) this.stage(row, stage, true, chat);
@@ -396,6 +460,83 @@ export class Coach implements AgentBackend {
       return true;
     }
     return false;
+  }
+
+  /**
+   * A note action the writer typed or a note button sent. `done`, `dismiss` and `mute` are the host's alone: one
+   * host line, no agent. `re c09: …` marks the note disagreed and goes to the coach as prompt text.
+   */
+  private async noteAction(row: ArticleRow, chat: string, a: NoteAction): Promise<true | Rewrite> {
+    const note = this.articles.comment(row.id, a.id);
+    if (!note) {
+      this.line(row, chat, `no note ${a.id} · nothing changed`);
+      return true;
+    }
+    const closed = `${note.id} is already ${note.status} · nothing changed`;
+    switch (a.action) {
+      case "done": {
+        if (!isLive(note)) {
+          this.line(row, chat, closed);
+          return true;
+        }
+        // The same rule the Done button follows: the block the note was left on must have changed on disk.
+        const blocks = splitBlocks(await this.articles.read(row.slug, "article"));
+        if (!blockEdited(note.block_orig, blocks)) {
+          this.line(row, chat, `${note.id} not done · edit the span first`);
+          return true;
+        }
+        this.articles.setComment(row.id, note.id, { status: "done" });
+        this.line(row, chat, `${note.id} done`, "divider");
+        return true;
+      }
+      case "dismiss": {
+        if (!isLive(note)) {
+          this.line(row, chat, closed);
+          return true;
+        }
+        this.articles.setComment(row.id, note.id, { status: "dismissed" });
+        this.line(row, chat, `${note.id} dismissed`, "divider");
+        return true;
+      }
+      case "mute": {
+        if (note.muted) {
+          this.line(row, chat, `${note.id} is already muted · nothing changed`);
+          return true;
+        }
+        if (note.status === "done" || note.status === "withdrawn") {
+          this.line(row, chat, closed);
+          return true;
+        }
+        const entry = `${note.kind}: "${oneLine(note.span, 300)}"`;
+        try {
+          await this.articles.doNotFlag(`- ${entry}`);
+        } catch (e) {
+          this.line(row, chat, `${note.id} not muted · STYLE.md was not written · ${errText(e)}`);
+          return true;
+        }
+        this.articles.setComment(row.id, note.id, { status: "dismissed", muted: true });
+        this.line(row, chat, `${note.id} muted · STYLE.md ← do not flag: ${entry}`, "divider");
+        return true;
+      }
+      case "reply": {
+        if (!isLive(note)) {
+          this.line(row, chat, closed);
+          return true;
+        }
+        return {
+          pass: note.pass,
+          text: [
+            `The writer disagrees with your note ${note.id} (${note.kind}) on "${note.span}".`,
+            `Your note: ${note.body_v2 ?? note.body}`,
+            `The writer's reply: ${a.text}`,
+            `Answer once. Either withdraw it with resolve_comment({id: "${note.id}", action: "withdraw", body}), ` +
+              `one line, or sharpen it with resolve_comment({id: "${note.id}", action: "sharpen", body}) and a ` +
+              "reason the writer can verify. Do not argue past this exchange.",
+          ].join("\n"),
+          apply: () => this.articles.setComment(row.id, note.id, { status: "disagreed", reply: a.text }),
+        };
+      }
+    }
   }
 
   /**
@@ -467,7 +608,12 @@ export class Coach implements AgentBackend {
    * One turn that goes to the coach: the turn-start commit and the `turns` row, the agent (started if need be),
    * the prompt, and afterwards the tripwire, the tokens, the open question and the row's status.
    */
-  private async coachTurn(row: ArticleRow, run: TurnRun, launch: Launch): Promise<TurnOutcome> {
+  private async coachTurn(
+    row: ArticleRow,
+    run: TurnRun,
+    launch: Launch,
+    rewrite?: Rewrite,
+  ): Promise<TurnOutcome> {
     let commitBefore: string;
     let before: string;
     try {
@@ -476,7 +622,7 @@ export class Coach implements AgentBackend {
     } catch (e) {
       return { kind: "error", errorType: "git", message: `the turn-start commit failed: ${errText(e)}` };
     }
-    const pass = this.passOf(row);
+    const pass = rewrite?.pass ?? this.passOf(row);
     this.articles.turnStarted({
       turnId: run.turnId,
       articleId: row.id,
@@ -487,7 +633,7 @@ export class Coach implements AgentBackend {
     });
     this.runs.set(row.id, { pass, startedAt: new Date().toISOString() });
     this.pushMeta(row.id);
-    const turn: Turn = { turnId: run.turnId, text: "", violation: false };
+    const turn: Turn = { turnId: run.turnId, pass, text: "", violation: false };
     let status: TurnStatus = "failed";
     let live: Live | undefined;
     try {
@@ -497,7 +643,7 @@ export class Coach implements AgentBackend {
         return this.startFailed(row, run.chat, e);
       }
       live.turn = turn;
-      const blocks = await this.promptFor(row, live, run, commitBefore);
+      const blocks = await this.promptFor(row, live, run, commitBefore, pass, rewrite?.text);
       const sent = await this.send(row, live, run, blocks, turn);
       status = sent.status;
       return sent.outcome;
@@ -545,7 +691,14 @@ export class Coach implements AgentBackend {
    * continuation brief, on a new child's first prompt), the header, the stage prompt, the pass prompt, article.md
    * since the coach last saw it, the message.
    */
-  private async promptFor(row: ArticleRow, live: Live, run: TurnRun, commitBefore: string): Promise<Json[]> {
+  private async promptFor(
+    row: ArticleRow,
+    live: Live,
+    run: TurnRun,
+    commitBefore: string,
+    pass: string,
+    rewritten?: string,
+  ): Promise<Json[]> {
     const fresh = this.articles.byId(row.id) ?? row;
     const blocks: Json[] = [];
     const text = (t: string) => blocks.push({ type: "text", text: t });
@@ -558,7 +711,6 @@ export class Coach implements AgentBackend {
     }
     const article = await this.articles.read(row.slug, "article");
     const words = wordCount(article);
-    const pass = this.passOf(row);
     text(
       header({
         stage: fresh.stage,
@@ -571,7 +723,7 @@ export class Coach implements AgentBackend {
     );
     const stage = stagePrompt(fresh.stage, this.o.promptsDir ?? PROMPTS_DIR);
     if (stage) text(stage);
-    if (pass) {
+    if (pass && pass !== fresh.stage) {
       const p = await this.articles.pass(pass);
       if (p) text(`The pass is ${pass}:\n${p.trim()}`);
     }
@@ -580,7 +732,9 @@ export class Coach implements AgentBackend {
       seen && seen !== commitBefore ? await this.articles.articleDiff(row.slug, seen, commitBefore) : "";
     text(articleBlock({ seen, commit: commitBefore, text: article, words, diff }));
     this.articles.setAgentSeen(row.id, commitBefore);
-    blocks.push(...promptBlocks(run.message, live.caps));
+    blocks.push(
+      ...promptBlocks(rewritten === undefined ? run.message : { ...run.message, text: rewritten }, live.caps),
+    );
     return blocks;
   }
 

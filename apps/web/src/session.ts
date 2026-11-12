@@ -233,9 +233,10 @@ export type Line =
   | { kind: "you"; text: string; at: string | undefined }
   | { kind: "coach"; text: string; at: string | undefined; streaming: boolean }
   | { kind: "tool"; text: string; at: string | undefined }
-  | { kind: "host"; text: string; at: string | undefined };
+  | { kind: "host"; text: string; at: string | undefined; bad?: true };
 
 const SPARRING_TOOL = "mcp__sparring__";
+const NOTE_TOOLS: ReadonlySet<string> = new Set(["comment", "resolve_comment", "note_brief"]);
 
 const plain = (v: unknown): string =>
   typeof v === "string" ? v : v && typeof v === "object" && "markdown" in v ? String(v.markdown) : "";
@@ -251,11 +252,18 @@ export function toolLine(tc: {
   displayName: string;
   pastTenseMessage?: unknown;
   invocationMessage?: unknown;
+  content?: unknown;
 }): string {
   const name = tc.toolName.startsWith(SPARRING_TOOL)
     ? tc.toolName.slice(SPARRING_TOOL.length)
     : tc.displayName || tc.toolName;
-  const said = oneLine(plain(tc.pastTenseMessage) || plain(tc.invocationMessage));
+  // A note tool's result opens with what it did (`c07 · unclear · ¶3`): that is its line when nothing else is.
+  const first = Array.isArray(tc.content)
+    ? (tc.content[0] as { text?: unknown } | undefined)?.text
+    : undefined;
+  const result = NOTE_TOOLS.has(name) && typeof first === "string" ? (first.split("\n", 1)[0] ?? "") : "";
+  const told = plain(tc.pastTenseMessage) || plain(tc.invocationMessage);
+  const said = oneLine(told && told !== name && told !== tc.displayName ? told : result || told);
   return said && said !== name && said !== tc.displayName ? `${name} · ${said}` : name;
 }
 
@@ -310,11 +318,19 @@ function partsToLines(
         break;
       case "systemNotification":
         flush(false);
-        out.push({ kind: "host", text: plain((p as { content: unknown }).content), at });
+        out.push({
+          kind: "host",
+          text: plain((p as { content: unknown }).content),
+          at,
+          // A refusal is a failure the writer must see: it is drawn in red.
+          ...((p as { _meta?: Record<string, unknown> })._meta?.["sparring.line"] === "refused"
+            ? { bad: true as const }
+            : {}),
+        });
         break;
       case "error":
         flush(false);
-        out.push({ kind: "host", text: errorLine((p as { error: TurnError }).error), at });
+        out.push({ kind: "host", text: errorLine((p as { error: TurnError }).error), at, bad: true });
         break;
       default:
         break;

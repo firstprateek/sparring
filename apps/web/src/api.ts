@@ -1,5 +1,6 @@
 // The REST calls the web client makes. Every non-GET sends JSON, as the REST guard requires. Every call goes to
 // the daemon named in config.ts and carries the login cookie; a 401 tells the login form to show.
+import type { Note } from "@sparring/protocol/notes";
 import { apiUrl, crossOrigin } from "./config.ts";
 
 export type FileName = "article" | "dump" | "brief";
@@ -18,6 +19,8 @@ export interface Snapshot {
   files: Record<FileName, { text: string; sha: string }>;
   commit: string;
   briefNotes?: BriefNote[];
+  /** The coach's notes on the article, in the order they were left. */
+  comments?: Note[];
 }
 
 /** One line of `~/writing/inbox.md`. */
@@ -75,6 +78,8 @@ export const api = {
   addIdea: (text: string) => call<unknown>("POST", "/api/inbox", { text }),
   letter: (slug: string, id: string, action: "dismiss" | "restore") =>
     call<unknown>("POST", `/api/articles/${enc(slug)}/letter/${enc(id)}`, { action }),
+  seen: (slug: string, ids: string[]) =>
+    call<{ ok: true }>("POST", `/api/articles/${enc(slug)}/comments/seen`, { ids }),
   snapshot: (slug: string) => call<Snapshot>("GET", `/api/articles/${enc(slug)}`),
   save: (slug: string, file: FileName, text: string, base_sha: string, commit: boolean) =>
     call<{ sha: string; commit: string | null }>("PUT", `/api/articles/${enc(slug)}/${file}`, {

@@ -118,6 +118,18 @@ export class Leaf {
       if (commit) this.commitOwed = true;
       this.failures++;
       const tries = this.failures;
+      if (e instanceof ApiError && e.status === 409 && e.body.disk_text === sent) {
+        // The disk already holds exactly this text (a save sent as the page closed landed, and this tab never
+        // heard): nothing to choose between, so it counts as saved.
+        this.baseSha = String(e.body.disk_sha ?? "");
+        if (this.text === sent) this.dirty = false;
+        this.state = { kind: "saved", at: Date.now() };
+        this.commitOwed = false;
+        this.failures = 0;
+        this.persist();
+        this.onChange(this);
+        return;
+      }
       if (e instanceof ApiError && e.status === 409) {
         this.state = {
           kind: "conflict",

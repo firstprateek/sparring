@@ -18,7 +18,7 @@ export const LEAF_HELP: Record<FileName, { help: string; placeholder: string }> 
 };
 
 /** Whether the coach has anything to do in a stage yet. */
-export const BUILT: ReadonlySet<Stage> = new Set<Stage>(["ideas", "interview"]);
+export const BUILT: ReadonlySet<Stage> = new Set<Stage>(["ideas", "interview", "critique"]);
 
 export const STAGE_HELP: Record<Stage, string> = {
   ideas:
@@ -27,7 +27,8 @@ export const STAGE_HELP: Record<Stage, string> = {
     "Interview: the coach asks about six things, one at a time: thesis, reader, evidence, counter, uncertainty and scar. Answer here. Your answers go into the brief.",
   outline: "Outline: not built yet. For now, write the article from the brief.",
   draft: "Draft: not built yet. For now, write the article from the brief.",
-  critique: "Critique: not built yet. Notes in the margin arrive in the next build step.",
+  critique:
+    "Critique: type /critique and the coach reads the whole article and leaves up to ten notes, each tied to an exact phrase. A bar marks the paragraph. Change the text, disagree or dismiss each note. /reader has the coach read as the reader in your brief.",
   polish: "Polish: not built yet. Passes like /pass filler arrive in a later build step.",
 };
 

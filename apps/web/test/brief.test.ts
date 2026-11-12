@@ -34,7 +34,7 @@ describe("the ? mark rule", () => {
     const root = document.createElement("div");
     const page = new Page(root, () => {}, { gutter: true });
     page.show("not crashed. confident. yes\n\nnothing here\n", "dump");
-    page.setMarks((b) => quoteMarks([b], NOTES)[0] === true);
+    page.setMarks((b) => (quoteMarks([b], NOTES)[0] === true ? { kind: "q" } : null));
     const gutters = () => [...root.querySelectorAll(".prow .gut")].map((g) => g.textContent);
     expect(gutters()).toEqual(["?", ""]);
     const second = root.querySelectorAll("textarea")[1] as HTMLTextAreaElement;

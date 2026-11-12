@@ -37,7 +37,14 @@ describe("transcript", () => {
         turn({
           id: "b",
           message: { text: "", origin: { kind: "systemNotification" } },
-          responseParts: [{ kind: "systemNotification", content: "stage draft" }],
+          responseParts: [
+            { kind: "systemNotification", content: "stage draft" },
+            {
+              kind: "systemNotification",
+              content: "c08 not done · edit the span first",
+              _meta: { "sparring.line": "refused" },
+            },
+          ],
         }),
       ],
     } as unknown as ChatState;
@@ -46,7 +53,33 @@ describe("transcript", () => {
       ["coach", "Say the claim in one sentence."],
       ["tool", "comment · c07 · unclear · ¶3"],
       ["host", "stage draft"],
+      ["host", "c08 not done · edit the span first"],
     ]);
+    // a refusal is marked, so it is drawn in red
+    expect(transcript(chat).map((l) => l.kind === "host" && l.bad === true)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      true,
+    ]);
+  });
+
+  it("says what a note tool did from its result when the engine gives no summary", () => {
+    const call = { toolName: "comment", displayName: "comment", invocationMessage: "comment" };
+    expect(
+      toolLine({
+        ...call,
+        content: [{ type: "text", text: 'c07 · unclear · ¶3\n"six things"\nWhich six?' }],
+      }),
+    ).toBe("comment · c07 · unclear · ¶3");
+    expect(
+      toolLine({
+        toolName: "read_source",
+        displayName: "read_source",
+        content: [{ type: "text", text: "the dump" }],
+      }),
+    ).toBe("read_source");
   });
 
   it("marks the running turn's reply as streaming", () => {

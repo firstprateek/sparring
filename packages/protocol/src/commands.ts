@@ -53,4 +53,12 @@ export function parseCommand(line: string): { command: Command; rest: string } |
  * The commands this build can act on. The rest are listed so the writer can see what is coming; the client says
  * they are not built yet instead of sending them, and the daemon answers any that arrive with a host line.
  */
-export const BUILT_COMMANDS: ReadonlySet<string> = new Set(["stage", "offline", "idea", "log"]);
+export const BUILT_COMMANDS: ReadonlySet<string> = new Set([
+  "stage",
+  "offline",
+  "idea",
+  "log",
+  "critique",
+  "reader",
+  "mute",
+]);

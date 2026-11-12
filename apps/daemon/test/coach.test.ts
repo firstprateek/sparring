@@ -146,7 +146,7 @@ describe("the scripted coach", () => {
     const a = await t.article("a");
     const c = new TestClient(t.host);
     await c.init([ROOT, a.chat]);
-    for (const [i, cmd] of ["/critique", "/strict normal", "/queue"].entries()) {
+    for (const [i, cmd] of ["/pass filler", "/strict normal", "/queue"].entries()) {
       c.dispatch(a.chat, turnStarted(cmd, `t${i}`));
       await t.host.idle();
       expect(t.host.chatState(a.chat)?.turns[i]?.responseParts).toEqual([

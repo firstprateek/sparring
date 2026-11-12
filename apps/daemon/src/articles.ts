@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { wordCount } from "@sparring/protocol/blocks";
 import type { Stage, TOPICS } from "@sparring/protocol/commands";
 import type { LetterKind, SparringMeta } from "@sparring/protocol/meta";
+import type { Note, NoteStatus } from "@sparring/protocol/notes";
 import { slugProblem } from "@sparring/protocol/slug";
 import type { Db } from "./db.ts";
 import { GitQueue } from "./git.ts";
@@ -152,6 +153,10 @@ export class Articles {
     const notes = JSON.parse(String(row.brief_notes_json ?? "[]")) as { topic?: unknown }[];
     const covered = [...new Set(notes.map((n) => n.topic).filter((x): x is string => typeof x === "string"))];
     const letter = JSON.parse(String(row.letter_json ?? "[]")) as SparringMeta["letter"];
+    const live = this.db.all<{ seen_at: string | null }>(
+      "SELECT seen_at FROM comments WHERE article_id = ? AND status IN ('open', 'disagreed')",
+      row.id,
+    );
     const prNumber = typeof row.pr_number === "number" ? row.pr_number : undefined;
     const prUrl = typeof row.pr_url === "string" ? row.pr_url : undefined;
     return {
@@ -169,8 +174,8 @@ export class Articles {
       commit: row.last_commit ?? null,
       tells: { em: 0, oneSentence: 0, notXButY: 0 },
       pastedWords: 0,
-      openComments: 0,
-      unreadComments: 0,
+      openComments: live.length,
+      unreadComments: live.filter((c) => c.seen_at === null).length,
       commentsRev: Number(row.comments_rev ?? 0),
       run: null,
       queued: 0,
@@ -419,13 +424,146 @@ export class Articles {
     );
   }
 
+  /** The ids of the notes still waiting on the writer: open, or disagreed with. */
   openCommentIds(articleId: string): string[] {
     return this.db
       .all<{ id: string }>(
-        "SELECT id FROM comments WHERE article_id = ? AND status = 'open' ORDER BY id",
+        "SELECT id FROM comments WHERE article_id = ? AND status IN ('open', 'disagreed') ORDER BY rowid",
         articleId,
       )
       .map((r) => r.id);
+  }
+
+  // ───────────────────────────── notes ─────────────────────────────
+
+  /** Every note of an article, in the order they were left. */
+  comments(articleId: string): Note[] {
+    return this.db
+      .all<Record<string, unknown>>("SELECT * FROM comments WHERE article_id = ? ORDER BY rowid", articleId)
+      .map(noteOf);
+  }
+
+  comment(articleId: string, id: string): Note | undefined {
+    const r = this.db.all<Record<string, unknown>>(
+      "SELECT * FROM comments WHERE article_id = ? AND id = ?",
+      articleId,
+      id,
+    )[0];
+    return r ? noteOf(r) : undefined;
+  }
+
+  /** How many notes one coach turn has left. */
+  commentsInTurn(articleId: string, turnId: string): number {
+    return this.db.all("SELECT 1 FROM comments WHERE article_id = ? AND turn_id = ?", articleId, turnId)
+      .length;
+  }
+
+  /** A new note, already validated: numbered per article (`c01`, `c02`), and `comments_rev` is bumped. */
+  addComment(
+    articleId: string,
+    c: {
+      turnId: string | null;
+      file: string;
+      kind: string;
+      pass: string;
+      briefLine: string | null;
+      span: string;
+      blockOrig: string;
+      body: string;
+    },
+  ): Note {
+    const last = this.db
+      .all<{ id: string }>("SELECT id FROM comments WHERE article_id = ?", articleId)
+      .reduce((n, r) => Math.max(n, Number(r.id.slice(1)) || 0), 0);
+    const id = `c${String(last + 1).padStart(2, "0")}`;
+    this.db.run(
+      `INSERT INTO comments (article_id, id, turn_id, file, kind, pass, brief_line, span, block_orig, body,
+         status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)`,
+      articleId,
+      id,
+      c.turnId,
+      c.file,
+      c.kind,
+      c.pass,
+      c.briefLine,
+      c.span,
+      c.blockOrig,
+      c.body,
+      now(),
+    );
+    this.bumpRev(articleId);
+    return this.comment(articleId, id) as Note;
+  }
+
+  /** Changes a note's status and whatever came with it, and bumps `comments_rev`. */
+  setComment(
+    articleId: string,
+    id: string,
+    patch: { status?: NoteStatus; bodyV2?: string; reply?: string; muted?: boolean },
+  ): void {
+    const sets: string[] = [];
+    const vals: (string | number | null)[] = [];
+    if (patch.status !== undefined) {
+      sets.push("status = ?", "resolved_at = ?");
+      vals.push(patch.status, patch.status === "open" || patch.status === "disagreed" ? null : now());
+    }
+    if (patch.bodyV2 !== undefined) {
+      sets.push("body_v2 = ?");
+      vals.push(patch.bodyV2);
+    }
+    if (patch.reply !== undefined) {
+      sets.push("reply = ?");
+      vals.push(patch.reply);
+    }
+    if (patch.muted !== undefined) {
+      sets.push("muted = ?");
+      vals.push(patch.muted ? 1 : 0);
+    }
+    if (sets.length === 0) return;
+    this.db.run(
+      `UPDATE comments SET ${sets.join(", ")} WHERE article_id = ? AND id = ?`,
+      ...vals,
+      articleId,
+      id,
+    );
+    this.bumpRev(articleId);
+  }
+
+  /** `POST comments/seen`: the notes the writer has had on screen. */
+  markSeen(slug: string, ids: readonly string[]): void {
+    const row = this.row(slug);
+    for (const id of ids)
+      this.db.run(
+        "UPDATE comments SET seen_at = ? WHERE article_id = ? AND id = ? AND seen_at IS NULL",
+        now(),
+        row.id,
+        id,
+      );
+    this.changed(slug);
+  }
+
+  private bumpRev(articleId: string): void {
+    this.db.run("UPDATE articles SET comments_rev = comments_rev + 1 WHERE id = ?", articleId);
+  }
+
+  setQuiet(id: string, on: boolean): void {
+    this.db.run("UPDATE articles SET coach_quiet = ? WHERE id = ?", on ? 1 : 0, id);
+  }
+
+  /**
+   * `dismiss c11 on purpose`: one line appended to STYLE.md under `## Do not flag`, and committed. The coach
+   * reads STYLE.md at spawn and through `read_source`.
+   */
+  async doNotFlag(line: string): Promise<void> {
+    await this.git.serial(async () => {
+      const path = join(this.dir, "STYLE.md");
+      const text = await readFile(path, "utf8").catch(() => "# Style\n");
+      // The same span muted twice (in two articles, say) is one line.
+      if (text.split("\n").some((l) => l.trim() === line.trim())) return;
+      await atomicWrite(path, appendUnder(text, "## Do not flag", line));
+      await this.commitPaths(["STYLE.md"], "do not flag");
+    });
   }
 
   setOffline(id: string, on: boolean): void {
@@ -595,7 +733,7 @@ export class Articles {
       authorship: row.authorship,
       files,
       commit,
-      comments: [],
+      comments: this.comments(row.id),
       briefNotes: JSON.parse(String(row.brief_notes_json ?? "[]")),
       resume: null,
     };
@@ -760,4 +898,26 @@ async function atomicWrite(path: string, text: string): Promise<void> {
     if ((e as NodeJS.ErrnoException).code === "ENOSPC") throw new HttpError(507, { error: "disk full" });
     throw e;
   }
+}
+
+/** A `comments` row as a note. */
+function noteOf(r: Record<string, unknown>): Note {
+  const str = (v: unknown) => (typeof v === "string" ? v : null);
+  return {
+    id: String(r.id),
+    file: String(r.file ?? "article"),
+    kind: String(r.kind),
+    pass: String(r.pass ?? ""),
+    brief_line: str(r.brief_line),
+    span: String(r.span),
+    block_orig: String(r.block_orig),
+    body: String(r.body),
+    body_v2: str(r.body_v2),
+    status: String(r.status) as NoteStatus,
+    muted: Number(r.muted ?? 0) === 1,
+    reply: str(r.reply),
+    seen_at: str(r.seen_at),
+    created_at: String(r.created_at),
+    resolved_at: str(r.resolved_at),
+  };
 }

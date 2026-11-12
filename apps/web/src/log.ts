@@ -11,9 +11,9 @@ function span(text: string, cls: string): HTMLSpanElement {
   return s;
 }
 
-function divider(text: string): HTMLDivElement {
+function divider(text: string, bad = false): HTMLDivElement {
   const d = document.createElement("div");
-  d.className = "divider";
+  d.className = bad ? "divider err" : "divider";
   d.append(span(text, ""));
   return d;
 }
@@ -46,7 +46,7 @@ export class Transcript {
     keepBottom(this.scroller, () => {
       let coach = 0;
       const rows = lines.map((l): HTMLElement => {
-        if (l.kind === "host") return divider(l.text);
+        if (l.kind === "host") return divider(l.text, l.bad === true);
         const row = document.createElement("div");
         row.className = `line ${l.kind}`;
         row.append(span(clock(l.at), "mono muted at"));
@@ -81,7 +81,7 @@ export function renderTurns(el: HTMLElement, lines: readonly Line[], done = fals
     for (const l of lines) {
       if (l.kind === "tool") continue;
       if (l.kind === "host") {
-        rows.push(divider(l.text));
+        rows.push(divider(l.text, l.bad === true));
         continue;
       }
       const row = document.createElement("div");

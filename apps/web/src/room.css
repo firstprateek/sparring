@@ -502,8 +502,277 @@
 .stage.is-offline {
   color: var(--muted);
 }
+/* Notes: a section of the coach panel above the turns. It takes at most a little over half the panel and scrolls
+   on its own, so the turns and the composer stay on screen. */
+.notes {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 52%;
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg);
+}
+/* With notes above them, the turns get a caption, so two scrolling lists do not read as one. */
+.turns-head {
+  display: none;
+  padding: 8px 16px 6px;
+  border-bottom: 1px dotted var(--rule);
+}
+.notes:not([hidden]) + .turns-head {
+  display: block;
+}
+.notes[hidden] {
+  display: none;
+}
+.notes-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  padding: 10px 16px 8px;
+}
+.notes-toggle {
+  color: var(--text);
+  padding: 4px 0;
+}
+.notes-title,
+.notes-close {
+  display: none;
+}
+.filter {
+  display: flex;
+  gap: 4px 12px;
+  flex-wrap: wrap;
+}
+.filter .f {
+  padding: 4px 0;
+}
+.filter .f[aria-pressed="true"] {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.notes-body {
+  overflow: auto;
+  min-height: 0;
+  padding: 0 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.notes.folded .notes-body,
+.notes.folded .filter {
+  display: none;
+}
+.notes-list {
+  display: flex;
+  flex-direction: column;
+}
+.note {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+  min-width: 0;
+  outline: 0;
+}
+.note:first-child {
+  border-top: 0;
+  padding-top: 4px;
+}
+.note.closed,
+.note.stale {
+  opacity: 0.75;
+}
+.note.hit,
+.prow.hit {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.note .nhead {
+  text-align: left;
+  overflow-wrap: anywhere;
+  padding: 2px 0;
+}
+.note .nhead:not(:disabled):hover {
+  color: var(--text);
+}
+.note .span,
+.note .nbody {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.note .span {
+  color: var(--text);
+}
+.note .nbody {
+  color: var(--muted);
+}
+.note .nbody .q {
+  color: var(--text);
+}
+.note .reply {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.note .v2 {
+  border-left: 1px solid var(--rule);
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.note .acts {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.note .act {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 6px 0;
+  margin: 0;
+}
+.note .act.text:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.note .act:disabled {
+  color: var(--muted);
+}
+.note .act-edit {
+  display: none;
+}
+.note .nhint {
+  margin-top: -6px;
+}
+.note .replyrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  width: 100%;
+}
+.note .reply-in {
+  flex: 1;
+  min-width: 10ch;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  outline: 0;
+  font: inherit;
+  color: var(--text);
+  padding: 4px 0;
+}
+.note .reply-in:focus {
+  border-bottom-color: var(--accent);
+}
+.note .edit-in {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text);
+  padding: 8px 10px;
+  resize: vertical;
+}
+.notes .shelf {
+  margin: 8px 0 0;
+}
+.notes .none {
+  margin: 8px 0;
+}
+.notes-btn[hidden] {
+  display: none;
+}
+/* The bar in the gutter of a block with a live note: a 24px button drawn as a 2px rule. */
+.mark {
+  position: relative;
+  align-self: stretch;
+  width: 24px;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.mark::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 11px;
+  width: 2px;
+  background: var(--accent);
+}
+.mark:hover::before {
+  width: 4px;
+  left: 10px;
+}
+.divider.err {
+  color: var(--bad);
+}
 /* Narrow: the page above, the coach below it at a fixed share of the height. */
 @media (max-width: 760px) {
+  /* The notes become a sheet that rises from the foot, opened from the foot's notes button or a gutter bar. */
+  .notes {
+    display: none;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 62dvh;
+    border-top: 1px solid var(--accent);
+    border-bottom: 0;
+    z-index: 5;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .notes-head,
+  .notes-body {
+    padding-inline: max(16px, env(safe-area-inset-left, 0px));
+  }
+  .notes.sheet-open {
+    display: flex;
+  }
+  .notes:not([hidden]) + .turns-head {
+    display: none;
+  }
+  .notes.folded .notes-body {
+    display: flex;
+  }
+  .notes.folded .filter {
+    display: flex;
+  }
+  .notes-toggle {
+    display: none;
+  }
+  .notes-title,
+  .notes-close {
+    display: inline;
+  }
+  .notes-title {
+    color: var(--text);
+  }
+  .notes-close {
+    margin-left: auto;
+    padding: 8px 0 8px 12px;
+    text-decoration: underline;
+  }
+  .note .act {
+    padding: 10px 0;
+  }
+  .note .act-edit {
+    display: inline;
+  }
   .head {
     flex-wrap: wrap;
     gap: 4px 12px;

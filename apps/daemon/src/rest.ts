@@ -1,5 +1,5 @@
 // The /api/* routes: the inbox, create an article (with its AHP session and chat, from an idea or not), read its
-// snapshot, save its files, stash on `take disk`, act on a letter line. The REST guard (login, Host, Origin) wraps
+// snapshot, save its files, stash on `take disk`, act on a letter line, mark notes seen. The REST guard (login, Host, Origin) wraps
 // this in main.ts.
 import { type Articles, FILES, type FileName, HttpError, sessionUri } from "./articles.ts";
 
@@ -113,6 +113,13 @@ export function restHandler(articles: Articles) {
               return json(res);
             }
             throw new HttpError(400, { error: "action is dismiss or restore" });
+          }
+          if (parts.length === 5 && parts[3] === "comments" && parts[4] === "seen" && m === "POST") {
+            const b = await body(req);
+            const ids = Array.isArray(b.ids) ? b.ids.filter((x): x is string => typeof x === "string") : null;
+            if (!ids) throw new HttpError(400, { error: "ids must be a list of note ids" });
+            articles.markSeen(slug, ids.slice(0, 200));
+            return json({ ok: true });
           }
           if (parts.length === 4 && parts[3] === "session" && m === "POST") {
             articles.row(slug);

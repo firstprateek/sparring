@@ -1,15 +1,21 @@
 // The page: one textarea per block, blocks being the blank-line split of the file. Enter on an empty line
 // starts a new block; Backspace at the start of a block joins it to the one above. With a gutter, each block is
-// a `.prow` of a `.gut` and its textarea, and `setMarks` puts the mono `?` in the gutter of the blocks it names.
+// a `.prow` of a `.gut` and its textarea, and `setMarks` puts a mark in the gutter of the blocks it names: the
+// mono `?` of a brief quote, or the solid bar of a live note, which is a button that opens the note.
 import { joinBlocks, splitBlocks } from "@sparring/protocol/blocks";
 
 export interface PageOptions {
   /** Each block gets a gutter column for marks. */
   gutter?: boolean;
+  /** A note's bar was clicked. */
+  onMark?: (noteId: string) => void;
 }
 
+/** What a block's gutter shows: `?` for a brief quote, or the bar of the note on it. */
+export type Mark = { kind: "q" } | { kind: "note"; id: string; label: string };
+
 export class Page {
-  private mark: ((block: string) => boolean) | null = null;
+  private mark: ((block: string) => Mark | null) | null = null;
   private readonly gutter: boolean;
 
   constructor(
@@ -26,6 +32,10 @@ export class Page {
       }
     });
     root.addEventListener("keydown", (e) => this.key(e));
+    root.addEventListener("click", (e) => {
+      const bar = (e.target as HTMLElement).closest<HTMLElement>("button.mark");
+      if (bar?.dataset.note) opts.onMark?.(bar.dataset.note);
+    });
   }
 
   /** Shows a file, one block per textarea. The placeholder shows in the first block while it is empty. */
@@ -39,10 +49,36 @@ export class Page {
     this.markAll();
   }
 
-  /** Which blocks carry the `?` mark; null clears every mark. Applied now and after every edit. */
-  setMarks(mark: ((block: string) => boolean) | null): void {
+  /** Which blocks carry a mark, and which; null clears every mark. Applied now and after every edit. */
+  setMarks(mark: ((block: string) => Mark | null) | null): void {
     this.mark = mark;
     this.markAll();
+  }
+
+  /** The index of the first block that holds a span, or -1. */
+  find(span: string): number {
+    return this.blocks().findIndex((ta) => ta.value.includes(span));
+  }
+
+  /** Scrolls a block into view and lights it for a moment. */
+  reveal(index: number): void {
+    const ta = this.blocks()[index];
+    if (!ta) return;
+    const el = this.holder(ta);
+    el.scrollIntoView({ block: "center", behavior: "auto" });
+    el.classList.add("hit");
+    setTimeout(() => el.classList.remove("hit"), 1600);
+  }
+
+  /** Replaces one block's text (the phone's focused edit), as if the writer had typed it. */
+  setBlock(index: number, text: string): boolean {
+    const ta = this.blocks()[index];
+    if (!ta) return false;
+    ta.value = text;
+    autosize(ta);
+    this.markOne(ta);
+    this.onInput(this.text());
+    return true;
   }
 
   text(): string {
@@ -98,16 +134,26 @@ export class Page {
     if (!this.gutter) return;
     const gut = ta.previousElementSibling;
     if (!(gut instanceof HTMLElement) || !gut.classList.contains("gut")) return;
-    const on = this.mark?.(ta.value) === true;
-    const has = gut.querySelector(".qmark") !== null;
-    if (on === has) return;
-    if (on) {
+    const m = this.mark?.(ta.value) ?? null;
+    const key = m === null ? "" : m.kind === "q" ? "q" : `note:${m.id}:${m.label}`;
+    if ((gut.dataset.mark ?? "") === key) return;
+    gut.dataset.mark = key;
+    if (m === null) gut.replaceChildren();
+    else if (m.kind === "q") {
       const q = document.createElement("span");
       q.className = "qmark";
       q.setAttribute("aria-hidden", "true");
       q.textContent = "?";
       gut.replaceChildren(q);
-    } else gut.replaceChildren();
+    } else {
+      const bar = document.createElement("button");
+      bar.type = "button";
+      bar.className = "mark";
+      bar.dataset.note = m.id;
+      bar.title = m.label;
+      bar.setAttribute("aria-label", `Open the note on this paragraph · ${m.label}`);
+      gut.replaceChildren(bar);
+    }
   }
 
   private key(e: KeyboardEvent): void {

@@ -2,7 +2,7 @@
 
 A writing coach that lives in the margin. You give it rough ideas, it interviews you, and then it critiques while you write the article yourself. The page is the article. The coach never writes it, with one explicit exception you have to ask for.
 
-**Status: in progress.** Steps 0 to 8 of the build order in [docs/design.md](docs/design.md) work: the daemon, login, the Articles screen, the room, the interview with a real Claude coach, notes (`/critique` leaves notes anchored to your text, which you fix, disagree with or dismiss, and `/reader` has the coach read as your reader), and every stage and pass: the outline check, `/next` and `/ask` while drafting, `/pass filler` and the other passes from `~/writing/passes/`, `/queue` to run several with the page closed, `/strict` and `/quiet`. "Send it" works too: `send it` in the stage menu (or `/sendit`) has the coach write one draft from your dump and brief, a dotted bar marks each block that is still its words, the head says how much is yours, your old page waits on the shelf, and `coached again` puts it back. The foot of the article counts three tells (em-dashes, one-sentence paragraphs, "it's not X, it's Y") and a count opens the Tells table; words pasted from the coach keep a dotted underline until you rewrite them, and `pasted` counts them. Publishing is built: `publish →` in the stage menu (or `/publish`) opens the publish sheet, which checks the article, asks for a tick on each run of the coach's words, builds the site with the post and opens a pull request. It has only run against a fixture site so far; the section "Publishing" below lists what to set before the first real one. The nightly backup comes next.
+**Status: in progress.** Steps 0 to 9 of the build order in [docs/design.md](docs/design.md) work: the daemon, login, the Articles screen, the room, the interview with a real Claude coach, notes (`/critique` leaves notes anchored to your text, which you fix, disagree with or dismiss, and `/reader` has the coach read as your reader), and every stage and pass: the outline check, `/next` and `/ask` while drafting, `/pass filler` and the other passes from `~/writing/passes/`, `/queue` to run several with the page closed, `/strict` and `/quiet`. "Send it" works too: `send it` in the stage menu (or `/sendit`) has the coach write one draft from your dump and brief, a dotted bar marks each block that is still its words, the head says how much is yours, your old page waits on the shelf, and `coached again` puts it back. The foot of the article counts three tells (em-dashes, one-sentence paragraphs, "it's not X, it's Y") and a count opens the Tells table; words pasted from the coach keep a dotted underline until you rewrite them, and `pasted` counts them. Publishing is built: `publish →` in the stage menu (or `/publish`) opens the publish sheet, which checks the article, asks for a tick on each run of the coach's words, builds the site with the post and opens a pull request. It has only run against a fixture site so far; the section "Publishing" below lists what to set before the first real one. The nightly backup is built too: every night at 03:30 the daemon snapshots its database into the writing repo and pushes the repo to `backup_remote`; the section "Backup" below says how to set it. It has only pushed to a local test repo so far. What is left is step 10, the first real article.
 
 ## How it is meant to work
 
@@ -90,6 +90,42 @@ Publishing turns one reviewed commit of an article into a pull request on the As
 6. The first real publish is the "try" of step 8 in the design: publish a throwaway post, check `dist/writing/<slug>/index.html` and the RSS line in the PR, then close the PR unmerged. Merging is always your click. Turn on "Automatically delete head branches" in the site repo.
 
 Each publish writes its log to `~/.sparring/logs/publish-<id>.log` and the PR description it sent to `publish-<id>.pr.md` beside it. To try the whole thing with no network, `apps/daemon/test/site-fixture.ts` builds a fixture site with a local bare origin and a `gh` stub; `apps/daemon/test/step8.test.ts` shows how it is wired.
+
+### Backup
+
+Everything Sparring keeps is in two places: the writing repo (`~/writing`: every article, dump and brief, `STYLE.md`, the inbox, the passes, and the kept text under `refs/sparring/*`) and the database `~/.sparring/sparring.db` (the chats, the notes, the publish records). Every night at 03:30 the daemon copies the database to `~/writing/.sparring-backup/sparring.db`, commits that file on `main`, and pushes every branch and `refs/sparring/*` to the backup remote. A daemon that starts and finds the last good backup more than a day old backs up at once. `config.json` (the login token) is not backed up.
+
+1. Make a private repo that only you can read, empty, with no README. The chats are in it in plain text.
+2. Name it in `~/.sparring/config.json`. The daemon reads this on every run, so no restart is needed.
+
+   ```json
+   {
+     "backup_remote": "git@github.com:you/writing-backup.git"
+   }
+   ```
+
+   The daemon must be able to push there without being asked for anything: an ssh key with no passphrase prompt (or one in the agent the service sees), or an https address with a credential helper. A push that would ask for a password fails at once, and one that hangs is stopped after two minutes.
+3. Run one and read the line it prints:
+
+   ```bash
+   pnpm backup           # back up now
+   pnpm backup status    # the last backup, without running one
+   ```
+
+   `pnpm backup` asks the running daemon; when no daemon answers it runs the same backup itself. `pnpm service status` prints the same line.
+
+The foot of the Articles screen reads `backup · 3h` when all is well, with `back up now` beside it. It turns red, and says why, when the last backup failed, when no `backup_remote` is set (the snapshot is still committed in `~/writing`, but nothing leaves the machine), or when the last good backup is more than 36 hours old.
+
+To restore on a new machine, with the daemon stopped:
+
+```bash
+git clone git@github.com:you/writing-backup.git ~/writing
+git -C ~/writing fetch origin 'refs/sparring/*:refs/sparring/*'
+mkdir -p ~/.sparring && chmod 700 ~/.sparring
+cp ~/writing/.sparring-backup/sparring.db ~/.sparring/sparring.db
+```
+
+Then start the daemon: it writes a new `config.json` with a new login token, and you set `backup_remote` and the publish settings again. What was typed after the last backup is lost, so the snapshot's chats can be up to a day behind the pages.
 
 ### Desktop app
 

@@ -728,6 +728,18 @@ A failed A or B row stops the build. If B3 fails, the coach moves to its own mac
 
 *Brought forward (November 2026):* the launchd half is built early, as `pnpm service install` (`tools/service.ts`, label `app.sparring.daemon`, PATH from where `bun`, `node`, `npm`, `gh` and `git` are found, log `~/Library/Logs/sparring-daemon.log`), with `pnpm ship` (`tools/ship.ts`: pull, install, lint, typecheck, test, build, restart, stopping at the first failure) and a reload offer in open pages (`apps/web/src/update.ts`, comparing the page's `<meta name="sparring-build">` with `/build.json`). The backup is still step 9.
 
+*As built (November 2026), the backup:*
+
+- Built and tested against local bare repos only. No private repo exists yet and `backup_remote` is not set on the Mac mini, so the "done when" holds in vitest (`apps/daemon/test/step9.test.ts`) and in a throwaway daemon, not yet on the real remote. README "Backup" says what the owner sets and how to restore.
+- `backup.ts` runs at 03:30 local time, checked by a 30 s tick, so a machine that slept through the hour backs up when it wakes. At start it runs at once when the last good backup (the last push that went through) is more than 24 hours old; with no remote set, the last local snapshot is what counts. A failed night is not retried before the next one.
+- The snapshot is `VACUUM INTO`, SQLite's consistent copy of a live database through plain SQL, since the daemon has no `sqlite3` shell. It is written beside its place and renamed. A snapshot equal to the last one makes no commit.
+- A run is two jobs in the git queue, the snapshot with its commit and then the push, so a save waits behind a slow push and never inside the commit. The push is `git push --porcelain <backup_remote> 'refs/heads/*:refs/heads/*' 'refs/sparring/*:refs/sparring/*'`, never forced, with `GIT_TERMINAL_PROMPT=0`, ssh `BatchMode=yes` and `ConnectTimeout=15`, killed after two minutes. `backup_remote` is read from `config.json` on every run.
+- With no remote the snapshot and the commit still happen and the push is skipped.
+- State. `~/.sparring/backup.json` (0600) keeps `lastRunAt`, `ok`, `error` (`push · <git's last line>`), `pushed`, `lastLocalAt`, `lastGoodAt` and `commit`. `GET /api/backup` answers it with `running`, `remote` (no password shown) and `nextAt`; `POST /api/backup` runs one now and answers the same, or `running: true` after 45 s. `pnpm backup` posts to the running daemon and runs the backup itself when none answers; `pnpm backup status` and `pnpm service status` print the line.
+- The line is one function, `backupLine` in `packages/protocol/src/backup.ts`, for every screen. Articles shows it above the foot with `back up now`: `backup · 3h`, muted, when fine; red when the last run failed (with git's reason), when no remote is set, or when the last good backup is more than 36 hours old, each naming `backup_remote` in `config.json`.
+- Leftovers of step 8. The phone interview's menu ends with `publish →`. The publish page has the `guide` button and the card: its Publish step points at the button there and moves on once the PR is open, and a step that is done in the article links back to it.
+- Not built: pruning refs on the remote that were deleted locally, a retry between nights, and any backup of `config.json`.
+
 **10. First article out (2 to 3 evenings).** Fix what the first real article breaks. *Done when:* the PR is merged, and pass latency and token numbers are in `docs/adapters.md`.
 
 The total is 28 to 33 evenings. There is a plain editor for one article after step 1 (about evening 5), a real phone interview after step 3 (about evening 14) and the full coached loop after step 4 (about evening 18).

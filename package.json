@@ -18,7 +18,8 @@
     "desktop": "pnpm --filter @sparring/desktop build",
     "login-code": "bun tools/login-code.ts",
     "service": "bun tools/service.ts",
-    "ship": "bun tools/ship.ts"
+    "ship": "bun tools/ship.ts",
+    "backup": "bun tools/backup.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",

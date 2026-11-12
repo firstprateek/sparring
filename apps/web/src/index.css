@@ -34,10 +34,38 @@ header.bar {
 header.bar .t {
   padding: 12px 0;
 }
+/* The backup line: small and to the right when fine, a red line that wraps when not. */
+.backup {
+  margin: auto 0 0;
+  padding: 6px 0.5rem;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.backup.bad {
+  text-align: left;
+  padding-block: 10px;
+  line-height: 1.6;
+}
+.backup .backup-run {
+  color: var(--muted);
+  padding: 6px 0;
+  white-space: nowrap;
+}
+.backup.bad .backup-run {
+  padding: 0;
+  color: var(--text);
+  text-decoration: underline;
+}
+.backup .backup-run:hover {
+  color: var(--text);
+}
 footer.bar {
   margin-top: auto;
   height: 32px;
   border-top: 1px solid var(--rule);
+}
+.backup:not([hidden]) + footer.bar {
+  margin-top: 0;
 }
 footer.bar span {
   white-space: nowrap;

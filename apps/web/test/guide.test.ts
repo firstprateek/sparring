@@ -235,6 +235,60 @@ describe("the publish step", () => {
     expect(document.querySelector(".g-title")?.textContent).toBe("That is the loop");
   });
 
+  it("shows on the publish page too: it points at the button there and moves on once the PR is open", () => {
+    localStorage.setItem("sparring-guide", JSON.stringify({ open: true, step, seen: true, small: false }));
+    const ship = document.createElement("button");
+    ship.className = "ship-btn";
+    const stage = document.createElement("button");
+    stage.id = "stage-btn";
+    document.body.append(ship, stage);
+    const g = new Guide("publish", null, document.body, "/room.html?slug=a");
+    expect(document.querySelector(".g-title")?.textContent).toBe("Publish");
+    expect(ship.classList.contains("guide-target")).toBe(true);
+    // The Room's targets are not this page's.
+    expect(stage.classList.contains("guide-target")).toBe(false);
+    expect(document.querySelector(".g-where")).toBeNull();
+    expect(document.querySelector(".g-body")?.textContent).toContain("This is the publish sheet");
+    expect(document.querySelector(".g-body")?.textContent).toContain("build and open PR");
+    expect(document.querySelector(".g-wait")?.textContent).toBe("moves on when you have done it");
+    // The sheet redraws its button: the guide points at the new one.
+    ship.remove();
+    const again = document.createElement("button");
+    again.className = "ship-btn";
+    document.body.append(again);
+    g.retarget();
+    expect(again.classList.contains("guide-target")).toBe(true);
+    g.update({ where: "publish", pr: false });
+    expect(loadState().step).toBe(step);
+    g.update({ where: "publish", pr: true });
+    expect(loadState().step).toBe(step + 1);
+    expect(document.querySelector(".g-title")?.textContent).toBe("That is the loop");
+  });
+
+  it("on the publish page, a step done in the article links back to it", () => {
+    const polish = at("Polish");
+    localStorage.setItem(
+      "sparring-guide",
+      JSON.stringify({ open: true, step: polish, seen: true, small: false }),
+    );
+    const composer = document.createElement("textarea");
+    composer.id = "composer";
+    document.body.append(composer);
+    new Guide("publish", null, document.body, "/room.html?slug=a");
+    expect(document.querySelector(".g-where")?.textContent).toBe(
+      "this step is in the article · back to the article",
+    );
+    expect(document.querySelector<HTMLAnchorElement>(".g-link")?.getAttribute("href")).toBe(
+      "/room.html?slug=a",
+    );
+    expect(composer.classList.contains("guide-target")).toBe(false);
+    // A step on Articles still links there.
+    document.body.replaceChildren();
+    localStorage.setItem("sparring-guide", JSON.stringify({ open: true, step: 0, seen: true, small: false }));
+    new Guide("publish", null, document.body, "/room.html?slug=a");
+    expect(document.querySelector(".g-where")?.textContent).toContain("Articles screen");
+  });
+
   it("no step and no command is left unbuilt", async () => {
     const { BUILT_COMMANDS, LISTED, UNLISTED } = await import("@sparring/protocol/commands");
     expect([...LISTED, ...UNLISTED].filter((c) => !BUILT_COMMANDS.has(c.name))).toEqual([]);

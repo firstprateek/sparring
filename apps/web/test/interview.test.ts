@@ -89,12 +89,13 @@ function screen() {
   document.body.innerHTML = `
     <div id="iv" hidden>
       <span id="title"></span><button id="btn"><span id="word"></span> ▾</button>
-      <div id="menu" hidden><ul id="stages"></ul><button id="sendit">send it</button><div id="line" hidden></div><p id="err" hidden></p></div>
+      <div id="menu" hidden><ul id="stages"></ul><button id="sendit">send it</button><div id="line" hidden></div><button id="publish">publish →</button><p id="err" hidden></p></div>
       <div id="sheet"><span id="topics"></span><button id="fold">▾</button><div id="body"><div id="thread"></div></div></div>
     </div>`;
   const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
   const pick = vi.fn((_s: string) => null as string | null);
   const sendIt = vi.fn(async () => null as string | null);
+  const publish = vi.fn(async () => null as string | null);
   const iv = new InterviewScreen(
     {
       root: $("iv"),
@@ -105,6 +106,7 @@ function screen() {
       stages: $("stages"),
       sendit: $<HTMLButtonElement>("sendit"),
       senditLine: $("line"),
+      publish: $<HTMLButtonElement>("publish"),
       menuError: $("err"),
       topics: $("topics"),
       sheet: $("sheet"),
@@ -114,8 +116,9 @@ function screen() {
     },
     pick,
     sendIt,
+    publish,
   );
-  return { iv, pick, $, sendIt };
+  return { iv, pick, $, sendIt, publish };
 }
 
 describe("the interview screen", () => {
@@ -191,6 +194,43 @@ describe("the interview screen", () => {
     expect($("err").hidden).toBe(false);
     expect($("err").textContent).toBe("not started · nothing to draft from · dump.md is empty");
     expect($("menu").hidden).toBe(false);
+  });
+
+  it("has `publish →` in its own menu, which opens the publish sheet", async () => {
+    const { iv, $, publish, sendIt, pick } = screen();
+    iv.set({ slug: "a", stage: "interview", covered: [], offline: false, lines: [] });
+    iv.show(true);
+    $<HTMLButtonElement>("btn").click();
+    expect($("publish").textContent).toBe("publish →");
+    $<HTMLButtonElement>("publish").click();
+    expect($<HTMLButtonElement>("publish").disabled).toBe(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(sendIt).not.toHaveBeenCalled();
+    expect(pick).not.toHaveBeenCalled();
+    expect($("err").hidden).toBe(true);
+    expect($<HTMLButtonElement>("publish").disabled).toBe(false);
+  });
+
+  it("says in red in the menu why the publish sheet did not open, and stays open", async () => {
+    const { iv, $, publish } = screen();
+    publish.mockResolvedValueOnce("dump.md is not saved yet · try again once the foot says saved");
+    iv.set({ slug: "a", stage: "interview", covered: [], offline: false, lines: [] });
+    iv.show(true);
+    $<HTMLButtonElement>("btn").click();
+    $<HTMLButtonElement>("sendit").click();
+    $<HTMLButtonElement>("publish").click();
+    // The send-it confirm line closes: one question at a time.
+    expect($("line").hidden).toBe(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect($("err").hidden).toBe(false);
+    expect($("err").textContent).toBe(
+      "not opened · dump.md is not saved yet · try again once the foot says saved",
+    );
+    expect($("menu").hidden).toBe(false);
+    expect($("publish").textContent).toBe("publish →");
   });
 
   it("reads `offline` while the article is offline", () => {

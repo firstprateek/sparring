@@ -2,11 +2,15 @@
 // says what to do and points at the control; steps that can be checked (an idea kept, 100 words dumped, the
 // interview covered, an outline's headings, a critique's notes on the page, a pass that ran, the Tells table
 // opened, a draft sent for, a pull request opened) move on by themselves once done. Where the writer is
-// in the guide is kept in localStorage, so it follows them from Articles into a Room; it is a convenience only.
+// in the guide is kept in localStorage, so it follows them from Articles into a Room and on to the publish page;
+// it is a convenience only.
 import type { FileName } from "./api.ts";
 
+/** The screens a guide card stands on. */
+export type GuideWhere = "articles" | "room" | "publish";
+
 export interface GuideFacts {
-  where: "articles" | "room";
+  where: GuideWhere;
   ideas?: number;
   leaf?: FileName;
   dumpWords?: number;
@@ -35,6 +39,8 @@ export interface Step {
   where: "articles" | "room" | "any";
   /** CSS selector of the control to point at. */
   target?: string;
+  /** Set when the step is also done on the publish page: what to point at there, and what the card says there. */
+  publish?: { target: string; body: string };
   done?: (f: GuideFacts) => boolean;
   /** Not built yet: the step only explains what is coming. */
   later?: boolean;
@@ -143,6 +149,10 @@ export const STEPS: readonly Step[] = [
     body: "Open the stage menu and pick publish →, or type /publish. The sheet asks for a title, a one-sentence description and a date, then three questions whose answers are stored and never published. Tick I chose these words for each run of the coach's words still in the text, or rewrite it. build and open PR builds the site with your post and opens a pull request; merging it is your click. The guide moves on when the PR is open.",
     where: "room",
     target: "#stage-btn, #composer, #pr-link",
+    publish: {
+      target: ".ship-btn",
+      body: "This is the publish sheet. Fill in the title, a one-sentence description and the date, then answer the three questions; the answers are stored and never published. Tick I chose these words for each run of the coach's words still in the text, or go back and rewrite it. A line in red says what is missing. build and open PR builds the site with your post and opens a pull request; merging it is your click. The guide moves on when the PR is open.",
+    },
     done: (f) => f.pr === true,
   },
   {
@@ -207,9 +217,11 @@ export class Guide {
 
   /** The card goes in `slot`, in the page's flow, so it pushes the page down and never covers a control. */
   constructor(
-    private readonly where: "articles" | "room",
+    private readonly where: GuideWhere,
     button: HTMLButtonElement | null,
     slot: HTMLElement = document.body,
+    /** The article's Room, for a card on the publish page whose step is done there. */
+    private readonly roomHref = "",
   ) {
     this.card = document.createElement("aside");
     this.card.className = "guide";
@@ -248,11 +260,21 @@ export class Guide {
   /** Points at the step's control again, after the page redrew it. */
   retarget(): void {
     const s = STEPS[this.state.step] as Step;
-    if (!this.state.open || this.state.small || !s.target || (s.where !== "any" && s.where !== this.where))
-      return;
+    const target = this.targetOf(s);
+    if (!this.state.open || this.state.small || !target || !this.here(s)) return;
     for (const t of this.targets) t.classList.remove("guide-target");
-    this.targets = [...document.querySelectorAll(s.target)];
+    this.targets = [...document.querySelectorAll(target)];
     for (const t of this.targets) t.classList.add("guide-target");
+  }
+
+  /** Whether the step is done on this screen. */
+  private here(s: Step): boolean {
+    if (this.where === "publish") return s.where === "any" || s.publish !== undefined;
+    return s.where === "any" || s.where === this.where;
+  }
+
+  private targetOf(s: Step): string | undefined {
+    return this.where === "publish" ? s.publish?.target : s.target;
   }
 
   private set(patch: Partial<GuideState>): void {
@@ -305,15 +327,20 @@ export class Guide {
     const kids: HTMLElement[] = [head];
     const title = el("h2", "g-title", s.title);
     if (s.later) title.append(el("span", "g-tag mono", "not built yet"));
-    kids.push(title, el("p", "g-body", s.body));
+    kids.push(title, el("p", "g-body", (this.where === "publish" && s.publish?.body) || s.body));
 
-    const elsewhere = s.where !== "any" && s.where !== this.where;
+    const elsewhere = !this.here(s);
     if (elsewhere) {
       const p = el("p", "g-where mono");
       if (s.where === "articles") {
         p.append("this step is on the Articles screen · ");
         const a = el("a", "g-link", "go to Articles") as HTMLAnchorElement;
         a.href = "/";
+        p.append(a);
+      } else if (this.where === "publish" && this.roomHref) {
+        p.append("this step is in the article · ");
+        const a = el("a", "g-link", "back to the article") as HTMLAnchorElement;
+        a.href = this.roomHref;
         p.append(a);
       } else p.append("open an article to do this step");
       kids.push(p);
@@ -332,8 +359,9 @@ export class Guide {
     kids.push(nav);
     this.card.replaceChildren(...kids);
 
-    if (s.target && !elsewhere) {
-      this.targets = [...document.querySelectorAll(s.target)];
+    const target = this.targetOf(s);
+    if (target && !elsewhere) {
+      this.targets = [...document.querySelectorAll(target)];
       for (const t of this.targets) t.classList.add("guide-target");
     }
   }

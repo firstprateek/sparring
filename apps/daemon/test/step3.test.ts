@@ -4,7 +4,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ResponsePartKind, ROOT, TurnState } from "../src/ahp/wire.ts";
 import { sha256 } from "../src/articles.ts";
 import {
@@ -349,7 +349,8 @@ describe("the coach process", () => {
       startedAt: new Date().toISOString(),
       message: { text: "gate", origin: { kind: "user" } },
     } as Any);
-    await sleep(30);
+    // Wait for the child itself, not for a fixed time: a busy machine starts it late.
+    await vi.waitFor(() => expect(fake.live).toHaveLength(1));
     t.coach.sweep(Date.now() + 60 * 60_000);
     expect(fake.live).toHaveLength(1);
     fake.last.gateOpen = true;

@@ -5,6 +5,7 @@ import { AhpHost } from "./ahp/host.ts";
 import { AhpTransport, type WsData } from "./ahp/transport.ts";
 import { Articles } from "./articles.ts";
 import { same } from "./auth.ts";
+import { Backup } from "./backup.ts";
 import { claudeLaunch, claudePaths, ensureSettings } from "./claude.ts";
 import { Coach } from "./coach.ts";
 import { loadConfig, sparringHome } from "./config.ts";
@@ -80,6 +81,8 @@ const publisher = new Publisher({
 });
 await publisher.recover().catch((e) => log(`publish: ${e instanceof Error ? e.message : e}`));
 publisher.startPrWatch();
+// The nightly backup of the database and the writing repo, through the same git queue as every save.
+const backup = new Backup({ db, git: articles.git, home, log });
 const mcp = await listenMcp(sock, tools, log);
 // Pings every 25 s, a client silent for 90 s is closed (the host's idleCloseMs), Bun's own idle timeout is 60 s.
 const transport = new AhpTransport(host, {
@@ -92,7 +95,7 @@ transport.start();
 
 const rest = restGuard(
   { token: config.token, hosts: config.hosts, spendCode: (code) => spendCode(home, code) },
-  restHandler(articles, coach, publisher),
+  restHandler(articles, coach, publisher, backup),
 );
 const web = serveWebFrom(join(import.meta.dir, "../../web/dist"));
 
@@ -119,6 +122,8 @@ const server = Bun.serve<WsData>({
   websocket: transport.websocket,
 });
 log(`sparring on http://${server.hostname}:${server.port} · writing in ${config.writing_dir}`);
+// 03:30 every night, and now when the last good backup is more than a day old.
+backup.start();
 
 // SIGTERM (launchd) and SIGINT: commit what waits for its minute, send the meta that waits, let the coaches go,
 // close the sockets, then the database; a second signal leaves at once.
@@ -134,6 +139,7 @@ async function shutdown(signal: string): Promise<void> {
   try {
     server.stop();
     transport.stop();
+    backup.stop();
     await articles.flush();
     await Promise.race([publisher.idle(), new Promise((r) => setTimeout(r, 3000))]);
     await coach.shutdown();

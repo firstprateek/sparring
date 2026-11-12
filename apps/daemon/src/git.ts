@@ -6,6 +6,8 @@ export interface GitResult {
   code: number;
   stdout: string;
   stderr: string;
+  /** The command ran out of time and was killed. */
+  timedOut?: boolean;
 }
 
 export class GitError extends Error {
@@ -37,19 +39,30 @@ function execGit(
   args: string[],
   input?: string,
   env?: Record<string, string>,
+  timeoutMs = 60_000,
 ): Promise<GitResult> {
   return new Promise((resolve) => {
     const child = execFile(
       "git",
       args,
-      { cwd, env: gitEnv(env), maxBuffer: 64 * 1024 * 1024, timeout: 60_000 },
+      { cwd, env: gitEnv(env), maxBuffer: 64 * 1024 * 1024, timeout: timeoutMs },
       (err, stdout, stderr) => {
         const code = err ? (typeof err.code === "number" ? err.code : 1) : 0;
-        resolve({ code, stdout: String(stdout), stderr: String(stderr) });
+        const timedOut = !!err && err.killed === true;
+        resolve({ code, stdout: String(stdout), stderr: String(stderr), ...(timedOut ? { timedOut } : {}) });
       },
     );
     if (input !== undefined) child.stdin?.end(input);
   });
+}
+
+export interface GitOpts {
+  input?: string;
+  env?: Record<string, string>;
+  /** Exit codes that are an answer, not a failure. */
+  ok?: number[];
+  /** How long the command may take before it is killed. 60 s when left out. */
+  timeoutMs?: number;
 }
 
 export class GitQueue {
@@ -65,18 +78,18 @@ export class GitQueue {
   }
 
   /** One git command, outside the queue. Callers inside `serial` use this. */
-  async raw(args: string[], opts: { input?: string; env?: Record<string, string>; ok?: number[] } = {}) {
-    let result = await execGit(this.cwd, args, opts.input, opts.env);
+  async raw(args: string[], opts: GitOpts = {}) {
+    let result = await execGit(this.cwd, args, opts.input, opts.env, opts.timeoutMs);
     for (let i = 0; i < LOCK_RETRIES && result.code !== 0 && /index\.lock/.test(result.stderr); i++) {
       await new Promise((r) => setTimeout(r, 200 * (i + 1)));
-      result = await execGit(this.cwd, args, opts.input, opts.env);
+      result = await execGit(this.cwd, args, opts.input, opts.env, opts.timeoutMs);
     }
     if (!(opts.ok ?? [0]).includes(result.code)) throw new GitError(args, result);
     return result;
   }
 
   /** One git command inside the queue. */
-  run(args: string[], opts: { input?: string; env?: Record<string, string>; ok?: number[] } = {}) {
+  run(args: string[], opts: GitOpts = {}) {
     return this.serial(() => this.raw(args, opts));
   }
 }

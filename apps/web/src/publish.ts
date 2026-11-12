@@ -9,9 +9,11 @@ import "@fontsource/source-serif-4/600.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "./base.css";
 import "./publish.css";
+import "./guide.css";
 import { jobRunning, type Preflight } from "@sparring/protocol/publish";
 import { ahp, useAhp } from "./ahp/hub.ts";
 import { ApiError, api } from "./api.ts";
+import { Guide } from "./guide.ts";
 import { ensureLogin } from "./login.ts";
 import { PublishSheet, renderPost } from "./publish-view.ts";
 import { ArticleList, metaOf } from "./session.ts";
@@ -40,6 +42,8 @@ function today(): string {
 }
 
 let current: Preflight | null = null;
+/** Made once the writer is logged in, so the card never sits over the login form. */
+let guide: Guide | undefined;
 let connNote = "";
 
 const sheet = new PublishSheet(
@@ -88,7 +92,12 @@ function take(p: Preflight, toSheet = true): void {
   current = p;
   renderPost($("front"), $("post"), p);
   if (toSheet) sheet.set(p);
-  setTimeout(chrome, 0);
+  // The guide's Publish step is done once the article has a pull request.
+  guide?.update({ where: "publish", pr: p.pr !== null });
+  setTimeout(() => {
+    chrome();
+    guide?.retarget();
+  }, 0);
 }
 
 function chrome(): void {
@@ -167,6 +176,12 @@ async function main(): Promise<void> {
     conn.retryNow();
     void refresh();
   });
+  guide = new Guide(
+    "publish",
+    $<HTMLButtonElement>("guide-btn"),
+    $("guide-slot"),
+    `/room.html?slug=${encodeURIComponent(slug)}`,
+  );
   await refresh();
   useAhp();
   list = new ArticleList(conn);

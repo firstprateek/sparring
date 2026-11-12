@@ -1,4 +1,4 @@
-/* The publish page: header, the read-only post beside the publish sheet, foot. One viewport tall at desktop
+/* The publish page: header, the guide's slot, the read-only post beside the publish sheet, foot. One viewport tall at desktop
    width, where the post and the sheet scroll on their own. Under 760px the sheet comes first and the whole page
    scrolls, so the button is never under the whole article. */
 .pub {
@@ -6,7 +6,7 @@
   box-sizing: border-box;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -35,6 +35,41 @@
 }
 .pub .spacer {
   flex: 1;
+}
+/* The guide card sits in the flow under the head; closed, its slot takes no room. */
+.pub .guide-slot {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 8px 0;
+}
+.pub .guide-slot:empty,
+.pub .guide-slot:has(> .guide[hidden]) {
+  padding: 0;
+}
+.pub .guide-btn {
+  padding: 12px 4px;
+  white-space: nowrap;
+}
+.pub .guide-btn:hover {
+  color: var(--text);
+}
+/* The card never takes the sheet's room at desktop width: a long step scrolls inside it. */
+.pub .guide:not(.small) {
+  max-height: min(34dvh, 220px);
+}
+.pub .guide .g-body {
+  flex: 0 1 auto;
+  min-height: 2.8em;
+  overflow: auto;
+  /* Text that runs on below fades out, so a cut line reads as "scroll for more". */
+  padding-bottom: 14px;
+  mask-image: linear-gradient(to bottom, var(--text) calc(100% - 14px), transparent);
+}
+.pub .guide .g-head,
+.pub .guide .g-title,
+.pub .guide .g-nav {
+  flex: none;
 }
 .pub .mode-tag,
 .pub .stage-word {
@@ -291,7 +326,7 @@
     height: auto;
     min-height: 100dvh;
     overflow: visible;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto auto 1fr auto;
   }
   .pub .head {
     flex-wrap: wrap;

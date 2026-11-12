@@ -1,6 +1,7 @@
 // Articles: the `>` idea field and the inbox (`GET` and `POST /api/inbox`, `→ article` on each idea), every
 // article from the AHP root session list and its `_meta.sparring`, `+ new article`, and the keys j, k, enter, n
-// and i. There is no REST list; a save made elsewhere reaches the row through root/sessionSummaryChanged.
+// and i. There is no REST list; a save made elsewhere reaches the row through root/sessionSummaryChanged. Above
+// the foot sits the backup line (backup.ts).
 import "@fontsource/source-serif-4/400.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "./base.css";
@@ -10,6 +11,7 @@ import type { SessionSummary } from "@microsoft/agent-host-protocol";
 import { slugProblem } from "@sparring/protocol/slug";
 import { ahp, useAhp } from "./ahp/hub.ts";
 import { ApiError, api, type Idea } from "./api.ts";
+import { BackupFoot } from "./backup.ts";
 import { daemonHost } from "./config.ts";
 import { Guide } from "./guide.ts";
 import { inboxRows, wireSlugField } from "./inbox.ts";
@@ -57,6 +59,13 @@ function handWarnings(slug: string, warnings: string[] | undefined): void {
 }
 
 const failed = (err: unknown) => (err instanceof ApiError ? err.message : "could not reach the daemon");
+
+const backupFoot = new BackupFoot($("backup"), {
+  get: api.backup,
+  run: api.runBackup,
+  words: failed,
+  missing: (e) => e instanceof ApiError && e.status === 404,
+});
 
 function span(text: string, cls?: string): HTMLSpanElement {
   const s = document.createElement("span");
@@ -271,6 +280,9 @@ async function main(): Promise<void> {
   guide = new Guide("articles", $<HTMLButtonElement>("guide-btn"), $("guide-slot"));
   guide.update({ where: "articles", ideas: ideaCount });
   void loadInbox();
+  void backupFoot.load();
+  // The night's run, or one made from a terminal, shows within a minute.
+  setInterval(() => void backupFoot.load(), 60_000);
   useAhp();
   const conn = ahp();
   list = new ArticleList(conn);
@@ -284,11 +296,15 @@ async function main(): Promise<void> {
     wasOpen = open;
   });
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") void loadInbox();
+    if (document.visibilityState === "visible") {
+      void loadInbox();
+      void backupFoot.load();
+    }
   });
   setInterval(() => {
     renderConn();
     render(); // save ages move on
+    backupFoot.render();
   }, 1000);
   renderConn();
 }

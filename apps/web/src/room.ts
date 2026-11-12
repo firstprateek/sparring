@@ -519,6 +519,7 @@ const interview = new InterviewScreen(
     stages: $("iv-stages"),
     sendit: $<HTMLButtonElement>("iv-sendit"),
     senditLine: $("iv-sendit-line"),
+    publish: $<HTMLButtonElement>("iv-publish"),
     menuError: $("iv-menu-error"),
     topics: $("iv-topics"),
     sheet: $("iv-sheet"),
@@ -531,6 +532,7 @@ const interview = new InterviewScreen(
     return setStage(conn, sessionUri, stage, stageRefused);
   },
   () => flip("drafted"),
+  () => openPublish(),
 );
 phone.addEventListener("change", () => renderAhp());
 

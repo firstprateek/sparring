@@ -3,7 +3,7 @@
 //
 //   pnpm service install     write the plist and start the service (stop a daemon started by hand first)
 //   pnpm service uninstall   stop it and remove the plist
-//   pnpm service status      whether it runs, and which web build it serves
+//   pnpm service status      whether it runs, which web build it serves, and the last backup
 //   pnpm service print       the plist, without installing it
 //
 // `pnpm ship` (tools/ship.ts) restarts it after an update.
@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { loadConfig } from "../apps/daemon/src/config.ts";
+import { backupStatusLine } from "./backup.ts";
 
 export const LABEL = "app.sparring.daemon";
 export const REPO = resolve(import.meta.dir, "..");
@@ -184,6 +185,7 @@ async function status(): Promise<void> {
   const served = await servedBuild();
   const built = builtBuild();
   console.log(`web build served ${served ?? "none (no answer)"} · on disk ${built ?? "none"}`);
+  console.log(backupStatusLine());
   if (pid === 0) console.log(logTail());
 }
 

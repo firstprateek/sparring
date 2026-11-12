@@ -213,6 +213,13 @@ html.iv-on #room {
   margin-top: 4px;
   min-height: 44px;
 }
+.imenu .publish {
+  border-top: 1px solid var(--rule);
+  min-height: 44px;
+}
+.imenu .publish:hover {
+  color: var(--text);
+}
 .imenu .pend {
   margin: 0;
 }

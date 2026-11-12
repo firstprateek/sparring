@@ -1,5 +1,6 @@
 // The REST calls the web client makes. Every non-GET sends JSON, as the REST guard requires. Every call goes to
 // the daemon named in config.ts and carries the login cookie; a 401 tells the login form to show.
+import type { BackupState } from "@sparring/protocol/backup";
 import type { Note } from "@sparring/protocol/notes";
 import type { PostMeta, Preflight } from "@sparring/protocol/publish";
 import { apiUrl, crossOrigin } from "./config.ts";
@@ -124,6 +125,10 @@ export const api = {
   /** Starts the publish job on the commit the sheet showed. 409 carries a fresh preflight. */
   publish: (slug: string, body: { article_commit: string; origin_sha: string; ticked: string[] }) =>
     call<{ publish_id: number }>("POST", `/api/articles/${enc(slug)}/publish`, body),
+  /** The nightly backup: when it last ran, whether it was pushed, and why not. */
+  backup: () => call<BackupState>("GET", "/api/backup"),
+  /** Runs a backup now. A slow push is answered with `running: true`; ask `backup` until it is over. */
+  runBackup: () => call<BackupState>("POST", "/api/backup", {}),
   stash: (slug: string, file: FileName, text: string) =>
     call<{ commit: string }>("POST", `/api/articles/${enc(slug)}/stash`, { file, text }),
 };

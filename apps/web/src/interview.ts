@@ -1,7 +1,8 @@
 // The phone interview: the Room at phone width while the stage is `interview`. The dump is the page (an ordinary
 // leaf, saved like any other). The head reads `<slug> · dump` and the button `interview N/6 ▾`, whose menu lists
 // the six stages (a pick goes out at once, with no `advance to` line) and `send it`, which shows its confirm line;
-// yes makes the authorship call and the Room opens the article leaf. The sheet over the page holds
+// yes makes the authorship call and the Room opens the article leaf. Last in the menu is `publish →`, which saves
+// the pages and opens the publish sheet. The sheet over the page holds
 // the strip `interview · thesis reader evidence counter uncertainty scar` marked from `covered`, the chat turns,
 // and the `>` composer with `send`. The frame follows the visual viewport so the iOS keyboard never hides the
 // composer.
@@ -60,6 +61,7 @@ export interface InterviewEls {
   stages: HTMLElement;
   sendit: HTMLButtonElement;
   senditLine: HTMLElement;
+  publish: HTMLButtonElement;
   menuError: HTMLElement;
   topics: HTMLElement;
   sheet: HTMLElement;
@@ -79,6 +81,8 @@ export class InterviewScreen {
     private readonly pick: (stage: Stage) => string | null,
     /** `send it`, confirmed: makes the authorship call; resolves with an error in words, or null. */
     private readonly sendIt: () => Promise<string | null> = async () => "not available here",
+    /** `publish →`: saves the pages and opens the publish sheet; resolves with an error in words when it could not. */
+    private readonly publish: () => Promise<string | null> = async () => "not available here",
   ) {
     els.stageBtn.addEventListener("click", () => (this.menuOpen ? this.close() : this.open()));
     els.stages.addEventListener("click", (e) => {
@@ -93,6 +97,7 @@ export class InterviewScreen {
         els.sendit.focus();
       } else if (act === "yes") void this.yes();
     });
+    els.publish.addEventListener("click", () => void this.openPublish());
     document.addEventListener(
       "click",
       (e) => {
@@ -238,6 +243,21 @@ export class InterviewScreen {
       return;
     }
     this.close(false);
+  }
+
+  private async openPublish(): Promise<void> {
+    const { publish, menuError } = this.els;
+    if (publish.disabled) return;
+    this.confirmSendit(false);
+    menuError.hidden = true;
+    publish.disabled = true;
+    publish.textContent = "saving…";
+    const err = await this.publish();
+    publish.disabled = false;
+    publish.textContent = "publish →";
+    if (!err) return; // the publish sheet is opening
+    menuError.textContent = `not opened · ${err}`;
+    menuError.hidden = false;
   }
 
   private open(): void {

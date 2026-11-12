@@ -3,7 +3,10 @@
 // against the coach's words (`pastes`). The REST guard (login, Host, Origin) wraps
 // this in main.ts. `authorship` is the one call that flips an article between coached and drafted; the coach
 // does it, since the draft turn is its to start. `shelf` is the page from before the draft. `meta` stores the
-// publish sheet's fields; `publish` is the preflight (GET) and the start of a publish job (POST).
+// publish sheet's fields; `publish` is the preflight (GET) and the start of a publish job (POST). `backup` is the
+// nightly backup's state (GET) and a run of it now (POST).
+
+import type { BackupState } from "@sparring/protocol/backup";
 import type { CorpusEntry } from "@sparring/protocol/overlap";
 import { postMeta } from "@sparring/protocol/publish";
 import { type Articles, FILES, type FileName, HttpError, sessionUri } from "./articles.ts";
@@ -45,7 +48,22 @@ const fileOf = (name: string): FileName => {
   return name as FileName;
 };
 
-export function restHandler(articles: Articles, coach?: Flipper, publisher?: Publisher) {
+/** What the routes need from the backup. */
+export interface BackupRunner {
+  state(): BackupState;
+  run(): Promise<BackupState>;
+}
+
+/** A backup that takes longer than this is answered as `running`; the client asks again. Under Bun's idle limit. */
+const BACKUP_WAIT_MS = 45_000;
+
+export function restHandler(
+  articles: Articles,
+  coach?: Flipper,
+  publisher?: Publisher,
+  backup?: BackupRunner,
+  backupWaitMs = BACKUP_WAIT_MS,
+) {
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent); // ["api", ...]
@@ -57,6 +75,19 @@ export function restHandler(articles: Articles, coach?: Flipper, publisher?: Pub
           const b = await body(req);
           return json(await articles.addIdea(str(b.text, "text")), 201);
         }
+      }
+      if (parts[1] === "backup" && parts.length === 2 && (m === "GET" || m === "POST")) {
+        if (!backup) throw new HttpError(503, { error: "the backup is not attached to this daemon" });
+        if (m === "GET") return json(backup.state());
+        await body(req);
+        const run = backup.run();
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const slow = new Promise<null>((r) => {
+          timer = setTimeout(r, backupWaitMs, null);
+        });
+        const done = await Promise.race([run, slow]);
+        clearTimeout(timer);
+        return json(done ?? backup.state());
       }
       if (parts[1] === "articles") {
         if (parts.length === 2 && m === "POST") {

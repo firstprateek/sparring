@@ -2,16 +2,17 @@
 // with a base_sha check, writes atomically and commits through one git queue. SQLite holds the row, never the
 // text. `metaFor` builds the `_meta.sparring` an article's AHP session carries.
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { wordCount } from "@sparring/protocol/blocks";
-import type { Stage, TOPICS } from "@sparring/protocol/commands";
+import { PASSES, type Stage, type TOPICS } from "@sparring/protocol/commands";
 import type { LetterKind, SparringMeta } from "@sparring/protocol/meta";
 import type { Note, NoteStatus } from "@sparring/protocol/notes";
 import { slugProblem } from "@sparring/protocol/slug";
 import type { Db } from "./db.ts";
 import { GitQueue } from "./git.ts";
+import { PROMPTS_DIR } from "./prompt.ts";
 
 export const FILES = ["article", "dump", "brief"] as const;
 export type FileName = (typeof FILES)[number];
@@ -62,7 +63,25 @@ export interface ArticlesOptions {
   defaultProvider: string;
   /** A save that is not Cmd+S commits only when the article's last commit is at least this old. */
   commitEveryMs?: number;
+  /** Where the built-in pass files are: `prompts/passes`. */
+  passesDir?: string;
+  /** The resume letter is made after this long away (ms): 24 hours. */
+  resumeAfterMs?: number;
 }
+
+/** What the Room shows on coming back: built from the row and the notes, with no agent. */
+export interface Resume {
+  stage: string;
+  savedAt: string | null;
+  /** When the article was last opened before this. */
+  awaySince: string;
+  openQuestion?: string;
+  /** The live notes the writer has not had on screen, in the order they were left. */
+  unread: { id: string; kind: string; pass: string; span: string }[];
+}
+
+const RESUME_AFTER_MS = 24 * 3600_000;
+const PASS_NAME = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
 export class Articles {
   readonly git: GitQueue;
@@ -105,7 +124,30 @@ export class Articles {
         await this.git.raw(["add", "--", "STYLE.md", "inbox.md"]);
         await this.git.raw(["commit", "-q", "-m", "writing repo"]);
       }
+      await this.seedPasses();
     });
+  }
+
+  private get passesDir(): string {
+    return this.opts.passesDir ?? join(PROMPTS_DIR, "passes");
+  }
+
+  /**
+   * Copies each built-in pass that `~/writing/passes/` lacks, and commits the new files. A file the writer has
+   * there already, edited or not, is never touched. Inside the git queue.
+   */
+  private async seedPasses(): Promise<void> {
+    const made: string[] = [];
+    for (const name of PASSES) {
+      const to = join(this.dir, "passes", `${name}.md`);
+      if (existsSync(to)) continue;
+      const text = await readFile(join(this.passesDir, `${name}.md`), "utf8").catch(() => "");
+      if (!text) continue;
+      await mkdir(join(this.dir, "passes"), { recursive: true });
+      await writeFile(to, text);
+      made.push(`passes/${name}.md`);
+    }
+    if (made.length > 0) await this.commitPaths(made, "pass files");
   }
 
   all(): ArticleRow[] {
@@ -273,10 +315,32 @@ export class Articles {
     return readFile(join(this.dir, "STYLE.md"), "utf8").catch(() => "");
   }
 
-  /** A pass file, `~/writing/passes/<id>.md`, or undefined. The id is a pass name, never a path. */
+  /**
+   * A pass file, `~/writing/passes/<id>.md`, or undefined. The id is a pass name, never a path. A built-in pass
+   * whose file the writer deleted or emptied is read from the built-in copy.
+   */
   async pass(id: string): Promise<string | undefined> {
-    if (!/^[a-z0-9][a-z0-9-]{0,39}$/.test(id)) return undefined;
-    return readFile(join(this.dir, "passes", `${id}.md`), "utf8").catch(() => undefined);
+    if (!PASS_NAME.test(id)) return undefined;
+    const own = await readFile(join(this.dir, "passes", `${id}.md`), "utf8").catch(() => undefined);
+    if (own?.trim()) return own;
+    if (!(PASSES as readonly string[]).includes(id)) return undefined;
+    const builtIn = await readFile(join(this.passesDir, `${id}.md`), "utf8").catch(() => undefined);
+    return builtIn?.trim() ? builtIn : undefined;
+  }
+
+  /** Every pass that can run: the built-in ones in their order, then the writer's own files by name. */
+  passNames(): string[] {
+    let own: string[] = [];
+    try {
+      own = readdirSync(join(this.dir, "passes"))
+        .filter((f) => f.endsWith(".md"))
+        .map((f) => f.slice(0, -3))
+        .filter((n) => PASS_NAME.test(n) && !(PASSES as readonly string[]).includes(n))
+        .sort();
+    } catch {
+      // No folder: only the built-in ones.
+    }
+    return [...PASSES, ...own];
   }
 
   /** SHA-256 of article.md as it is on disk now. */
@@ -422,6 +486,16 @@ export class Articles {
       articleId,
       except,
     );
+  }
+
+  /** The pass of the article's last finished coach turn, or "". `done` after a `/next` turn hands over the section. */
+  lastCoachPass(articleId: string, except = ""): string {
+    const r = this.db.all<{ pass: string | null }>(
+      "SELECT pass FROM turns WHERE article_id = ? AND turn_id != ? AND status = 'done' ORDER BY started_at DESC, rowid DESC LIMIT 1",
+      articleId,
+      except,
+    )[0];
+    return r?.pass ?? "";
   }
 
   /** The ids of the notes still waiting on the writer: open, or disagreed with. */
@@ -725,6 +799,8 @@ export class Articles {
       const text = await readFile(this.path(slug, f), "utf8").catch(() => "");
       files[f] = { text, sha: sha256(text) };
     }
+    const comments = this.comments(row.id);
+    const resume = this.resumeFor(row, comments);
     this.db.run("UPDATE articles SET last_opened_at = ? WHERE id = ?", now(), row.id);
     const commit = (await this.git.run(["rev-parse", "HEAD"])).stdout.trim();
     return {
@@ -733,9 +809,31 @@ export class Articles {
       authorship: row.authorship,
       files,
       commit,
-      comments: this.comments(row.id),
+      comments,
       briefNotes: JSON.parse(String(row.brief_notes_json ?? "[]")),
-      resume: null,
+      resume,
+    };
+  }
+
+  /**
+   * The resume letter, or null: made when the article was last opened 24 hours ago or more, and also when a note
+   * was left since it was last opened (passes queued for the night are read in the morning, well inside a day).
+   * Never on the first opening.
+   */
+  private resumeFor(row: ArticleRow, comments: readonly Note[]): Resume | null {
+    const last = typeof row.last_opened_at === "string" ? row.last_opened_at : null;
+    if (!last) return null;
+    const unread = comments.filter(
+      (c) => (c.status === "open" || c.status === "disagreed") && c.seen_at === null,
+    );
+    const away = Date.now() - Date.parse(last) >= (this.opts.resumeAfterMs ?? RESUME_AFTER_MS);
+    if (!away && !unread.some((c) => c.created_at > last)) return null;
+    return {
+      stage: row.stage,
+      savedAt: row.saved_at ?? null,
+      awaySince: last,
+      ...(row.open_question ? { openQuestion: row.open_question.slice(0, 200) } : {}),
+      unread: unread.map((c) => ({ id: c.id, kind: c.kind, pass: c.pass, span: c.span.slice(0, 120) })),
     };
   }
 

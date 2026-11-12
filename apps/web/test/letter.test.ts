@@ -1,7 +1,14 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../src/api.ts";
-import { type LetterLine, letterLines, letterParts, letterRows } from "../src/letter.ts";
+import {
+  type LetterLine,
+  letterLines,
+  letterParts,
+  letterRows,
+  resumeRows,
+  tickerText,
+} from "../src/letter.ts";
 
 const line = (id: string, kind: LetterLine["kind"], text: string, at: string): LetterLine => ({
   id,
@@ -80,6 +87,105 @@ describe("the letter", () => {
     b.click();
     await vi.waitFor(() => expect(rows[0]?.querySelector(".err")?.textContent).toContain("not restored"));
     expect(b.disabled).toBe(false);
+  });
+});
+
+describe("pass results", () => {
+  const PASSES_DONE: LetterLine[] = [
+    line("p1", "passDone", "filler · 2 notes", "2026-11-10T02:00:00Z"),
+    line("p2", "passEmpty", "nothing in this pass · cut", "2026-11-10T02:01:00Z"),
+  ];
+
+  it("show as the daemon worded them, each with a dismiss", async () => {
+    const dismiss = vi.fn(async () => {});
+    const rows = letterRows(PASSES_DONE, async () => {}, dismiss);
+    expect(rows.map((r) => r.textContent)).toEqual([
+      "nothing in this pass·cut·dismiss",
+      "filler·2 notes·dismiss",
+    ]);
+    rows[1]?.querySelector("button")?.click();
+    expect(dismiss).toHaveBeenCalledWith("p1");
+  });
+
+  it("say in red when a dismiss fails", async () => {
+    const rows = letterRows(
+      PASSES_DONE,
+      async () => {},
+      async () => {
+        throw new Error("no such letter line");
+      },
+    );
+    const b = rows[0]?.querySelector("button") as HTMLButtonElement;
+    b.click();
+    await vi.waitFor(() => expect(rows[0]?.querySelector(".err")?.textContent).toContain("not dismissed"));
+    expect(b.disabled).toBe(false);
+  });
+});
+
+describe("the ticker", () => {
+  const now = Date.parse("2026-11-10T02:00:12Z");
+  const run = (pass: string) => ({ pass, startedAt: "2026-11-10T02:00:00Z" });
+
+  it("counts the seconds of a running pass and what waits behind it", () => {
+    expect(tickerText(run("critique"), 0, now)).toBe("running critique… 12s");
+    expect(tickerText(run("filler"), 2, now)).toBe("running filler… 12s · 2 queued");
+    expect(tickerText(run(""), 0, now)).toBe("the coach is answering… 12s");
+  });
+
+  it("is empty when nothing runs, and says so between two queued passes", () => {
+    expect(tickerText(null, 0, now)).toBe("");
+    expect(tickerText(undefined, undefined, now)).toBe("");
+    expect(tickerText(null, 1, now)).toBe("1 queued · starting…");
+  });
+});
+
+describe("the resume letter", () => {
+  const ago = (ms: number) => `${Math.round(ms / 3600_000)}h`;
+  const now = Date.parse("2026-11-11T08:00:00Z");
+  const resume = {
+    stage: "polish",
+    savedAt: "2026-11-10T22:00:00Z",
+    awaySince: "2026-11-10T23:00:00Z",
+    openQuestion: "Which lens first?",
+    unread: Array.from({ length: 8 }, (_, i) => ({
+      id: `c0${i + 1}`,
+      kind: "filler",
+      pass: i < 4 ? "filler" : "cut",
+      span: "really hard at first and for a long while after that as well",
+    })),
+  };
+
+  it("says where the article stands, the open question and the unread notes", () => {
+    const rows = resumeRows(resume, { ago, open: () => {}, dismiss: () => {}, now });
+    const text = rows.map((r) => r.textContent);
+    expect(text[0]).toBe("welcome back · last here 9h ago · stage polish · saved 10h ago·dismiss");
+    expect(text[1]).toBe("the coach asked: Which lens first?");
+    expect(text[2]).toBe("8 unread notes");
+    expect(text[3]).toBe("c01 · filler · “really hard at first and for a long whi…”");
+    expect(text.at(-1)).toBe("and 2 more in the notes");
+    expect(rows.length).toBe(3 + 6 + 1);
+  });
+
+  it("opens a note from its line, and goes away on dismiss", () => {
+    const open = vi.fn();
+    const dismiss = vi.fn();
+    const rows = resumeRows({ ...resume, unread: resume.unread.slice(0, 1) }, { ago, open, dismiss, now });
+    expect(rows.map((r) => r.textContent)[2]).toBe("1 unread note");
+    rows[3]?.querySelector("button")?.click();
+    expect(open).toHaveBeenCalledWith("c01");
+    rows[0]?.querySelector("button")?.click();
+    expect(dismiss).toHaveBeenCalled();
+  });
+
+  it("says so when nothing is unread and no question is open", () => {
+    const rows = resumeRows(
+      { stage: "draft", savedAt: null, awaySince: resume.awaySince, unread: [] },
+      { ago, open: () => {}, dismiss: () => {}, now },
+    );
+    expect(rows.map((r) => r.textContent)).toEqual([
+      "welcome back · last here 9h ago · stage draft·dismiss",
+      "no unread notes",
+    ]);
   });
 });
 

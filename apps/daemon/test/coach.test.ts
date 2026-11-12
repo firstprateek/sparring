@@ -146,11 +146,14 @@ describe("the scripted coach", () => {
     const a = await t.article("a");
     const c = new TestClient(t.host);
     await c.init([ROOT, a.chat]);
-    for (const [i, cmd] of ["/pass filler", "/strict normal", "/queue"].entries()) {
+    // `/sendit` and `/publish` are the web client's; from another client they change nothing.
+    for (const [i, cmd] of ["/sendit", "/publish"].entries()) {
       c.dispatch(a.chat, turnStarted(cmd, `t${i}`));
       await t.host.idle();
       expect(t.host.chatState(a.chat)?.turns[i]?.responseParts).toEqual([
-        expect.objectContaining({ content: expect.stringMatching(/arrives in a later build step/) }),
+        expect.objectContaining({
+          content: expect.stringMatching(/opens in the web client · nothing changed/),
+        }),
       ]);
     }
     expect(t.launches()).toBe(0);
@@ -188,7 +191,8 @@ describe("the scripted coach", () => {
       _meta: SESSION_META,
     });
     c.dispatch(a.chat, turnStarted("slow down", "t2"));
-    await sleep(30);
+    // The cancel is sent once the agent has the prompt, however busy the machine is.
+    for (let i = 0; i < 400 && fake.last.prompts.length < 2; i++) await sleep(5);
     c.dispatch(a.chat, { type: ActionType.ChatTurnCancelled, turnId: "t2", duration: 0 });
     await t.host.idle();
     expect(t.host.chatState(a.chat)?.turns[1]?.state).toBe(TurnState.Cancelled);

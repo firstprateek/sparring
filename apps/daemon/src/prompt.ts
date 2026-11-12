@@ -58,6 +58,30 @@ export function header(h: Header): string {
   );
 }
 
+/** What each strictness asks of a pass. */
+const STRICTNESS_MEANS: Record<string, string> = {
+  "howlers only": "flag only what a reader would trip on; let the rest go",
+  normal: "flag what a careful editor would mark; skip what is arguable",
+  "every nit": "flag every instance, however small",
+};
+
+/** The strictness line of a pass header: `Strictness: every nit · flag every instance, however small`. */
+export function strictnessLine(strictness: string): string {
+  const means = STRICTNESS_MEANS[strictness];
+  return means ? `Strictness: ${strictness} · ${means}` : `Strictness: ${strictness}`;
+}
+
+/** The pass prompt: a header naming the file and the strictness, then the pass file as the writer has it. */
+export function passBlock(o: { pass: string; strictness: string; text: string }): string {
+  return [`Pass: ${o.pass} · from passes/${o.pass}.md`, strictnessLine(o.strictness), "", o.text.trim()].join(
+    "\n",
+  );
+}
+
+/** Sent with a plain message while the writer has `/quiet` on. */
+export const QUIET_LINE =
+  "The writer asked for quiet. Answer what was asked in chat and leave no notes: comment is refused until the writer runs /critique or /pass.";
+
 /** What the coach is shown of article.md: a diff since it last saw it, the whole text, or a pointer. */
 export function articleBlock(o: {
   seen: string | null;

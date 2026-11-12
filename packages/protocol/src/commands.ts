@@ -39,6 +39,26 @@ export type Stage = (typeof STAGES)[number];
 
 export const STRICTNESS = ["howlers only", "normal", "every nit"] as const;
 
+/** The built-in passes, in `prompts/passes/`. A copy of each is put in `~/writing/passes/`, where the writer edits it. */
+export const PASSES = [
+  "filler",
+  "buried-verbs",
+  "passive",
+  "repeats",
+  "topic-sentences",
+  "cut",
+  "voice",
+  "typos",
+  "tells",
+] as const;
+
+/** `/strict <word>`: the level a word names, by its full name or its first word. */
+export function strictnessOf(word: string): (typeof STRICTNESS)[number] | undefined {
+  const w = word.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!w) return undefined;
+  return STRICTNESS.find((s) => s === w || s.split(" ")[0] === w || s.split(" ").at(-1) === w);
+}
+
 export const TOPICS = ["thesis", "reader", "evidence", "counter", "uncertainty", "scar"] as const;
 
 /** The command a composer line starts with, or null when it is plain text. */
@@ -61,4 +81,10 @@ export const BUILT_COMMANDS: ReadonlySet<string> = new Set([
   "critique",
   "reader",
   "mute",
+  "next",
+  "ask",
+  "pass",
+  "queue",
+  "strict",
+  "quiet",
 ]);

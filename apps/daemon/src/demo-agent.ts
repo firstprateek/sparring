@@ -14,6 +14,13 @@
 // In a critique turn (the header's pass or stage is `critique`) it reads article.md and leaves two notes with
 // `comment`, once per session. A `re c09: …` turn is answered with `resolve_comment`: it sharpens the note, or
 // withdraws it when the writer's reply asks for that. A `/reader` turn reads the brief and answers as the reader.
+//
+// The later stages each get their own move, so the Room shows them apart. In `outline` it reads the page and
+// names the `##` headings it found; in `draft` it stays out of the way; in `polish` it asks for a pass. `/next`
+// names the first heading with nothing under it, and `done` after it leaves one note on the last paragraph.
+// `/ask` leaves one note on the paragraph the question was parked at. A named pass (`/pass filler`, or one of a
+// `/queue`) reads the page and flags what a few fixed patterns find, fewer or more by the strictness in the
+// header: `filler`, `repeats`, `passive`, `typos` and `cut` can leave notes, every other pass finds nothing.
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -53,6 +60,33 @@ export const NOTE_BODIES = [
   (words: string) =>
     `You open with "${words}" and the paragraph does not come back to it. What does the reader know after it that they did not before?`,
 ] as const;
+export const NO_HEADINGS =
+  "There are no ## headings on the page yet. Which line of your brief does the reader need first?";
+export const DRAFT_SAYS =
+  "I stay quiet while you draft. /next names the section to write, and /ask parks a question at a paragraph.";
+export const POLISH_SAYS =
+  "Polish runs one pass at a time. Which lens first? /pass filler runs one, and /queue filler repeats cut runs several.";
+export const NO_PARAGRAPH =
+  "I have no paragraph to pin that to. Click in a paragraph of the article, then ask again.";
+export const QUIET_ANSWER =
+  "You asked for quiet, so I am answering here and leaving no note. What would the reader say to that question?";
+export const ASK_BODY =
+  "This paragraph does not answer your question yet. What would you say if the reader asked you the same thing?";
+export const SECTION_BODY =
+  "This tells me what happened and not what you saw. What was in front of you when it did?";
+export const CUT_BODY =
+  "The reader named in the brief may not miss this paragraph. What do they lose without it?";
+export const PASSIVE_BODY = "Who did this? The sentence does not say, and the reader will want to know.";
+export const TYPO_BODY = "word doubled";
+export const fillerBody = (word: string) => `"${word}" adds no degree here. Does the claim need it?`;
+export const repeatBody = (word: string) =>
+  `"${word}" comes back within a few lines. Is the echo on purpose?`;
+/** How many notes the scripted coach leaves in one pass, by strictness. */
+export const DEMO_LIMIT: Record<string, number> = { "howlers only": 1, normal: 2, "every nit": 10 };
+const FILLER = /\b(very|really|quite|actually|basically|just|simply|kind of|sort of)\s+[\w'’-]+/gi;
+const PASSIVE = /\b(?:was|were|is|are|been|being|be)\s+\w+ed\b/g;
+const DOUBLED = /\b([A-Za-z]+)\s+\1\b/g;
+
 export const SHARPENED =
   "Sharpened. The sentence still names no source. Say where it comes from, or say it is a guess.";
 export const WITHDRAWN = "Withdrawn. Your reply covers it.";
@@ -257,8 +291,7 @@ export class DemoCoach {
       .split(/\n\s*\n/)
       .map((b) => b.trim())
       .filter((b) => b && !b.startsWith("#"));
-    const first = (b: string) => (/^[^.!?\n]+[.!?]?/.exec(b)?.[0] ?? b).trim();
-    const anchors = [...new Set([paras[0], paras.at(-1)].filter((b) => b !== undefined).map(first))];
+    const anchors = [...new Set([paras[0], paras.at(-1)].filter((b) => b !== undefined).map(firstSentence))];
     if (anchors.length === 0) return EMPTY_PAGE;
     s.critiqued = true;
     let left = 0;
@@ -278,6 +311,103 @@ export class DemoCoach {
     return left === 1
       ? "One item. It cites a brief line. Nothing on structure."
       : "Two items. One cites a brief line. Nothing on structure.";
+  }
+
+  /** The page as blocks, with the line numbers of `read_article` taken off; null when it is empty. */
+  private async page(sessionId: string, s: DemoSession): Promise<string[] | null> {
+    const numbered = (await this.tool(sessionId, s, "read_article", {})) ?? "";
+    if (numbered.startsWith("(")) return null;
+    const blocks = numbered
+      .split("\n")
+      .map((l) => l.replace(/^\s*\d+ {2}/, ""))
+      .join("\n")
+      .split(/\n\s*\n/)
+      .map((b) => b.trim())
+      .filter(Boolean);
+    return blocks.length > 0 ? blocks : null;
+  }
+
+  /** The outline turn: names the `##` headings on the page and asks about the first. */
+  private async outline(sessionId: string, s: DemoSession): Promise<string> {
+    const heads = ((await this.page(sessionId, s)) ?? []).filter((b) => /^##+ /.test(b));
+    const first = heads[0];
+    if (first === undefined) return NO_HEADINGS;
+    const n = heads.length === 1 ? "one section" : `${heads.length} sections`;
+    return `I count ${n}. What does the reader know after "${first}" that they did not know before it?`;
+  }
+
+  /** `/next`: the first heading with nothing written under it. */
+  private async next(sessionId: string, s: DemoSession): Promise<string> {
+    const blocks = (await this.page(sessionId, s)) ?? [];
+    const isHead = (b: string | undefined) => b !== undefined && /^##+ /.test(b);
+    if (!blocks.some(isHead)) return NO_HEADINGS;
+    const at = blocks.findIndex((b, i) => isHead(b) && (i === blocks.length - 1 || isHead(blocks[i + 1])));
+    if (at < 0) return "Every section has something under it. Which one would the reader call thin?";
+    return `Write the section under "${blocks[at]}". Ugly is fine. Say done when it is in the file.`;
+  }
+
+  /** `done` after `/next`: one note on the last paragraph, standing in for the section just written. */
+  private async section(sessionId: string, s: DemoSession): Promise<string> {
+    const paras = ((await this.page(sessionId, s)) ?? []).filter((b) => !b.startsWith("#"));
+    const last = paras.at(-1);
+    if (last === undefined) return EMPTY_PAGE;
+    const made = await this.tool(sessionId, s, "comment", {
+      anchor: firstSentence(last),
+      kind: "detail",
+      body: SECTION_BODY,
+      pass: "section",
+    });
+    return made === undefined ? NOTHING : "One note on that section.";
+  }
+
+  /** `/ask`: one note anchored in the paragraph the question was parked at. */
+  private async askNote(sessionId: string, s: DemoSession, prompt: string): Promise<string> {
+    const para = /<paragraph>\n([\s\S]*?)\n<\/paragraph>/.exec(prompt)?.[1];
+    if (/^The writer asked for quiet\.$/m.test(prompt)) return QUIET_ANSWER;
+    if (para === undefined) return NO_PARAGRAPH;
+    const made = await this.tool(sessionId, s, "comment", {
+      anchor: firstSentence(para),
+      kind: "unclear",
+      body: ASK_BODY,
+      pass: "ask",
+    });
+    return made === undefined
+      ? "I could not leave a note on that paragraph."
+      : "Answered in a note on that paragraph.";
+  }
+
+  /** A named pass: what its fixed patterns find, as notes, at most as many as the strictness allows. */
+  private async pass(sessionId: string, s: DemoSession, pass: string, strictness: string): Promise<string> {
+    const blocks = await this.page(sessionId, s);
+    if (!blocks) return EMPTY_PAGE;
+    const paras = blocks.filter((b) => !b.startsWith("#"));
+    const finds: { anchor: string; kind: string; body: string }[] = [];
+    const each = (re: RegExp, kind: string, body: (m: RegExpExecArray) => string) => {
+      for (const p of paras)
+        for (const m of p.matchAll(re)) finds.push({ anchor: m[0], kind, body: body(m as RegExpExecArray) });
+    };
+    if (pass === "filler") each(FILLER, "filler", (m) => fillerBody(m[1] ?? ""));
+    else if (pass === "passive") each(PASSIVE, "unclear", () => PASSIVE_BODY);
+    else if (pass === "typos") each(DOUBLED, "typo", () => TYPO_BODY);
+    else if (pass === "repeats") {
+      for (const p of paras) {
+        const seen = new Set<string>();
+        for (const m of p.matchAll(/\b[A-Za-z]{6,}\b(?: [\w'’-]+){0,2}/g)) {
+          const word = (/^[A-Za-z]+/.exec(m[0])?.[0] ?? "").toLowerCase();
+          if (seen.has(word)) finds.push({ anchor: m[0].trim(), kind: "filler", body: repeatBody(word) });
+          seen.add(word);
+        }
+      }
+    } else if (pass === "cut" && paras.length >= 3) {
+      finds.push({ anchor: firstSentence(paras.at(-1) as string), kind: "filler", body: CUT_BODY });
+    }
+    let left = 0;
+    for (const f of finds) {
+      if (left >= (DEMO_LIMIT[strictness] ?? 2)) break;
+      if ((await this.tool(sessionId, s, "comment", { ...f, pass })) !== undefined) left++;
+    }
+    if (left === 0) return NOTHING;
+    return `${left === 1 ? "One note" : `${left} notes`} in the ${pass} pass, at ${strictness}.`;
   }
 
   /** The answer to `re c09: …`: one resolve_comment, sharpen unless the writer's reply asks to withdraw. */
@@ -321,9 +451,12 @@ export class DemoCoach {
       critiqued: false,
     };
     this.sessions.set(sessionId, s);
-    const head = /^<sparring stage="([a-z]+)" pass="([a-z0-9-]*)"/m.exec(text);
+    const head = /^<sparring stage="([a-z]+)" pass="([a-z0-9-]*)" strictness="([^"]*)"/m.exec(text);
     const stage = head?.[1];
     const pass = head?.[2] ?? "";
+    const strictness = head?.[3] ?? "normal";
+    const can = !!this.o.tools && !!s.secret;
+    const end = async (said: string) => ({ stopReason: await this.say(sessionId, said) });
     // The notes: a disagreement, the reader, the critique. None of them uses up an interview question.
     const disputed = /^The writer disagrees with your note (c\d+)/m.exec(text)?.[1];
     if (disputed)
@@ -332,10 +465,20 @@ export class DemoCoach {
       if (this.o.tools && s.secret) await this.tool(sessionId, s, "read_source", { name: "brief" });
       return { stopReason: await this.say(sessionId, READER_SAYS) };
     }
+    // A named pass comes with its file: `Pass: filler · from passes/filler.md`.
+    if (pass && new RegExp(`^Pass: ${pass} · from passes/${pass}\\.md$`, "m").test(text))
+      return end(can ? await this.pass(sessionId, s, pass, strictness) : NOTHING);
+    if (pass === "next") return end(can ? await this.next(sessionId, s) : NO_HEADINGS);
+    if (pass === "section") return end(can ? await this.section(sessionId, s) : NOTHING);
+    if (pass === "ask") return end(can ? await this.askNote(sessionId, s, text) : NO_PARAGRAPH);
     if (pass === "critique" || stage === "critique") {
       const said = s.critiqued ? NOTHING : await this.critique(sessionId, s);
       return { stopReason: await this.say(sessionId, said) };
     }
+    // The later stages, each with its own move. None of them uses up an interview question.
+    if (stage === "outline") return end(can ? await this.outline(sessionId, s) : NO_HEADINGS);
+    if (stage === "draft") return end(DRAFT_SAYS);
+    if (stage === "polish") return end(POLISH_SAYS);
     const n = s.played++;
     if (stage === "interview") await this.interviewTools(sessionId, s, n);
     if (this.cancelled.has(sessionId)) return { stopReason: "cancelled" };
@@ -409,6 +552,9 @@ export class DemoCoach {
     };
   }
 }
+
+/** The first sentence of a paragraph, the anchor of a note about the whole of it. */
+const firstSentence = (b: string) => (/^[^.!?\n]+[.!?]?/.exec(b)?.[0] ?? b).trim();
 
 /** The launch for the `demo` provider: every article's coach is a fresh scripted one. */
 export const demoLaunch =

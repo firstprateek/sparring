@@ -91,3 +91,52 @@ describe("the critique step", () => {
     expect(loadState().step).toBe(step + 1);
   });
 });
+
+describe("the outline, draft and polish steps", () => {
+  it("are built: none of them is marked not built yet, and each has a check and a target", () => {
+    for (const title of ["Outline it", "Write the article", "Polish"]) {
+      const s = STEPS[at(title)];
+      expect(s?.later, title).toBeUndefined();
+      expect(typeof s?.done, title).toBe("function");
+      expect(s?.target, title).toBeTruthy();
+    }
+    // what is still to come belongs to drafted mode and publish
+    expect(STEPS.filter((s) => s.later).map((s) => s.title)).toEqual(["Stuck? Send it", "Publish"]);
+  });
+
+  it("the outline step waits for two headings on the article page", () => {
+    const step = at("Outline it");
+    expect(advance(step, { where: "room", stage: "outline", headings: 1 }).step).toBe(step);
+    expect(advance(step, { where: "room", stage: "outline", headings: 2 })).toEqual({
+      step: step + 1,
+      passed: "Outline it",
+    });
+  });
+
+  it("the draft step waits for 150 words", () => {
+    const step = at("Write the article");
+    expect(advance(step, { where: "room", stage: "draft", articleWords: 149 }).step).toBe(step);
+    expect(advance(step, { where: "room", stage: "draft", articleWords: 150 }).step).toBe(step + 1);
+  });
+
+  it("the polish step waits for a pass to have run, and points at the composer, the notes and the letter", () => {
+    const step = at("Polish");
+    expect(advance(step, { where: "room", stage: "polish", notes: 2, passes: 0 }).step).toBe(step);
+    expect(advance(step, { where: "room", stage: "polish", passes: 1 })).toEqual({
+      step: step + 1,
+      passed: "Polish",
+    });
+    localStorage.setItem("sparring-guide", JSON.stringify({ open: true, step, seen: true, small: false }));
+    const ids = ["composer", "notes", "letter"].map((id) => {
+      const el = document.createElement("div");
+      el.id = id;
+      document.body.append(el);
+      return el;
+    });
+    const g = new Guide("room", null);
+    for (const el of ids) expect(el.classList.contains("guide-target")).toBe(true);
+    expect(document.querySelector(".g-tag")).toBeNull();
+    g.update({ where: "room", passes: 1 });
+    expect(loadState().step).toBe(step + 1);
+  });
+});

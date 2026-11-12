@@ -178,6 +178,38 @@
 .letter .t:disabled {
   color: var(--muted);
 }
+/* A night's queue and the resume letter can be a dozen lines: the letter scrolls before it crowds out the turns. */
+.letter {
+  flex: none;
+  max-height: 34%;
+  overflow: auto;
+}
+.letter .ticker {
+  color: var(--muted);
+}
+.letter .resume .unread {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.foot .quiet {
+  color: var(--text);
+}
+@media (max-width: 760px) {
+  /* The panel is short under the page: the letter shows about three lines and scrolls, so the turns stay. */
+  .letter {
+    flex: 0 1 auto;
+    min-height: 2.4rem;
+    max-height: 4rem;
+  }
+  /* A long queue scrolls in place, and nothing in the panel may spill over the foot. */
+  .queued {
+    max-height: 2.9rem;
+    overflow: auto;
+  }
+  .coach {
+    overflow: hidden;
+  }
+}
 .turns {
   flex: 1;
   min-height: 0;

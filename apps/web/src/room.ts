@@ -5,7 +5,9 @@
 // `_meta.sparring.letter`; the dump leaf's blocks quoted by `briefNotes` carry `?`, and the brief leaf's margin
 // lists those quotes. The coach's notes on the article are listed in the coach panel (notes.ts), each block with
 // a live note carries a bar in the gutter, and the two jump to each other. A bump of `commentsRev` fetches the
-// snapshot again. At phone width in `interview` the
+// snapshot again. While a pass runs the letter counts (`running filler… 12s`), a pass result stays there until
+// dismissed, and after time away it opens with the resume letter. `/ask` takes the paragraph the caret is in.
+// `/quiet` folds the notes and puts `quiet` in the foot. At phone width in `interview` the
 // Room becomes the phone interview screen (interview.ts).
 import "@fontsource/source-serif-4/400.css";
 import "@fontsource/source-serif-4/400-italic.css";
@@ -16,7 +18,7 @@ import "./room.css";
 import "./interview.css";
 import "./guide.css";
 import { joinBlocks, splitBlocks, wordCount } from "@sparring/protocol/blocks";
-import type { Stage } from "@sparring/protocol/commands";
+import { PASSES, parseCommand } from "@sparring/protocol/commands";
 import { isLive, type Note } from "@sparring/protocol/notes";
 import { checkOutgoing } from "./actions.ts";
 import { ahp, useAhp } from "./ahp/hub.ts";
@@ -24,10 +26,10 @@ import { api, type BriefNote, type FileName, type Snapshot } from "./api.ts";
 import { adoptBrief, briefNotesOf, quoteMarks, renderQuotes } from "./brief.ts";
 import { Composer } from "./composer.ts";
 import { Guide } from "./guide.ts";
-import { BUILT, LEAF_HELP, stageHelp } from "./help.ts";
+import { LEAF_HELP, stageHelp } from "./help.ts";
 import { InterviewScreen, interviewDone, PHONE_QUERY } from "./interview.ts";
 import { Leaf } from "./leaf.ts";
-import { letterRows } from "./letter.ts";
+import { letterRows, resumeRows, tickerText } from "./letter.ts";
 import { renderTurns, Transcript } from "./log.ts";
 import { ensureLogin } from "./login.ts";
 import { NotesView } from "./notes.ts";
@@ -36,6 +38,7 @@ import { Page } from "./page.ts";
 import { ago } from "./rows.ts";
 import {
   ArticleList,
+  askLine,
   ChatLines,
   chatOf,
   hostQueued,
@@ -71,6 +74,7 @@ const els = {
   logBtn: $<HTMLButtonElement>("log-btn"),
   logEsc: $<HTMLButtonElement>("log-esc"),
   notesBtn: $<HTMLButtonElement>("notes-btn"),
+  quiet: $("quiet"),
 };
 const leafButtons = [...document.querySelectorAll<HTMLButtonElement>("button[data-leaf]")];
 
@@ -155,8 +159,32 @@ function stageRefused(reason: string): void {
   problem("stage", `stage not changed · ${reason}`);
 }
 
+/**
+ * `/ask <question>`: the question is parked at the paragraph the caret is in on the article page. The page is
+ * saved first, since the host looks for that paragraph on disk. With no paragraph the question goes alone and
+ * the coach answers in chat.
+ */
+async function sendAsk(from: Composer, text: string): Promise<void> {
+  const leaf = leaves.get("article");
+  const block = active === "article" && !interview.visible ? page.caretBlock() : null;
+  if (block !== null && leaf) {
+    if (leaf.dirty) await leaf.saveNow(false);
+    if (leaf.dirty || leaf.state.kind !== "saved") {
+      from.restore(text);
+      from.note("article.md is not saved yet · /ask again once the foot says saved");
+      return;
+    }
+  }
+  sendLine(from, askLine(text, block), true);
+}
+
 /** A composer line: checked, then sent or kept in the outbox. Returns true when it went out now. */
-function sendLine(from: Composer, text: string): boolean {
+function sendLine(from: Composer, text: string, asked = false): boolean {
+  const cmd = asked ? null : parseCommand(text.split("\n", 1)[0] ?? "");
+  if (cmd?.command.name === "ask" && cmd.rest) {
+    void sendAsk(from, text);
+    return false;
+  }
   const problem = checkOutgoing(text);
   if (problem) {
     from.note(problem);
@@ -300,6 +328,11 @@ const transcriptView = new Transcript(els.logList, els.log);
 let guide: Guide | undefined;
 /** What renderAhp last saw, for the guide. */
 let seen = { stage: "", covered: 0, said: 0 };
+/** The session's strictness and the article's quiet switch, as renderAhp last saw them. */
+let strictness = "normal";
+let quiet: boolean | undefined;
+/** The passes that are not stage names: a note from one, or a pass result in the letter, is a pass that ran. */
+const PASS_NAMES: ReadonlySet<string> = new Set(PASSES);
 
 function updateGuide(): void {
   if (!loaded) return;
@@ -309,7 +342,11 @@ function updateGuide(): void {
     leaf: active,
     dumpWords: words("dump"),
     articleWords: words("article"),
+    headings: splitBlocks(leaves.get("article")?.text ?? "").filter((b) => /^##+ /.test(b)).length,
     notes: notes.length,
+    passes:
+      notes.filter((n) => PASS_NAMES.has(n.pass)).length +
+      (currentMeta()?.letter ?? []).filter((l) => l.kind === "passDone" || l.kind === "passEmpty").length,
     ...seen,
   });
 }
@@ -363,6 +400,18 @@ function renderAhp(): void {
   renderTurns(els.turns, said, interviewDone(meta?.covered), stageHelp(stage));
   const covered = meta?.covered?.length ?? 0;
   seen = { stage, covered, said: said.filter((l) => l.kind === "you").length };
+  const strict = session?.config?.values.strictness;
+  strictness = typeof strict === "string" && strict ? strict : "normal";
+  if (meta) {
+    // `/quiet` folds the notes away and `quiet` shows in the foot; ending it brings them back.
+    const now = meta.coachQuiet === true;
+    if (now !== quiet && (quiet !== undefined || now)) {
+      notesView.fold(now);
+      if (now && notesView.sheetOpen) notesView.openSheet(false);
+    }
+    quiet = now;
+    els.quiet.hidden = !now;
+  }
   renderCoachStage();
   renderQueued();
 
@@ -442,17 +491,19 @@ function markPage(): void {
   else page.setMarks(null);
 }
 
-/** The coach panel's head: the stage, with what it counts. */
+/** The coach panel's head: the stage with what it counts, the strictness when it is not normal, and `quiet`. */
 function renderCoachStage(): void {
   const { stage, covered } = seen;
-  els.coachStage.textContent =
+  const parts = [
     stage === "interview"
       ? `interview · ${covered}/6 covered`
-      : stage === "critique" && notes.length > 0
-        ? `critique · ${notesView.open} open`
-        : BUILT.has(stage as Stage)
-          ? stage
-          : `${stage} · not built yet`;
+      : (stage === "critique" || stage === "polish") && notes.length > 0
+        ? `${stage} · ${notesView.open} open`
+        : stage,
+  ];
+  if (strictness !== "normal") parts.push(strictness);
+  if (quiet) parts.push("quiet");
+  els.coachStage.textContent = parts.join(" · ");
 }
 
 /** The notes list and the foot's notes button, from the snapshot's notes and the article as it is typed. */
@@ -528,7 +579,9 @@ function render(): void {
     rows.push(errRow("this browser is not keeping unsaved text · it lives only in this tab until it saves"));
   }
   if (loaded && list?.loaded && !list.bySlug(slug)) rows.push(noSessionRow());
-  rows.push(...hostLetter());
+  const tick = tickerRow();
+  if (tick) rows.push(tick);
+  rows.push(...hostLetter(), ...resumeEls);
   const info = conn.info;
   const down = info.status === "reconnecting" || (info.status === "connecting" && info.attempt > 0);
   if (down || info.status === "failed") rows.push(errRow(connectionWords(info)));
@@ -615,17 +668,48 @@ function noSessionRow(): HTMLDivElement {
   return noSessionEl;
 }
 
+/**
+ * `running filler… 12s` while the coach works on a pass, with what waits behind it. One element, so the count
+ * moves without the letter being rebuilt. A plain reply shows only once it has taken three seconds.
+ */
+const tickerEl = row(span(""));
+tickerEl.classList.add("ticker");
+tickerEl.setAttribute("role", "status");
+function tickerRow(): HTMLDivElement | null {
+  const meta = currentMeta();
+  const run = meta?.run ?? null;
+  const slow = run && (run.pass !== "" || Date.now() - Date.parse(run.startedAt) >= 3000);
+  const text = tickerText(slow ? run : null, meta?.queued);
+  if (!text) return null;
+  const s = tickerEl.firstElementChild as HTMLElement;
+  if (s.textContent !== text) s.textContent = text;
+  return tickerEl;
+}
+
+/** The resume letter of the snapshot the Room opened with; empty once dismissed. */
+let resumeEls: HTMLDivElement[] = [];
+
 /** The host's letter lines, rebuilt only when they change so a `restore it` in flight keeps its state. */
 let letterKey = "";
+const dismissedLetter = new Set<string>();
 let letterEls: HTMLDivElement[] = [];
 function hostLetter(): HTMLDivElement[] {
-  const letter = currentMeta()?.letter ?? [];
+  const letter = (currentMeta()?.letter ?? []).filter((l) => !dismissedLetter.has(l.id));
   const key = JSON.stringify(letter);
   if (key !== letterKey) {
     letterKey = key;
-    letterEls = letterRows(letter, async (id) => {
-      await api.letter(slug, id, "restore");
-    });
+    letterEls = letterRows(
+      letter,
+      async (id) => {
+        await api.letter(slug, id, "restore");
+      },
+      async (id) => {
+        await api.letter(slug, id, "dismiss");
+        // Gone at once here; the session's meta follows a moment later.
+        dismissedLetter.add(id);
+        render();
+      },
+    );
   }
   return letterEls;
 }
@@ -693,6 +777,18 @@ async function load(): Promise<void> {
     leaf.replay();
   }
   loaded = true;
+  if (snap.resume)
+    resumeEls = resumeRows(snap.resume, {
+      ago,
+      open: (id) => {
+        if (active !== "article") showLeaf("article");
+        notesView.focus(id);
+      },
+      dismiss: () => {
+        resumeEls = [];
+        render();
+      },
+    });
   const first: FileName =
     askedLeaf === "dump" || askedLeaf === "brief" || askedLeaf === "article"
       ? askedLeaf

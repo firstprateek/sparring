@@ -6,7 +6,9 @@
 //
 // A client turn first meets its slash command, if the host read one, or its note action (`done c08`): `/stage`,
 // `/offline`, `/idea`, `/mute`, `done`, `dismiss` and the client-only commands are answered with a host line and
-// start no agent. `/critique`, `/reader` and `re c09: …` are rewritten into prompt text. Anything else goes to
+// start no agent; so are `/strict`, `/quiet` and `/queue`, which adds one queued `/pass <name>` message per pass
+// for the host to run as separate turns, with or without a client. `/critique`, `/reader`, `/pass`, `/next`,
+// `/ask` and `re c09: …` are rewritten into prompt text. Anything else goes to
 // the article's coach as it is, an ACP agent started on the first prompt (the pinned claude adapter, or the scripted coach for `demo`)
 // and spoken to through acp-connection and acp-mapper. Every permission request it makes is answered by
 // policy.ts. Each turn has a `turns` row, a turn-start commit, a 10-minute limit and the tripwire; a child idle
@@ -18,7 +20,7 @@ import {
   type SessionConfigState,
 } from "@microsoft/agent-host-protocol";
 import { splitBlocks, wordCount } from "@sparring/protocol/blocks";
-import { BUILT_COMMANDS, STAGES, STRICTNESS, type Stage } from "@sparring/protocol/commands";
+import { BUILT_COMMANDS, STAGES, STRICTNESS, type Stage, strictnessOf } from "@sparring/protocol/commands";
 import { META_KEY } from "@sparring/protocol/meta";
 import { blockEdited, isLive, type NoteAction, parseNoteAction } from "@sparring/protocol/notes";
 import { AcpConnection, EXITED, type RpcReply, TIMED_OUT } from "./ahp/acp-connection.ts";
@@ -33,7 +35,7 @@ import type {
   TurnRun,
 } from "./ahp/backend.ts";
 import { type AhpHost, RpcError } from "./ahp/host.ts";
-import { ActionType, type Json, ResponsePartKind } from "./ahp/wire.ts";
+import { ActionType, type Json, PendingMessageKind, ResponsePartKind, USER_ORIGIN } from "./ahp/wire.ts";
 import { type ArticleRow, type Articles, HttpError, sessionUri, type TurnStatus } from "./articles.ts";
 import { DISALLOWED_TOOLS, killRecordedGroups } from "./claude.ts";
 import { type Decision, decide, SPARRING_PREFIX } from "./policy.ts";
@@ -43,6 +45,8 @@ import {
   header,
   type PastTurn,
   PROMPTS_DIR,
+  passBlock,
+  QUIET_LINE,
   rulesText,
   stagePrompt,
 } from "./prompt.ts";
@@ -62,6 +66,14 @@ export const MODE_REFUSED = "engine refused ask mode";
 export const OFFLINE_ON = "offline · no coach for this article";
 export const OFFLINE_OFF = "online · the coach starts on your next message";
 export const OFFLINE_TURN = "offline · /offline brings the coach back";
+export const QUIET_ON = "quiet · the coach holds its notes · /quiet again to hear them";
+export const QUIET_OFF = "the coach speaks again · notes are back";
+/** The letter and host line of a pass that left nothing. */
+export const passEmptyLine = (pass: string) => `nothing in this pass · ${pass}`;
+/** The letter and host line of a pass that left notes. */
+export const passDoneLine = (pass: string, n: number) => `${pass} · ${n} ${n === 1 ? "note" : "notes"}`;
+/** At most this many passes in one `/queue`. */
+export const QUEUE_MAX = 12;
 
 const SESSION_PREFIX = "ahp-session:/";
 const TURN_LIMIT_MS = 10 * 60_000;
@@ -159,6 +171,48 @@ export const READER_ASK =
   "believe, what you still do not know, and what you lose if you stop. Point at a place by quoting the writer " +
   "exactly. Leave no notes and suggest no wording. If the brief names no reader, say so and ask who reads this.";
 
+export const passAsk = (pass: string) =>
+  `Run the ${pass} pass over the whole draft now, as the pass instructions say. Leave each item with the ` +
+  `comment tool, pass "${pass}". If the pass finds nothing, say "nothing in this pass" and stop.`;
+export const NEXT_ASK =
+  "The writer asks what to write next. Read the page with read_article. Find the first ## section with no " +
+  "prose under it and tell the writer to write that one section, naming it by its own heading. Say that ugly " +
+  "is fine, and to say done when it is in the file. Leave no notes and write none of it. If the page has no " +
+  "## headings, say so and ask which point the reader needs first.";
+export const SECTION_ASK =
+  "The writer says the section is in the file. The change to article.md above is what they wrote; read the " +
+  "page with read_article if you need the rest. Leave at most five notes on that section with the comment " +
+  'tool, pass "section": an unclear referent, an unsupported claim, hand-waving, a missing lived detail, the ' +
+  "place where the reader named in the brief stops. Then say in one line how many you left and stop. If the " +
+  'section needs none, say "nothing in this pass".';
+const CHAT_ONLY =
+  "Answer in chat in one or two sentences, with no wording for the piece, and leave no notes.";
+/** `/ask` as the coach gets it: the question, and the paragraph it was parked at when there is one. */
+export function askText(question: string, block: string | null, why = ""): string {
+  if (block === null) return [`The writer asks: ${question}`, why, CHAT_ONLY].filter(Boolean).join("\n");
+  return [
+    "The writer parked a question at this paragraph of article.md:",
+    "<paragraph>",
+    block,
+    "</paragraph>",
+    `The question: ${question}`,
+    'Answer with one comment anchored inside that paragraph: the anchor copied exactly from it, pass "ask", ' +
+      "the kind that fits. The body is the answer, in one or two sentences, with no wording for the piece. " +
+      "Then say one line in chat and stop.",
+  ].join("\n");
+}
+
+/** The paragraph a `/ask` message carries: the lines after the first, each quoted with `> `. */
+export function askedBlock(message: string): string {
+  return message
+    .split("\n")
+    .slice(1)
+    .filter((l) => l.startsWith(">"))
+    .map((l) => l.replace(/^> ?/, ""))
+    .join("\n")
+    .trim();
+}
+
 class StartError extends Error {
   constructor(
     readonly kind: "signin" | "mode",
@@ -193,6 +247,8 @@ export class Coach implements AgentBackend {
   private readonly started = new Map<string, Live>();
   /** Articles with a coach turn running: `_meta.sparring.run`. */
   private readonly runs = new Map<string, { pass: string; startedAt: string }>();
+  /** Passes `/queue` added that have not started yet, per article: their turns are of origin `queue`. */
+  private readonly queuedPasses = new Map<string, number>();
   /** Providers whose engine answered -32000: their articles behave as if offline until /offline is toggled. */
   private readonly signedOut = new Set<string>();
   private readonly metaTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -222,6 +278,7 @@ export class Coach implements AgentBackend {
     this.articles.onChanged = (row) => this.metaSoon(row.id);
     this.articles.metaExtra = (row) => ({
       run: this.runs.get(row.id) ?? null,
+      queued: (row.chat ? this.host?.chatState(row.chat)?.queuedMessages?.length : 0) ?? 0,
       ...(this.signedOut.has(row.provider) ? { offline: true, signInNeeded: true } : {}),
     });
     this.o.tools.hooks = {
@@ -346,8 +403,8 @@ export class Coach implements AgentBackend {
     const handled = action
       ? await this.noteAction(row, run.chat, action)
       : run.command
-        ? await this.hostCommand(row, run.chat, run.command)
-        : false;
+        ? await this.hostCommand(row, run.chat, run.command, run.message.text)
+        : this.sectionDone(row, run);
     if (handled === true) return { kind: "complete" };
     if (handled !== false) rewrite = handled;
     if (Number(row.offline ?? 0) === 1) {
@@ -399,8 +456,114 @@ export class Coach implements AgentBackend {
     row: ArticleRow,
     chat: string,
     { command, rest }: ParsedCommand,
+    message = "",
   ): Promise<boolean | Rewrite> {
+    const quiet = Number(row.coach_quiet ?? 0) === 1;
+    const unquiet = () => {
+      if (quiet) this.articles.setQuiet(row.id, false);
+    };
     switch (command.name) {
+      case "pass": {
+        // One named pass, locked to its lens. It works from any stage and ends a quiet.
+        const name = rest.split(/\s+/)[0] ?? "";
+        const names = this.articles.passNames();
+        if (!name) {
+          this.line(row, chat, `no pass named · /pass ${names.join(" · ")}`);
+          return true;
+        }
+        if ((await this.articles.pass(name)) === undefined) {
+          this.line(row, chat, `no pass "${name.slice(0, 40)}" · ${names.join(" · ")}`);
+          return true;
+        }
+        const more = rest.slice(name.length).trim();
+        return {
+          pass: name,
+          text: more ? `${passAsk(name)}\n\nThe writer adds: ${more}` : passAsk(name),
+          apply: unquiet,
+        };
+      }
+      case "queue": {
+        const names = rest.split(/[\s,]+/).filter(Boolean);
+        if (names.length === 0) {
+          this.line(row, chat, "nothing queued · /queue filler repeats cut");
+          return true;
+        }
+        if (names.length > QUEUE_MAX) {
+          this.line(row, chat, `nothing queued · at most ${QUEUE_MAX} passes at once`);
+          return true;
+        }
+        for (const n of names) {
+          if ((await this.articles.pass(n)) !== undefined) continue;
+          this.line(
+            row,
+            chat,
+            `nothing queued · no pass "${n.slice(0, 40)}" · ${this.articles.passNames().join(" · ")}`,
+          );
+          return true;
+        }
+        // Each pass is its own queued message, so each runs as a separate turn once this one is over, with or
+        // without a client connected. The queue lives in the chat's state; there is no queue table.
+        for (const n of names)
+          this.h.apply(chat, {
+            type: ActionType.ChatPendingMessageSet,
+            kind: PendingMessageKind.Queued,
+            id: crypto.randomUUID(),
+            message: { text: `/pass ${n}`, origin: USER_ORIGIN },
+          });
+        this.queuedPasses.set(row.id, (this.queuedPasses.get(row.id) ?? 0) + names.length);
+        this.line(row, chat, `queued · ${names.join(" · ")}`, "divider");
+        this.h.resumeChat(chat);
+        return true;
+      }
+      case "strict": {
+        const to = strictnessOf(rest);
+        if (!to) {
+          this.line(
+            row,
+            chat,
+            rest
+              ? `no strictness "${rest.slice(0, 40)}" · /strict ${STRICTNESS.join(" · ")}`
+              : `strictness is ${row.strictness} · /strict ${STRICTNESS.join(" · ")}`,
+            rest ? "refused" : "mode",
+          );
+          return true;
+        }
+        this.articles.setStrictness(row.id, to);
+        this.h.apply(sessionUri(row.id), {
+          type: ActionType.SessionConfigChanged,
+          config: { strictness: to },
+        });
+        this.line(row, chat, `strictness ${to} · every pass from now on`, "mode");
+        return true;
+      }
+      case "quiet":
+        this.articles.setQuiet(row.id, !quiet);
+        this.line(row, chat, quiet ? QUIET_OFF : QUIET_ON, "mode");
+        return true;
+      case "next":
+        return { pass: "next", text: rest ? `${NEXT_ASK}\n\nThe writer adds: ${rest}` : NEXT_ASK };
+      case "ask": {
+        if (!rest) {
+          this.line(row, chat, "nothing asked · /ask <question>");
+          return true;
+        }
+        // The paragraph at the caret travels in the message, quoted. It counts only if it is on the page.
+        const asked = askedBlock(message);
+        const block = splitBlocks(await this.articles.read(row.slug, "article")).find(
+          (b) => b.trim() === asked,
+        );
+        const noNote = quiet
+          ? "The writer asked for quiet."
+          : row.authorship === "drafted"
+            ? "This article is drafted and the review is the writer's alone."
+            : block === undefined
+              ? "No paragraph of article.md came with the question."
+              : "";
+        return {
+          pass: "ask",
+          text: askText(rest, noNote || block === undefined ? null : block, noNote),
+        };
+      }
       case "critique":
         // `/critique` is the critique stage's pass: the article moves there if it is somewhere else, and a quiet
         // coach speaks again.
@@ -408,7 +571,7 @@ export class Coach implements AgentBackend {
           pass: "critique",
           text: rest ? `${CRITIQUE_ASK}\n\nThe writer adds: ${rest}` : CRITIQUE_ASK,
           apply: () => {
-            if (Number(row.coach_quiet ?? 0) === 1) this.articles.setQuiet(row.id, false);
+            unquiet();
             if (row.stage !== "critique") this.stage(row, "critique", true, chat);
           },
         };
@@ -460,6 +623,16 @@ export class Coach implements AgentBackend {
       return true;
     }
     return false;
+  }
+
+  /**
+   * `done`, typed alone, right after a `/next` turn: the writer says the section is in the file. The coach gets
+   * the diff, as every turn does, and is asked for at most five notes on it. Anything else is plain text.
+   */
+  private sectionDone(row: ArticleRow, run: TurnRun): false | Rewrite {
+    if (!/^done[.!]?$/i.test(run.message.text.trim())) return false;
+    if (this.articles.lastCoachPass(row.id, run.turnId) !== "next") return false;
+    return { pass: "section", text: SECTION_ASK };
   }
 
   /**
@@ -623,10 +796,15 @@ export class Coach implements AgentBackend {
       return { kind: "error", errorType: "git", message: `the turn-start commit failed: ${errText(e)}` };
     }
     const pass = rewrite?.pass ?? this.passOf(row);
+    // A pass with a file, or the critique: its result is a letter line and a host line.
+    const reports = pass === "critique" || (pass !== "" && (await this.articles.pass(pass)) !== undefined);
+    const waiting = this.queuedPasses.get(row.id) ?? 0;
+    const fromQueue = waiting > 0 && run.command?.command.name === "pass";
+    if (fromQueue) this.queuedPasses.set(row.id, waiting - 1);
     this.articles.turnStarted({
       turnId: run.turnId,
       articleId: row.id,
-      origin: "writer",
+      origin: fromQueue ? "queue" : "writer",
       stage: row.stage,
       pass,
       commitBefore,
@@ -659,11 +837,20 @@ export class Coach implements AgentBackend {
         this.log(`tripwire ${row.slug}: ${errText(e)}`),
       );
       const said = turn.text.trim();
+      if (status === "done" && reports) this.passResult(row, run.chat, run.turnId, pass);
       if (status === "done") this.articles.setOpenQuestion(row.id, said.endsWith("?") ? said : null);
       this.articles.turnEnded(run.turnId, status, said.endsWith("?"), turn.violation);
       this.runs.delete(row.id);
       this.pushMeta(row.id);
     }
+  }
+
+  /** A pass ended: `filler · 2 notes` or `nothing in this pass · filler`, in the letter and in the chat. */
+  private passResult(row: ArticleRow, chat: string, turnId: string, pass: string): void {
+    const n = this.articles.commentsInTurn(row.id, turnId);
+    const text = n > 0 ? passDoneLine(pass, n) : passEmptyLine(pass);
+    this.articles.addLetter(row.id, n > 0 ? "passDone" : "passEmpty", text);
+    this.line(row, chat, text, "divider");
   }
 
   /** The pass the session's config names, or "". */
@@ -721,12 +908,12 @@ export class Coach implements AgentBackend {
         openComments: open,
       }),
     );
-    const stage = stagePrompt(fresh.stage, this.o.promptsDir ?? PROMPTS_DIR);
+    // A named pass runs the same from any stage: its stage prompt is polish's, which says how every pass runs.
+    const passText = pass && pass !== fresh.stage ? await this.articles.pass(pass) : undefined;
+    const stage = stagePrompt(passText ? "polish" : fresh.stage, this.o.promptsDir ?? PROMPTS_DIR);
     if (stage) text(stage);
-    if (pass && pass !== fresh.stage) {
-      const p = await this.articles.pass(pass);
-      if (p) text(`The pass is ${pass}:\n${p.trim()}`);
-    }
+    if (pass && passText) text(passBlock({ pass, strictness: fresh.strictness, text: passText }));
+    if (Number(fresh.coach_quiet ?? 0) === 1) text(QUIET_LINE);
     const seen = typeof fresh.agent_seen_commit === "string" ? fresh.agent_seen_commit : null;
     const diff =
       seen && seen !== commitBefore ? await this.articles.articleDiff(row.slug, seen, commitBefore) : "";
@@ -781,6 +968,8 @@ export class Coach implements AgentBackend {
     const cancel = () => live.conn.notify("session/cancel", { sessionId: live.sessionId });
     run.signal.addEventListener("abort", cancel, { once: true });
     try {
+      // Cancelled while the prompt was being put together: nothing is sent.
+      if (run.signal.aborted) return { outcome: { kind: "cancelled" }, status: "interrupted" };
       const reply: RpcReply = await live.conn.request(
         "session/prompt",
         { sessionId: live.sessionId, prompt: blocks },

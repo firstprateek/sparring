@@ -2,6 +2,7 @@
 // the daemon named in config.ts and carries the login cookie; a 401 tells the login form to show.
 import type { Note } from "@sparring/protocol/notes";
 import { apiUrl, crossOrigin } from "./config.ts";
+import type { Resume } from "./letter.ts";
 
 export type FileName = "article" | "dump" | "brief";
 
@@ -21,6 +22,8 @@ export interface Snapshot {
   briefNotes?: BriefNote[];
   /** The coach's notes on the article, in the order they were left. */
   comments?: Note[];
+  /** The resume letter: set when the article was not opened for a day, or notes were left while it was closed. */
+  resume?: Resume | null;
 }
 
 /** One line of `~/writing/inbox.md`. */

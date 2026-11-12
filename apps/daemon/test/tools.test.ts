@@ -118,9 +118,14 @@ describe("the other tools", () => {
       text: "(brief.md is empty)",
     });
     expect((await tools.call(secret, "read_source", { name: "style" })).ok).toBe(true);
-    expect(await tools.call(secret, "read_source", { name: "pass:filler" })).toEqual({
+    // a built-in pass is in ~/writing/passes from the start; any other name is no pass
+    expect(await tools.call(secret, "read_source", { name: "pass:filler" })).toMatchObject({
+      ok: true,
+      text: expect.stringMatching(/^Pass: filler\./),
+    });
+    expect(await tools.call(secret, "read_source", { name: "pass:nope" })).toEqual({
       ok: false,
-      error: "no pass filler",
+      error: "no pass nope",
     });
     expect((await tools.call(secret, "read_source", { name: "pass:../../etc/passwd" })).ok).toBe(false);
     expect((await tools.call(secret, "read_source", { name: "article" })).ok).toBe(false);

@@ -1,6 +1,15 @@
 import type { ChatState } from "@microsoft/agent-host-protocol";
 import { describe, expect, it } from "vitest";
-import { chatOf, errorLine, metaOf, toolLine, transcript } from "../src/session.ts";
+import {
+  askLine,
+  chatOf,
+  errorLine,
+  hostQueued,
+  metaOf,
+  shownMessage,
+  toolLine,
+  transcript,
+} from "../src/session.ts";
 
 const turn = (over: Record<string, unknown>) => ({
   id: "t",
@@ -153,5 +162,31 @@ describe("errorLine", () => {
       ["you", "hello"],
       ["host", "sign-in needed · claude"],
     ]);
+  });
+});
+
+describe("/ask", () => {
+  const para = "The evenings were quiet. Quiet evenings are what the evenings were for, I thought.";
+
+  it("goes out with the paragraph at the caret quoted under the question", () => {
+    expect(askLine("/ask does this follow?", para)).toBe(`/ask does this follow?\n> ${para}`);
+    expect(askLine("/ask a list?", "- one\n- two")).toBe("/ask a list?\n> - one\n> - two");
+    expect(askLine("/ask no caret", null)).toBe("/ask no caret");
+    expect(askLine("/ask blank block", "  ")).toBe("/ask blank block");
+  });
+
+  it("shows in the turns with the paragraph cut to its first words", () => {
+    const sent = askLine("/ask does this follow?", para);
+    expect(shownMessage(sent)).toBe(
+      "/ask does this follow?\n> The evenings were quiet. Quiet evenings are what…",
+    );
+    expect(shownMessage("/ask alone")).toBe("/ask alone");
+    expect(shownMessage("plain\n> quoted by the writer")).toBe("plain\n> quoted by the writer");
+    const chat = {
+      turns: [turn({ id: "a", message: { text: sent, origin: { kind: "user" } } })],
+      queuedMessages: [{ id: "q", message: { text: "/pass cut", origin: { kind: "user" } } }],
+    } as unknown as ChatState;
+    expect(transcript(chat)[0]).toMatchObject({ kind: "you", text: shownMessage(sent) });
+    expect(hostQueued(chat)).toEqual(["/pass cut"]);
   });
 });

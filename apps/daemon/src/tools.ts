@@ -188,7 +188,9 @@ export class Tools {
   /** comment({anchor, kind, body, pass, brief_line?, file?}), validated as the design says. */
   private async comment(row: ArticleRow, a: Json): Promise<ToolReply> {
     if (Number(row.coach_quiet ?? 0) === 1)
-      return no("the coach is quiet for this article: no notes until the writer asks with /critique");
+      return no(
+        "the coach is quiet for this article: no notes until the writer asks with /critique or /pass",
+      );
     if (a.file !== undefined && a.file !== null && a.file !== "" && a.file !== "article")
       return no("notes go on article.md: leave file out");
     const kind = a.kind;

@@ -1,6 +1,7 @@
 // The guide: a tutorial card that walks the writer from an idea to a finished article in the real app. Each step
 // says what to do and points at the control; steps that can be checked (an idea kept, 100 words dumped, the
-// interview covered, a critique's notes on the page) move on by themselves once done. Steps for parts not built yet say so. Where the writer is
+// interview covered, an outline's headings, a critique's notes on the page, a pass that ran) move on by themselves
+// once done. Steps for parts not built yet say so. Where the writer is
 // in the guide is kept in localStorage, so it follows them from Articles into a Room; it is a convenience only.
 import type { FileName } from "./api.ts";
 
@@ -16,6 +17,10 @@ export interface GuideFacts {
   said?: number;
   /** Notes the coach has left on the article. */
   notes?: number;
+  /** `##` headings on the article page. */
+  headings?: number;
+  /** Named passes that have run: their notes, and their results in the letter. */
+  passes?: number;
 }
 
 export interface Step {
@@ -86,10 +91,17 @@ export const STEPS: readonly Step[] = [
     done: (f) => f.leaf === "brief",
   },
   {
-    title: "Write the article",
-    body: "Open article and write the piece yourself, with the brief to hand. The coach cannot edit this page. Cmd+S saves a version to git; the guide moves on at 150 words.",
+    title: "Outline it",
+    body: "Pick outline from the stage menu. On article, type a ## heading for each section with a one-line note under it, then say anything to the coach. It checks the outline against your brief and asks about the weakest section. It never proposes a heading. The guide moves on at two headings.",
     where: "room",
-    target: '[data-leaf="article"]',
+    target: '#stage-btn, [data-leaf="article"]',
+    done: (f) => (f.headings ?? 0) >= 2,
+  },
+  {
+    title: "Write the article",
+    body: "Pick draft from the stage menu and write the piece yourself; the coach cannot edit this page. /next names the section to write, and when you say done it leaves up to five notes on it. /ask and a question parks it at the paragraph your cursor is in. Cmd+S saves a version to git. The guide moves on at 150 words.",
+    where: "room",
+    target: '[data-leaf="article"], #composer',
     done: (f) => (f.articleWords ?? 0) >= 150,
   },
   {
@@ -101,7 +113,14 @@ export const STEPS: readonly Step[] = [
   },
   {
     title: "Polish",
-    body: "Coming later. Passes such as /pass filler flag one kind of problem at a time, and /queue runs them overnight. Stuck? /sendit has the coach write a draft, and every block it wrote stays marked until you rewrite it.",
+    body: "Pick polish from the stage menu and type /pass filler. A pass looks for one kind of problem and leaves notes, or says nothing in this pass. /queue filler repeats cut runs several, also with this page closed; the results wait here. /strict every nit makes passes pickier, and /quiet folds the notes away.",
+    where: "room",
+    target: "#composer, #notes, #letter",
+    done: (f) => (f.passes ?? 0) > 0,
+  },
+  {
+    title: "Stuck? Send it",
+    body: "Coming later. /sendit has the coach write one draft from your dump and brief. Every block it wrote stays marked until you rewrite it or tick it.",
     where: "any",
     later: true,
   },
@@ -113,7 +132,7 @@ export const STEPS: readonly Step[] = [
   },
   {
     title: "That is the loop",
-    body: "Idea → dump → interview → brief → article → critique → polish → publish. Open this guide again any time with guide at the top of the screen.",
+    body: "Idea → dump → interview → brief → outline → draft → critique → polish → publish. Open this guide again any time with guide at the top of the screen.",
     where: "any",
   },
 ];

@@ -17,6 +17,8 @@ export type Mark = { kind: "q" } | { kind: "note"; id: string; label: string };
 export class Page {
   private mark: ((block: string) => Mark | null) | null = null;
   private readonly gutter: boolean;
+  /** The block the caret was last in. */
+  private last: HTMLTextAreaElement | null = null;
 
   constructor(
     private readonly root: HTMLElement,
@@ -32,6 +34,9 @@ export class Page {
       }
     });
     root.addEventListener("keydown", (e) => this.key(e));
+    root.addEventListener("focusin", (e) => {
+      if (e.target instanceof HTMLTextAreaElement) this.last = e.target;
+    });
     root.addEventListener("click", (e) => {
       const bar = (e.target as HTMLElement).closest<HTMLElement>("button.mark");
       if (bar?.dataset.note) opts.onMark?.(bar.dataset.note);
@@ -83,6 +88,13 @@ export class Page {
 
   text(): string {
     return joinBlocks(this.blocks().map((ta) => ta.value));
+  }
+
+  /** The text of the block the caret is in, or was in last; null when no block of this page has had it. */
+  caretBlock(): string | null {
+    const ta = this.last;
+    if (!ta?.isConnected || !this.root.contains(ta)) return null;
+    return ta.value.trim() === "" ? null : ta.value;
   }
 
   focusEnd(): void {

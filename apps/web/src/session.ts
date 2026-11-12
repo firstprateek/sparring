@@ -340,6 +340,30 @@ function partsToLines(
   return out;
 }
 
+/**
+ * A writer line as the turns show it. `/ask` carries the paragraph it was parked at, quoted on the lines after
+ * the question; that paragraph is cut to its first words.
+ */
+export function shownMessage(text: string): string {
+  if (!/^\/ask\s/.test(text)) return text;
+  const [first = "", ...rest] = text.split("\n");
+  const quoted = rest
+    .filter((l) => l.startsWith(">"))
+    .map((l) => l.replace(/^> ?/, ""))
+    .join(" ")
+    .trim();
+  if (!quoted) return first;
+  const words = quoted.split(/\s+/);
+  return `${first}\n> ${words.slice(0, 8).join(" ")}${words.length > 8 ? "…" : ""}`;
+}
+
+/** `/ask <question>` with the paragraph at the caret quoted under it, as the host reads it. */
+export function askLine(text: string, block: string | null): string {
+  const first = text.split("\n", 1)[0] ?? text;
+  if (!block?.trim()) return first;
+  return [first, ...block.split("\n").map((l) => `> ${l}`)].join("\n");
+}
+
 /** The chat as transcript lines, oldest first, the running turn last. */
 export function transcript(chat: ChatState | undefined): Line[] {
   if (!chat) return [];
@@ -348,7 +372,12 @@ export function transcript(chat: ChatState | undefined): Line[] {
   turns.forEach((t, n) => {
     const at = t.startedAt;
     const host = (t.message.origin as { kind?: string } | undefined)?.kind === "systemNotification";
-    if (t.message.text.trim()) out.push({ kind: host ? "host" : "you", text: t.message.text, at });
+    if (t.message.text.trim())
+      out.push({
+        kind: host ? "host" : "you",
+        text: host ? t.message.text : shownMessage(t.message.text),
+        at,
+      });
     const streaming = n === turns.length - 1 && chat.activeTurn !== undefined;
     out.push(...partsToLines(t.responseParts, at, streaming, host));
   });
@@ -357,5 +386,5 @@ export function transcript(chat: ChatState | undefined): Line[] {
 
 /** Messages the host holds for after the running turn. */
 export function hostQueued(chat: ChatState | undefined): string[] {
-  return (chat?.queuedMessages ?? []).map((m) => m.message.text);
+  return (chat?.queuedMessages ?? []).map((m) => shownMessage(m.message.text));
 }

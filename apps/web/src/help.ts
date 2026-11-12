@@ -18,18 +18,28 @@ export const LEAF_HELP: Record<FileName, { help: string; placeholder: string }> 
 };
 
 /** Whether the coach has anything to do in a stage yet. */
-export const BUILT: ReadonlySet<Stage> = new Set<Stage>(["ideas", "interview", "critique"]);
+export const BUILT: ReadonlySet<Stage> = new Set<Stage>([
+  "ideas",
+  "interview",
+  "outline",
+  "draft",
+  "critique",
+  "polish",
+]);
 
 export const STAGE_HELP: Record<Stage, string> = {
   ideas:
     "Ideas: say anything to the coach and it quotes back the threads in your dump, then asks which one you mean. When the dump has something in it, pick interview from the stage menu.",
   interview:
     "Interview: the coach asks about six things, one at a time: thesis, reader, evidence, counter, uncertainty and scar. Answer here. Your answers go into the brief.",
-  outline: "Outline: not built yet. For now, write the article from the brief.",
-  draft: "Draft: not built yet. For now, write the article from the brief.",
+  outline:
+    "Outline: on the article page, type a ## heading for each section with a one-line note under it. Then say anything here and the coach checks the outline against your brief: what each section gives the reader, and where the counter-argument lives. It never proposes a heading.",
+  draft:
+    "Draft: write the article. The coach stays quiet until you speak. /next names the section to write; say done when it is in the file and it leaves up to five notes on it. /ask <question> parks a question at the paragraph your cursor is in.",
   critique:
     "Critique: type /critique and the coach reads the whole article and leaves up to ten notes, each tied to an exact phrase. A bar marks the paragraph. Change the text, disagree or dismiss each note. /reader has the coach read as the reader in your brief.",
-  polish: "Polish: not built yet. Passes like /pass filler arrive in a later build step.",
+  polish:
+    "Polish: one pass, one kind of problem. /pass filler runs one; the others are buried-verbs, passive, repeats, topic-sentences, cut, voice, typos and tells. /queue filler repeats cut runs several while you are away. /strict howlers only, normal or every nit sets how much they flag. /quiet folds the notes away.",
 };
 
 export function stageHelp(stage: string): string {

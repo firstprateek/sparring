@@ -160,3 +160,32 @@ textarea:focus-visible {
   line-height: 1.5;
   color: var(--muted);
 }
+/* "sparring was updated · reload" (update.ts): pinned to the top, over the header, until reloaded or put off. */
+.update {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  /* Centred by margins, not left: 50%, which would cap it at half the screen and wrap it on a phone. */
+  left: 16px;
+  right: 16px;
+  margin-inline: auto;
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 12px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+  z-index: 20;
+}
+.update .t {
+  padding: 6px 2px;
+}
+.update .err {
+  flex-basis: 100%;
+}

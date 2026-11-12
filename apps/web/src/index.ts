@@ -18,6 +18,7 @@ import { headLine, rowSub, rowTail } from "./rows.ts";
 import { ArticleList, metaOf } from "./session.ts";
 import { connectionWords } from "./status.ts";
 import { wireTheme } from "./theme.ts";
+import { UpdateWatch } from "./update.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 wireTheme($<HTMLButtonElement>("theme"));
@@ -261,6 +262,7 @@ document.addEventListener("keydown", (e) => {
 // ───────────────────────────── start ─────────────────────────────
 
 async function main(): Promise<void> {
+  new UpdateWatch().start();
   renderConn();
   await ensureLogin(() => {
     ahp().retryNow();

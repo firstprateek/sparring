@@ -42,6 +42,7 @@ import {
 } from "./session.ts";
 import { StageMenu } from "./stage-menu.ts";
 import { connectionWords } from "./status.ts";
+import { UpdateWatch } from "./update.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const NO_SESSION = "this article has no coach session yet · see the note in the coach panel";
@@ -619,6 +620,16 @@ document.addEventListener("keydown", (e) => {
     els.logBtn.focus();
   }
 });
+/** Before an update's reload: saves what can be saved, and refuses while something would be lost. */
+async function readyToReload(): Promise<string | null> {
+  await Promise.all([...leaves.values()].filter((l) => l.dirty).map((l) => l.saveNow(false)));
+  const unsaved = [...leaves.entries()].filter(([, l]) => l.dirty && !l.storageOk).map(([name]) => name);
+  if (unsaved.length > 0) return `${unsaved.join(", ")} not saved yet, and this browser cannot keep a copy`;
+  if (outbox.memoryOnly && outbox.lines().length > 0) return "unsent messages would be lost";
+  return null;
+}
+new UpdateWatch({ beforeReload: readyToReload }).start();
+
 window.addEventListener("pagehide", () => {
   for (const l of leaves.values()) if (l.dirty) void l.saveNow(false);
 });

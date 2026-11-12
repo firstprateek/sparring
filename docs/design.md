@@ -659,6 +659,8 @@ A failed A or B row stops the build. If B3 fails, the coach moves to its own mac
 
 **9. Always on (1 evening).** The launchd plist with its PATH copied from `tools/host/inc.i.daemon.plist`, the nightly backup, the README. *Done when:* `launchctl print` shows the job running after a reboot; the backup remote holds `refs/sparring/*` and a `main` whose tree has `.sparring-backup/sparring.db`. *Try:* close every terminal and use the phone.
 
+*Brought forward (November 2026):* the launchd half is built early, as `pnpm service install` (`tools/service.ts`, label `app.sparring.daemon`, PATH from where `bun`, `node`, `npm`, `gh` and `git` are found, log `~/Library/Logs/sparring-daemon.log`), with `pnpm ship` (`tools/ship.ts`: pull, install, lint, typecheck, test, build, restart, stopping at the first failure) and a reload offer in open pages (`apps/web/src/update.ts`, comparing the page's `<meta name="sparring-build">` with `/build.json`). The backup is still step 9.
+
 **10. First article out (2 to 3 evenings).** Fix what the first real article breaks. *Done when:* the PR is merged, and pass latency and token numbers are in `docs/adapters.md`.
 
 The total is 28 to 33 evenings. There is a plain editor for one article after step 1 (about evening 5), a real phone interview after step 3 (about evening 14) and the full coached loop after step 4 (about evening 18).

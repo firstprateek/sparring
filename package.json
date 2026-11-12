@@ -16,7 +16,9 @@
     "test": "pnpm -r test",
     "probe": "bun tools/acp-probe.ts",
     "desktop": "pnpm --filter @sparring/desktop build",
-    "login-code": "bun tools/login-code.ts"
+    "login-code": "bun tools/login-code.ts",
+    "service": "bun tools/service.ts",
+    "ship": "bun tools/ship.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",

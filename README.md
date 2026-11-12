@@ -22,6 +22,24 @@ pnpm dev
 
 `pnpm dev` builds the web client and starts the daemon on `http://127.0.0.1:7421`. The login token is in `~/.sparring/config.json`. To log in a new device without copying the token, run `pnpm login-code` on the daemon's machine: it prints a code that works once and lapses in ten minutes.
 
+### Keeping it running and up to date
+
+On the machine that serves it, run the daemon as a launchd service, so it starts at login and again if it dies:
+
+```bash
+pnpm service install
+```
+
+`pnpm service status` says whether it runs and which web build it serves; `pnpm service uninstall` stops it. Its output goes to `~/Library/Logs/sparring-daemon.log`.
+
+To update, push to GitHub, then on that machine:
+
+```bash
+pnpm ship
+```
+
+It refuses uncommitted changes, pulls, installs, runs lint, typecheck and the tests, builds, and restarts the service. It stops at the first failure, so a failing test never reaches the running daemon. `pnpm ship --no-pull` ships what is checked out. Open pages notice the new build within a minute and offer "sparring was updated · reload"; the Room saves first, and waits if something could not be kept. The desktop app needs no update for this: it loads its pages from the daemon.
+
 ### Desktop app
 
 [apps/desktop](apps/desktop) is a Tauri shell around the daemon. It needs Rust (`rustup`). Its launcher page asks for the daemon's address and then loads the daemon's own pages, so the app is the web client in its own window. On the machine that runs the daemon it reads the token from `~/.sparring/config.json` and skips the login form. **Sparring → Change Daemon…** goes back to the launcher.

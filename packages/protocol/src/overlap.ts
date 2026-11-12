@@ -14,6 +14,12 @@ export const OVERLAP_WORDS = 5;
 export interface CorpusEntry {
   source: string;
   text: string;
+  /**
+   * What the writer had on the page before the coach said this. A run of words that stood there already is
+   * the writer's own: the coach quoted it. A run the coach said first stays the coach's, however often it
+   * quotes the page afterwards.
+   */
+  before?: string;
 }
 
 export interface OverlapSpan {
@@ -70,12 +76,26 @@ export function overlapIndex(
     for (const words of stretches(text))
       for (let i = 0; i + n <= words.length; i++) mine.add(key(words, i, n));
   const grams = new Map<string, string>();
-  for (const entry of corpus)
+  // Many entries share one page (the turns between two saves), so each page is cut into runs once.
+  const pages = new Map<string, Set<string>>();
+  const runsOf = (page: string): Set<string> => {
+    let set = pages.get(page);
+    if (!set) {
+      set = new Set<string>();
+      for (const words of stretches(page))
+        for (let i = 0; i + n <= words.length; i++) set.add(key(words, i, n));
+      pages.set(page, set);
+    }
+    return set;
+  };
+  for (const entry of corpus) {
+    const had = entry.before ? runsOf(entry.before) : undefined;
     for (const words of stretches(entry.text))
       for (let i = 0; i + n <= words.length; i++) {
         const k = key(words, i, n);
-        if (!mine.has(k) && !grams.has(k)) grams.set(k, entry.source);
+        if (!mine.has(k) && !had?.has(k) && !grams.has(k)) grams.set(k, entry.source);
       }
+  }
   return { n, grams };
 }
 

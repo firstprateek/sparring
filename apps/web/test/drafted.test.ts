@@ -246,10 +246,28 @@ describe("/sendit in the composer", () => {
     expect(line).not.toHaveBeenCalled();
     expect($("n").hidden).toBe(true);
     expect($<HTMLTextAreaElement>("c").value).toBe("");
-    // /publish is the one command still to come
+  });
+
+  it("/publish opens the publish sheet and sends no turn", () => {
+    document.body.innerHTML = `<textarea id="c"></textarea><div id="s" hidden></div><div id="n" hidden></div><div id="q" hidden></div>`;
+    const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+    const line = vi.fn();
+    const publish = vi.fn();
+    const c = new Composer($<HTMLTextAreaElement>("c"), $("s"), $("n"), $("q"), {
+      line,
+      log: () => {},
+      publish,
+      escape: () => {},
+    });
     $<HTMLTextAreaElement>("c").value = "/publish";
     c.submit();
-    expect($("n").textContent).toContain("/publish is not built yet");
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(line).not.toHaveBeenCalled();
+    expect($("n").hidden).toBe(true);
+    // the slash list offers it with its hint and no "not built yet"
+    $<HTMLTextAreaElement>("c").value = "/pu";
+    $<HTMLTextAreaElement>("c").dispatchEvent(new Event("input"));
+    expect($("s").textContent).toBe("/publishopen the publish sheet");
   });
 });
 

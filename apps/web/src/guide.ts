@@ -1,7 +1,7 @@
 // The guide: a tutorial card that walks the writer from an idea to a finished article in the real app. Each step
 // says what to do and points at the control; steps that can be checked (an idea kept, 100 words dumped, the
-// interview covered, an outline's headings, a critique's notes on the page, a pass that ran, the Tells table opened, a draft sent for) move on by themselves
-// once done. Steps for parts not built yet say so. Where the writer is
+// interview covered, an outline's headings, a critique's notes on the page, a pass that ran, the Tells table
+// opened, a draft sent for, a pull request opened) move on by themselves once done. Where the writer is
 // in the guide is kept in localStorage, so it follows them from Articles into a Room; it is a convenience only.
 import type { FileName } from "./api.ts";
 
@@ -25,6 +25,8 @@ export interface GuideFacts {
   drafted?: boolean;
   /** The writer has opened the Tells table. */
   tells?: boolean;
+  /** The article has a pull request on the site. */
+  pr?: boolean;
 }
 
 export interface Step {
@@ -138,9 +140,10 @@ export const STEPS: readonly Step[] = [
   },
   {
     title: "Publish",
-    body: "Coming later. /publish turns the finished article into a pull request on your site.",
-    where: "any",
-    later: true,
+    body: "Open the stage menu and pick publish →, or type /publish. The sheet asks for a title, a one-sentence description and a date, then three questions whose answers are stored and never published. Tick I chose these words for each run of the coach's words still in the text, or rewrite it. build and open PR builds the site with your post and opens a pull request; merging it is your click. The guide moves on when the PR is open.",
+    where: "room",
+    target: "#stage-btn, #composer, #pr-link",
+    done: (f) => f.pr === true,
   },
   {
     title: "That is the loop",

@@ -291,6 +291,8 @@ export class Coach implements AgentBackend {
   /** Articles whose running draft turn has had its `write_draft` accepted. */
   private readonly drafted = new Set<string>();
   private readonly metaTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** article.md as a turn-start commit holds it, by `<slug>@<commit>`: read once for the overlap corpus. */
+  private readonly pages = new Map<string, string>();
   private sweeper: ReturnType<typeof setInterval> | undefined;
   private readonly log: (m: string) => void;
 
@@ -678,7 +680,7 @@ export class Coach implements AgentBackend {
       return true;
     }
     if (!BUILT_COMMANDS.has(command.name)) {
-      this.line(row, chat, `/${command.name} arrives in a later build step · nothing was sent to the coach`);
+      this.line(row, chat, `/${command.name} is not a command here · nothing was sent to the coach`);
       return true;
     }
     return false;
@@ -792,6 +794,14 @@ export class Coach implements AgentBackend {
     this.pushMeta(row.id);
   }
 
+  /** `PUT meta` set a title: it is the session's title too, which the Articles row shows. */
+  titled(slug: string, title: string): void {
+    const row = this.articles.row(slug);
+    const t = title.trim().slice(0, 200) || row.slug;
+    if (this.host?.sessionState(sessionUri(row.id)))
+      this.h.apply(sessionUri(row.id), { type: ActionType.SessionTitleChanged, title: t });
+  }
+
   /** A write or tool the coach was refused: the turn's violation, the letter line and a host line. */
   private refused(articleId: string, text: string): void {
     const live = this.started.get(articleId);
@@ -815,7 +825,9 @@ export class Coach implements AgentBackend {
    * The overlap corpus of an article: everything the coach said. Its chat replies (the Markdown parts of each
    * turn, named by stage: `interview q2`, `critique reply`), its notes and its brief questions. Tool calls are
    * not read, so the `write_draft` input is never in it; otherwise a drafted page would match whole. `own` is
-   * the writer's side, the dump and the writer's messages: a run of words found there is not the coach's.
+   * the writer's side, the dump and the writer's messages: a run of words found there is not the coach's. Each
+   * reply also carries the page as it was when its turn began (`before`), so a reply that quotes the article
+   * back is not the coach's words either.
    */
   async corpus(slug: string): Promise<{ entries: CorpusEntry[]; own: string[] }> {
     const row = this.articles.row(slug);
@@ -823,6 +835,18 @@ export class Coach implements AgentBackend {
     const st = row.chat ? this.host?.chatState(row.chat) : undefined;
     const rows = new Map(this.articles.turnRows(row.id).map((r) => [r.turn_id, r]));
     const asked = new Map<string, number>();
+    // What the page held when a turn began: a reply that quotes it does not make those words the coach's.
+    const pageAt = async (commit: string | null | undefined): Promise<string> => {
+      if (!commit) return "";
+      const key = `${slug}@${commit}`;
+      let text = this.pages.get(key);
+      if (text === undefined) {
+        text = (await this.articles.showAt(commit, `${slug}/article.md`)) ?? "";
+        if (this.pages.size > 500) this.pages.clear();
+        this.pages.set(key, text);
+      }
+      return text;
+    };
     for (const t of st ? [...st.turns, ...(st.activeTurn ? [st.activeTurn] : [])] : []) {
       const text = t.responseParts
         .map((p) => (p.kind === ResponsePartKind.Markdown ? p.content : ""))
@@ -836,7 +860,8 @@ export class Coach implements AgentBackend {
         asked.set(stage, (asked.get(stage) ?? 0) + 1);
         source = `${stage} q${asked.get(stage)}`;
       }
-      entries.push({ source, text });
+      const before = await pageAt(r?.commit_before);
+      entries.push({ source, text, ...(before ? { before } : {}) });
     }
     entries.push(...this.articles.coachWritten(row));
     return { entries, own: [await this.articles.read(slug, "dump"), ...this.ownerMessages(row.id)] };

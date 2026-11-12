@@ -88,4 +88,5 @@ export const BUILT_COMMANDS: ReadonlySet<string> = new Set([
   "strict",
   "quiet",
   "sendit",
+  "publish",
 ]);

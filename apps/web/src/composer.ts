@@ -1,7 +1,7 @@
 // The composer at the foot of the margin: `>`, one textarea. Enter sends, Shift+Enter is a new line. Typing `/`
 // opens the slash list (the listed commands with their hints); arrow keys move in it, Tab or Enter completes.
 // `/log`, `/sendit` and `/publish` are the client's own and send no turn; everything else is a chat line.
-// `/sendit` opens the stage menu on its confirm line.
+// `/sendit` opens the stage menu on its confirm line; `/publish` opens the publish sheet.
 import { BUILT_COMMANDS, type Command, parseCommand } from "@sparring/protocol/commands";
 import { autosize } from "./page.ts";
 import { completion, slashMatches } from "./slash.ts";
@@ -13,6 +13,8 @@ export interface ComposerHooks {
   log: () => void;
   /** `/sendit`: opens the confirm line. */
   sendit?: () => void;
+  /** `/publish`: opens the publish sheet. */
+  publish?: () => void;
   /** Escape in an empty composer with no list open. */
   escape: () => void;
 }
@@ -176,6 +178,10 @@ export class Composer {
     }
     if (cmd?.command.name === "sendit" && this.hooks.sendit) {
       this.hooks.sendit();
+      return;
+    }
+    if (cmd?.command.name === "publish" && this.hooks.publish) {
+      this.hooks.publish();
       return;
     }
     this.hooks.line(text);

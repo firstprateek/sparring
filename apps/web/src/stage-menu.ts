@@ -2,6 +2,7 @@
 // `covered`), then `advance to <stage> · yes · no`. Yes asks the host for the change; the word follows the
 // session once the host has taken it. Under the stages sits `send it`, or `coached again` in a drafted article,
 // each with its own confirm line; yes makes the authorship call. The two confirm lines never show together.
+// Last comes `publish →`, which saves the page and opens the publish sheet.
 import { STAGES, type Stage, TOPICS } from "@sparring/protocol/commands";
 import { stageLabel } from "./rows.ts";
 
@@ -24,6 +25,8 @@ export class StageMenu {
   private error = "";
   /** The authorship call is out and has not answered. */
   private flipping = false;
+  /** Why `publish →` did not open the sheet. */
+  private publishError = "";
 
   constructor(
     private readonly button: HTMLButtonElement,
@@ -33,6 +36,8 @@ export class StageMenu {
     private readonly pick: (stage: Stage) => string | null,
     /** Makes the authorship call; resolves with an error in words, or null when the daemon took it. */
     private readonly flip: (to: Authorship) => Promise<string | null> = async () => "not available here",
+    /** `publish →`: opens the publish sheet; resolves with an error in words when it could not. */
+    private readonly publish?: () => Promise<string | null>,
   ) {
     button.addEventListener("click", () => (this.isOpen() ? this.close() : this.open()));
     menu.addEventListener("click", (e) => void this.click(e));
@@ -90,6 +95,7 @@ export class StageMenu {
   open(): void {
     this.pending = null;
     this.error = "";
+    this.publishError = "";
     this.render();
     this.menu.hidden = false;
     this.button.setAttribute("aria-expanded", "true");
@@ -138,6 +144,16 @@ export class StageMenu {
       this.error = "";
       this.render();
       this.menu.querySelector<HTMLElement>(this.pending ? '[data-act="yes"]' : "[data-flip]")?.focus();
+      return;
+    }
+    if (t.closest("[data-publish]") && this.publish) {
+      this.pending = null;
+      this.error = "";
+      const err = await this.publish();
+      if (err) {
+        this.publishError = err;
+        if (this.isOpen()) this.render();
+      }
       return;
     }
     const act = t.closest<HTMLElement>("[data-act]")?.dataset.act;
@@ -210,6 +226,23 @@ export class StageMenu {
           this.authorship === "drafted" ? "not changed" : "not started",
         ),
       );
+    if (this.publish) {
+      const pub = document.createElement("button");
+      pub.type = "button";
+      pub.className = "t it muted publish";
+      pub.dataset.publish = "1";
+      pub.textContent = "publish →";
+      pub.disabled = this.drafting;
+      pub.title = "Opens the publish sheet: the fields, the checks and the pull request.";
+      kids.push(pub);
+      if (this.publishError) {
+        const err = document.createElement("span");
+        err.className = "err pend";
+        err.setAttribute("role", "alert");
+        err.textContent = `not opened · ${this.publishError}`;
+        kids.push(err);
+      }
+    }
     this.menu.replaceChildren(...kids);
   }
 

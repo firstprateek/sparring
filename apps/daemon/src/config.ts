@@ -14,7 +14,10 @@ export interface Config {
   git_email: string;
   default_provider: "claude" | "demo";
   claude_oauth_token?: string;
+  /** The site's `owner/name` on GitHub. Publishing is off until it is set (publish.ts reads it). */
   site_repo?: string;
+  /** The author of the post commits in the site repo. */
+  publish?: { git_name?: string; git_email?: string };
   backup_remote?: string;
 }
 

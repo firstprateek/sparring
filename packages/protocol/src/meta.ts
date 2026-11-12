@@ -37,6 +37,7 @@ export interface SparringMeta {
   lastLine?: string;
   thesis?: string;
   reader?: string;
+  /** The article's last publish job: its step, its log, and why it failed. */
   publish: { id: number; step: string; lines: string[]; error?: string } | null;
   prNumber?: number;
   prUrl?: string;

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Publish · Sparring</title>
+<script src="/theme.js"></script>
+</head>
+<body>
+<div class="sp pub" id="pub">
+  <header class="mono head">
+    <a href="/" class="muted back">← articles</a>
+    <span id="slug" class="title"></span>
+    <a id="room-link" class="muted room-link" href="/">dump · brief · article</a>
+    <span class="spacer"></span>
+    <span id="mode-tag" class="muted mode-tag" hidden></span>
+    <span id="stage-word" class="stage-word" aria-live="polite">publish</span>
+  </header>
+
+  <div class="body">
+    <main class="ro" aria-label="The post, read-only while publishing">
+      <div class="col">
+        <p id="ro-help" class="help ro-help">the file a publish writes · read-only here · edit it in the article</p>
+        <pre id="front" class="mono front"></pre>
+        <div id="post" class="post"></div>
+      </div>
+    </main>
+
+    <aside class="mono muted sheet" id="sheet" aria-label="Publish sheet">
+      <p id="loading" class="loading">reading the article and the site…</p>
+    </aside>
+  </div>
+
+  <footer class="mono muted foot">
+    <span id="foot-left">read-only while publishing</span>
+    <span id="foot-right">the host runs this sheet, not the coach</span>
+  </footer>
+</div>
+<script type="module" src="/src/publish.ts"></script>
+</body>
+</html>

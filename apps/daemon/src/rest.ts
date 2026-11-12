@@ -2,15 +2,20 @@
 // snapshot, save its files, stash on `take disk`, act on a letter line, mark notes seen, check pasted text
 // against the coach's words (`pastes`). The REST guard (login, Host, Origin) wraps
 // this in main.ts. `authorship` is the one call that flips an article between coached and drafted; the coach
-// does it, since the draft turn is its to start. `shelf` is the page from before the draft.
+// does it, since the draft turn is its to start. `shelf` is the page from before the draft. `meta` stores the
+// publish sheet's fields; `publish` is the preflight (GET) and the start of a publish job (POST).
 import type { CorpusEntry } from "@sparring/protocol/overlap";
+import { postMeta } from "@sparring/protocol/publish";
 import { type Articles, FILES, type FileName, HttpError, sessionUri } from "./articles.ts";
+import type { Publisher } from "./publish.ts";
 
 /** What the routes need from the coach. */
 export interface Flipper {
   flip(slug: string, to: "coached" | "drafted"): Promise<Record<string, unknown>>;
   /** Everything the coach said in an article, and the writer's own words to hold against it. */
   corpus?(slug: string): Promise<{ entries: CorpusEntry[]; own: string[] }>;
+  /** The article got a title: the session takes it. */
+  titled?(slug: string, title: string): void;
 }
 
 const json = (body: unknown, status = 200) =>
@@ -40,7 +45,7 @@ const fileOf = (name: string): FileName => {
   return name as FileName;
 };
 
-export function restHandler(articles: Articles, coach?: Flipper) {
+export function restHandler(articles: Articles, coach?: Flipper, publisher?: Publisher) {
   return async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent); // ["api", ...]
@@ -94,6 +99,40 @@ export function restHandler(articles: Articles, coach?: Flipper) {
         const slug = parts[2];
         if (slug !== undefined) {
           if (parts.length === 3 && m === "GET") return json(await articles.snapshot(slug));
+          if (parts.length === 4 && parts[3] === "meta" && m === "PUT") {
+            const b = await body(req);
+            const have = await articles.meta(slug);
+            // A key that is left out keeps what is stored, so one field can be saved alone.
+            const next = postMeta({
+              title: b.title === undefined ? have.title : str(b.title, "title"),
+              description: b.description === undefined ? have.description : str(b.description, "description"),
+              date: b.date === undefined ? have.date : str(b.date, "date"),
+              answers: b.answers === undefined ? have.answers : b.answers,
+            });
+            if (b.answers !== undefined && (!Array.isArray(b.answers) || b.answers.length !== 3))
+              throw new HttpError(400, { error: "answers must be three strings" });
+            const res = await articles.saveMeta(slug, next);
+            if (res.meta.title !== have.title) coach?.titled?.(slug, res.meta.title);
+            return json(res);
+          }
+          if (parts.length === 4 && parts[3] === "publish" && (m === "GET" || m === "POST")) {
+            articles.row(slug);
+            if (!publisher) throw new HttpError(503, { error: "publishing is not attached to this daemon" });
+            if (m === "GET") return json(await publisher.preflight(slug));
+            const b = await body(req);
+            const ticked = Array.isArray(b.ticked)
+              ? b.ticked.filter((x): x is string => typeof x === "string")
+              : null;
+            if (!ticked) throw new HttpError(400, { error: "ticked must be a list of hashes" });
+            return json(
+              await publisher.publish(slug, {
+                article_commit: str(b.article_commit, "article_commit"),
+                ticked,
+                ...(typeof b.origin_sha === "string" ? { origin_sha: b.origin_sha } : {}),
+              }),
+              202,
+            );
+          }
           if (parts.length === 4 && m === "PUT" && parts[3] !== "stash") {
             const file = fileOf(parts[3] as string);
             const b = await body(req);

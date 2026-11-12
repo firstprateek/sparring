@@ -21,6 +21,9 @@
 // opens the Tells table, whose hits put the caret on their span. Text pasted into the article is posted to the
 // daemon, which answers the spans that are the coach's words; those carry a dotted underline while they stand,
 // and `pasted N` in the foot steps through them.
+//
+// Publish: `publish →` in the stage menu and `/publish` save the pages and open the publish sheet (publish.ts).
+// Once the article has a PR the head says `PR #5`, which opens the sheet too.
 import "@fontsource/source-serif-4/400.css";
 import "@fontsource/source-serif-4/400-italic.css";
 import "@fontsource/source-serif-4/600.css";
@@ -93,6 +96,7 @@ const els = {
   notesBtn: $<HTMLButtonElement>("notes-btn"),
   quiet: $("quiet"),
   modeTag: $("mode-tag"),
+  prLink: $<HTMLAnchorElement>("pr-link"),
   yours: $("yours"),
   quietBlock: $("quiet-block"),
   room: $("room"),
@@ -172,6 +176,7 @@ const stageMenu = new StageMenu(
     return setStage(conn, sessionUri, stage, stageRefused);
   },
   (to) => flip(to),
+  () => openPublish(),
 );
 
 // ───────────────────────────── tells and pasted words ─────────────────────────────
@@ -307,6 +312,21 @@ async function flip(to: "coached" | "drafted"): Promise<string | null> {
   // The draft lands on the article leaf, and so does the page that comes back.
   if (active !== "article") showLeaf("article");
   if (to === "coached") setShelf(false);
+  return null;
+}
+
+/**
+ * `publish →` in the stage menu, or `/publish`: every page is saved first, since the sheet shows what is on disk,
+ * then the publish sheet opens. Resolves with why it did not open.
+ */
+async function openPublish(): Promise<string | null> {
+  for (const leaf of leaves.values()) {
+    if (leaf.state.kind === "conflict") return `${leaf.file}.md: choose keep mine or take disk first`;
+    if (leaf.dirty) await leaf.saveNow(false);
+    if (leaf.dirty || leaf.state.kind !== "saved")
+      return `${leaf.file}.md is not saved yet · try again once the foot says saved`;
+  }
+  location.href = `/publish.html?slug=${encodeURIComponent(slug)}`;
   return null;
 }
 
@@ -461,6 +481,7 @@ const composer = new Composer($<HTMLTextAreaElement>("composer"), $("slash"), $(
   line: (text) => void sendLine(composer, text),
   log: () => setLog(true),
   sendit: () => stageMenu.openSendit(),
+  publish: () => void openPublish().then((err) => composer.note(err ? `not opened · ${err}` : "")),
   escape: () => setLog(false),
 });
 const ivComposer = new Composer(
@@ -472,6 +493,7 @@ const ivComposer = new Composer(
     line: (text) => void sendLine(ivComposer, text),
     log: () => interview.fold(false),
     sendit: () => interview.openSendit(),
+    publish: () => void openPublish().then((err) => ivComposer.note(err ? `not opened · ${err}` : "")),
     escape: () => {},
   },
 );
@@ -588,7 +610,7 @@ const transcriptView = new Transcript(els.logList, els.log);
 /** Made once the writer is logged in, so the card never sits over the login form. */
 let guide: Guide | undefined;
 /** What renderAhp last saw, for the guide. */
-let seen = { stage: "", covered: 0, said: 0, drafted: false };
+let seen = { stage: "", covered: 0, said: 0, drafted: false, pr: false };
 /** The session's strictness and the article's quiet switch, as renderAhp last saw them. */
 let strictness = "normal";
 let quiet: boolean | undefined;
@@ -671,7 +693,13 @@ function renderAhp(): void {
   if (!els.log.hidden) transcriptView.render(said);
   renderTurns(els.turns, said, interviewDone(meta?.covered), stageHelp(stage));
   const covered = meta?.covered?.length ?? 0;
-  seen = { stage, covered, said: said.filter((l) => l.kind === "you").length, drafted };
+  seen = {
+    stage,
+    covered,
+    said: said.filter((l) => l.kind === "you").length,
+    drafted,
+    pr: typeof meta?.prNumber === "number",
+  };
   const strict = session?.config?.values.strictness;
   strictness = typeof strict === "string" && strict ? strict : "normal";
   if (meta) {
@@ -686,6 +714,12 @@ function renderAhp(): void {
   }
   renderCoachStage();
   renderQueued();
+  const pr = typeof meta?.prNumber === "number" ? `PR #${meta.prNumber}` : "";
+  els.prLink.hidden = pr === "";
+  if (pr && els.prLink.textContent !== pr) {
+    els.prLink.textContent = pr;
+    els.prLink.href = `/publish.html?slug=${encodeURIComponent(slug)}`;
+  }
 
   if (meta && typeof meta.commentsRev === "number") {
     if (seenRev !== undefined && meta.commentsRev !== seenRev) void refetch();

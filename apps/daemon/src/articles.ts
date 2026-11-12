@@ -17,6 +17,7 @@ import {
   overlapWords,
 } from "@sparring/protocol/overlap";
 import { provenance } from "@sparring/protocol/provenance";
+import { type PostMeta, type PublishJob, postMeta } from "@sparring/protocol/publish";
 import { slugProblem } from "@sparring/protocol/slug";
 import { tells } from "@sparring/protocol/tells";
 import type { Db } from "./db.ts";
@@ -119,6 +120,8 @@ export class Articles {
   onChangedNow: ((row: ArticleRow) => void) | undefined;
   /** Set by the coach: what `metaFor` takes from the coach itself (the run, a sign-in that is needed). */
   metaExtra: ((row: ArticleRow) => Partial<SparringMeta>) | undefined;
+  /** Set by the publisher: the article's last publish job, for `_meta.sparring.publish`. */
+  publishMeta: ((row: ArticleRow) => PublishJob | null) | undefined;
 
   constructor(
     private readonly db: Db,
@@ -207,8 +210,7 @@ export class Articles {
   }
 
   /**
-   * The whole `_meta.sparring` of an article, from its row and its files. What a later step fills (publishing)
-   * is empty until then.
+   * The whole `_meta.sparring` of an article, from its row, its files and its last publish job.
    */
   metaFor(row: ArticleRow): SparringMeta {
     const text = (() => {
@@ -251,7 +253,7 @@ export class Articles {
       letter: letter.slice(-3).map((l) => ({ ...l, kind: l.kind as LetterKind })),
       ...(row.open_question ? { openQuestion: row.open_question.slice(0, 200) } : {}),
       ...(row.last_line ? { lastLine: row.last_line.slice(0, 200) } : {}),
-      publish: null,
+      publish: this.publishMeta?.(row) ?? null,
       ...(prNumber !== undefined ? { prNumber } : {}),
       ...(prUrl !== undefined ? { prUrl } : {}),
       tokens: Number(row.tokens_in ?? 0) + Number(row.tokens_out ?? 0),
@@ -922,12 +924,104 @@ export class Articles {
     return out;
   }
 
-  /** The article's coach turns as the overlap corpus names them: the stage, and whether the coach asked. */
-  turnRows(articleId: string): { turn_id: string; stage: string; is_question: number }[] {
+  /**
+   * The article's coach turns as the overlap corpus names them: the stage, whether the coach asked, and the
+   * commit that holds the page as it was when the turn began.
+   */
+  turnRows(
+    articleId: string,
+  ): { turn_id: string; stage: string; is_question: number; commit_before: string | null }[] {
     return this.db.all(
-      "SELECT turn_id, stage, is_question FROM turns WHERE article_id = ? ORDER BY started_at, rowid",
+      "SELECT turn_id, stage, is_question, commit_before FROM turns WHERE article_id = ? ORDER BY started_at, rowid",
       articleId,
     );
+  }
+
+  // ───────────────────────────── publishing ─────────────────────────────
+
+  /** `<slug>/meta.json`: the title, the description, the date and the three answers. Missing keys are empty. */
+  async meta(slug: string): Promise<PostMeta> {
+    this.row(slug);
+    const raw = await readFile(join(this.dir, slug, "meta.json"), "utf8").catch(() => "{}");
+    try {
+      return postMeta(JSON.parse(raw));
+    } catch {
+      return postMeta({});
+    }
+  }
+
+  /** `PUT meta`: writes meta.json atomically and commits it. Answers what was stored. */
+  async saveMeta(slug: string, meta: PostMeta): Promise<{ meta: PostMeta; commit: string | null }> {
+    this.row(slug);
+    const clean: PostMeta = {
+      title: meta.title.replace(/\s+/g, " ").trim().slice(0, 300),
+      description: meta.description.replace(/\s+/g, " ").trim().slice(0, 1000),
+      date: meta.date.trim().slice(0, 40),
+      answers: meta.answers.map((x) => x.trim().slice(0, 2000)) as PostMeta["answers"],
+    };
+    return this.git.serial(async () => {
+      await atomicWrite(join(this.dir, slug, "meta.json"), `${JSON.stringify(clean, null, 2)}\n`);
+      const commit = await this.commitLocked(slug, "meta");
+      return { meta: clean, commit };
+    });
+  }
+
+  /**
+   * The commit a publish names: whatever waits in the article's folder is committed, and the answer is the last
+   * commit that touched the folder. It moves when the page, the brief, the dump or meta.json does.
+   */
+  publishCommit(slug: string): Promise<string> {
+    this.row(slug);
+    return this.git.serial(async () => {
+      await this.commitLocked(slug, "publish");
+      return (await this.git.raw(["rev-list", "-1", "HEAD", "--", slug])).stdout.trim();
+    });
+  }
+
+  /** A file of the writing repo as a commit holds it, or null when it is not there. */
+  async showAt(commit: string, path: string): Promise<string | null> {
+    if (!/^[0-9a-f]{7,64}$/.test(commit)) return null;
+    const r = await this.git.run(["show", `${commit}:${path}`], { ok: [0, 128] });
+    return r.code === 0 ? r.stdout : null;
+  }
+
+  /** The provenance numbers of the coached mode: what was asked, noted and refused. */
+  publishCounts(row: ArticleRow): {
+    questions: number;
+    comments: number;
+    done: number;
+    dismissed: number;
+    disagreed: number;
+    violations: number;
+  } {
+    const turns = this.db.all<{ q: number | null; v: number | null }>(
+      "SELECT SUM(is_question) AS q, SUM(violation) AS v FROM turns WHERE article_id = ?",
+      row.id,
+    )[0];
+    const by = new Map<string, number>();
+    for (const c of this.db.all<{ status: string; n: number }>(
+      "SELECT status, COUNT(*) AS n FROM comments WHERE article_id = ? GROUP BY status",
+      row.id,
+    ))
+      by.set(c.status, Number(c.n));
+    return {
+      questions: Number(turns?.q ?? 0),
+      comments: [...by.values()].reduce((a, b) => a + b, 0),
+      done: by.get("done") ?? 0,
+      dismissed: by.get("dismissed") ?? 0,
+      disagreed: by.get("disagreed") ?? 0,
+      violations: Number(turns?.v ?? 0),
+    };
+  }
+
+  /** The article's PR, as the Articles row and the sheet show it. */
+  setPr(id: string, number: number, url: string): void {
+    this.db.run("UPDATE articles SET pr_number = ?, pr_url = ? WHERE id = ?", number, url, id);
+  }
+
+  /** When the article's PR was merged, from `mergedAt`. */
+  setPublishedAt(id: string, at: string): void {
+    this.db.run("UPDATE articles SET published_at = ? WHERE id = ?", at, id);
   }
 
   // ───────────────────────────── brief notes ─────────────────────────────

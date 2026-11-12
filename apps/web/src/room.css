@@ -916,6 +916,27 @@
 .mode-tag {
   white-space: nowrap;
 }
+/* `PR #5` in the head once the article has a pull request: it opens the publish sheet. */
+.pr-link {
+  white-space: nowrap;
+  padding: 12px 0;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.menu .publish {
+  border-top: 1px solid var(--rule);
+  margin-top: 4px;
+  padding-top: 8px;
+}
+.menu .publish:hover:not(:disabled) {
+  color: var(--text);
+}
+@media (max-width: 760px) {
+  /* The head has room for one tag: in a drafted article it is `N% yours`. */
+  .mode-tag:not([hidden]) + .pr-link {
+    display: none;
+  }
+}
 .foot .yours {
   color: var(--text);
 }

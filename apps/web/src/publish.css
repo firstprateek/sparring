@@ -1,0 +1,336 @@
+/* The publish page: header, the read-only post beside the publish sheet, foot. One viewport tall at desktop
+   width, where the post and the sheet scroll on their own. Under 760px the sheet comes first and the whole page
+   scrolls, so the button is never under the whole article. */
+.pub {
+  height: 100dvh;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  overflow: hidden;
+}
+.pub .head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 48px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+}
+.pub .head a {
+  padding: 12px 0;
+  white-space: nowrap;
+}
+.pub .head .title {
+  font-size: 13px;
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pub .spacer {
+  flex: 1;
+}
+.pub .mode-tag,
+.pub .stage-word {
+  white-space: nowrap;
+}
+.pub .body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  min-height: 0;
+}
+.pub .ro {
+  background: var(--subtle);
+  padding: 32px 0 48px;
+  min-width: 0;
+  overflow: auto;
+}
+.pub .ro .col {
+  width: min(68ch, 100% - 3rem);
+  margin: 0 auto;
+  overflow-wrap: anywhere;
+}
+.pub .ro-help {
+  margin: 0 0 16px;
+}
+.pub .front {
+  margin: 0 0 1.5rem;
+  padding: 0 0 1rem;
+  border-bottom: 1px solid var(--rule);
+  color: var(--muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pub .front:empty {
+  display: none;
+}
+.pub .blk {
+  position: relative;
+  margin: 0 0 1.25rem;
+  white-space: pre-wrap;
+  font-size: 17px;
+  font-weight: 400;
+}
+.pub .prov {
+  position: absolute;
+  left: -12px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: repeating-linear-gradient(to bottom, var(--accent) 0 3px, transparent 3px 6px);
+}
+.pub .prov.mixed {
+  background: repeating-linear-gradient(to bottom, var(--muted) 0 3px, transparent 3px 6px);
+}
+.pub .sheet {
+  border-left: 1px solid var(--rule);
+  padding: 20px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  min-height: 0;
+  min-width: 0;
+}
+.pub .sheet .loading {
+  margin: 0;
+}
+.pub .top {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding-bottom: 16px;
+}
+.pub .setup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--bad);
+  border-radius: 2px;
+  overflow-wrap: anywhere;
+}
+.pub .grp {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 0;
+  border-top: 1px solid var(--rule);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pub .grp.kv {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 8px 16px;
+  align-items: baseline;
+  border-top: 0;
+  padding-top: 0;
+}
+.pub .v {
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  outline: 0;
+  padding: 2px 0;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+.pub .v::placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+.pub .v:focus,
+.pub .v:focus-visible {
+  outline: 0;
+  border-bottom-color: var(--accent);
+}
+.pub textarea.v {
+  resize: none;
+  overflow: hidden;
+  display: block;
+  field-sizing: content;
+}
+.pub .ro-v {
+  border-bottom-color: transparent;
+}
+.pub .field-err {
+  grid-column: 1 / -1;
+}
+.pub .q {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pub .q-text {
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.pub .q-a {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.pub .sub {
+  padding-top: 6px;
+}
+.pub .tick {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-family: var(--serif);
+  font-size: 15px;
+  line-height: 1.5;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.pub .tick input {
+  margin: 5px 0 0;
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.pub .tick-text {
+  min-width: 0;
+}
+.pub .tick .chose {
+  color: var(--muted);
+}
+.pub .tick input:checked + .tick-text .chose {
+  color: var(--text);
+}
+.pub .tickall {
+  align-self: flex-start;
+  padding: 8px 0;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.pub .warn {
+  color: var(--muted);
+}
+.pub .diff-btn {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.pub .diff {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--subtle);
+  border: 1px solid var(--rule);
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow: auto;
+  font: inherit;
+}
+.pub .ship {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.pub .ship-btn {
+  min-height: 36px;
+  padding: 0 16px;
+  flex: none;
+}
+.pub .reason {
+  min-width: 0;
+}
+.pub .ship-err {
+  flex-basis: 100%;
+}
+.pub .log {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--rule);
+  padding-top: 12px;
+  overflow-wrap: anywhere;
+}
+.pub .log a {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.pub .log .out {
+  padding-left: 12px;
+}
+.pub .foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  padding: 0 8px;
+  border-top: 1px solid var(--rule);
+  gap: 12px;
+  min-width: 0;
+}
+.pub .foot span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 760px) {
+  .pub {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    grid-template-rows: auto 1fr auto;
+  }
+  .pub .head {
+    flex-wrap: wrap;
+    gap: 0 12px;
+  }
+  .pub .head a {
+    padding: 10px 0;
+  }
+  .pub .body {
+    display: flex;
+    flex-direction: column;
+  }
+  .pub .sheet {
+    order: -1;
+    border-left: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 16px 8px 20px;
+    overflow: visible;
+  }
+  .pub .ro {
+    overflow: visible;
+    padding: 20px 0 32px;
+  }
+  .pub .ro .col {
+    width: calc(100% - 40px);
+  }
+  .pub .foot {
+    flex-wrap: wrap;
+    padding-block: 6px;
+    row-gap: 2px;
+  }
+  .pub .foot span {
+    white-space: normal;
+  }
+  /* Easier to hit with a thumb. */
+  .pub .tick {
+    padding: 6px 0;
+  }
+  .pub .v {
+    font-size: 16px;
+  }
+}

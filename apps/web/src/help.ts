@@ -1,4 +1,4 @@
-// What each page and each stage is for, in words the Room shows. Stages the daemon cannot run yet say so.
+// What each page and each stage is for, in words the Room shows.
 import type { Stage } from "@sparring/protocol/commands";
 import type { FileName } from "./api.ts";
 
@@ -47,7 +47,7 @@ export const STAGE_HELP: Record<Stage, string> = {
   critique:
     "Critique: type /critique and the coach reads the whole article and leaves up to ten notes, each tied to an exact phrase. A bar marks the paragraph. Change the text, disagree or dismiss each note. /reader has the coach read as the reader in your brief.",
   polish:
-    "Polish: one pass, one kind of problem. /pass filler runs one; the others are buried-verbs, passive, repeats, topic-sentences, cut, voice, typos and tells. /queue filler repeats cut runs several while you are away. /strict howlers only, normal or every nit sets how much they flag. /quiet folds the notes away.",
+    "Polish: one pass, one kind of problem. /pass filler runs one; the others are buried-verbs, passive, repeats, topic-sentences, cut, voice, typos and tells. /queue filler repeats cut runs several while you are away. /strict howlers only, normal or every nit sets how much they flag. /quiet folds the notes away. When it reads the way you want, publish → in the stage menu (or /publish) opens the publish sheet.",
 };
 
 export function stageHelp(stage: string): string {

@@ -100,8 +100,8 @@ describe("the outline, draft and polish steps", () => {
       expect(typeof s?.done, title).toBe("function");
       expect(s?.target, title).toBeTruthy();
     }
-    // what is still to come belongs to publish
-    expect(STEPS.filter((s) => s.later).map((s) => s.title)).toEqual(["Publish"]);
+    // nothing is still to come
+    expect(STEPS.filter((s) => s.later)).toEqual([]);
   });
 
   it("the outline step waits for two headings on the article page", () => {
@@ -197,7 +197,47 @@ describe("the send it step", () => {
     expect(document.querySelector(".g-wait")?.textContent).toBe("moves on when you have done it");
     g.update({ where: "room", drafted: true });
     expect(loadState().step).toBe(step + 1);
-    // the step after it is the one part still to come
-    expect(document.querySelector(".g-tag")?.textContent).toBe("not built yet");
+    // the step after it is publish, and it is built too
+    expect(document.querySelector(".g-title")?.textContent).toBe("Publish");
+    expect(document.querySelector(".g-tag")).toBeNull();
+  });
+});
+
+describe("the publish step", () => {
+  const step = at("Publish");
+
+  it("is built: it waits for the pull request and moves on once the article has one", () => {
+    expect(STEPS[step]?.later).toBeUndefined();
+    expect(STEPS[step]?.where).toBe("room");
+    expect(advance(step, { where: "room", stage: "polish", pr: false }).step).toBe(step);
+    expect(advance(step, { where: "room", stage: "polish", pr: true })).toEqual({
+      step: step + 1,
+      passed: "Publish",
+    });
+  });
+
+  it("points at the stage menu and the composer, says how to publish, and has no not-built tag", () => {
+    localStorage.setItem("sparring-guide", JSON.stringify({ open: true, step, seen: true, small: false }));
+    const ids = ["stage-btn", "composer"].map((id) => {
+      const el = document.createElement("button");
+      el.id = id;
+      document.body.append(el);
+      return el;
+    });
+    const g = new Guide("room", null);
+    for (const el of ids) expect(el.classList.contains("guide-target")).toBe(true);
+    expect(document.querySelector(".g-tag")).toBeNull();
+    expect(document.querySelector(".g-body")?.textContent).toContain("publish →");
+    expect(document.querySelector(".g-body")?.textContent).toContain("/publish");
+    expect(document.querySelector(".g-wait")?.textContent).toBe("moves on when you have done it");
+    g.update({ where: "room", pr: true });
+    expect(loadState().step).toBe(step + 1);
+    expect(document.querySelector(".g-title")?.textContent).toBe("That is the loop");
+  });
+
+  it("no step and no command is left unbuilt", async () => {
+    const { BUILT_COMMANDS, LISTED, UNLISTED } = await import("@sparring/protocol/commands");
+    expect([...LISTED, ...UNLISTED].filter((c) => !BUILT_COMMANDS.has(c.name))).toEqual([]);
+    for (const s of STEPS) expect(`${s.title} ${s.body}`).not.toMatch(/not built|coming later/i);
   });
 });

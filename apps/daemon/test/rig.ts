@@ -10,6 +10,7 @@ import { Articles } from "../src/articles.ts";
 import { Coach } from "../src/coach.ts";
 import { type Db, openDb } from "../src/db.ts";
 import { demoLaunch } from "../src/demo-agent.ts";
+import type { Publisher } from "../src/publish.ts";
 import { restHandler } from "../src/rest.ts";
 import { migrate } from "../src/schema.ts";
 import { Tools } from "../src/tools.ts";
@@ -29,6 +30,8 @@ export async function rig(
     turnLimitMs?: number;
     idleMs?: number;
     runDir?: string;
+    /** Makes the publisher once the coach is up: its routes are served too. */
+    publisher?: (parts: { articles: Articles; db: Db; coach: Coach }) => Publisher;
   } = {},
 ) {
   const dir = o.dir ?? mkdtempSync(join(tmpdir(), "sparring-coach-"));
@@ -63,7 +66,8 @@ export async function rig(
   });
   const host = new AhpHost({ db, backend: coach, limits: { snapshotMinBytes: 0, snapshotMinMs: 0 } });
   await coach.start();
-  const api = restHandler(articles, coach);
+  const publisher = o.publisher?.({ articles, db, coach });
+  const api = restHandler(articles, coach, publisher);
   const call = async (method: string, path: string, body?: unknown): Promise<Any> => {
     const res = await api(
       new Request(`http://127.0.0.1:7421${path}`, {
@@ -85,7 +89,7 @@ export async function rig(
     c.dispatch(chat, turnStarted(text, turnId));
     await host.idle();
   };
-  return { dir, db, articles, tools, coach, host, call, article, say, launches: () => launches };
+  return { dir, db, articles, tools, coach, host, call, article, say, publisher, launches: () => launches };
 }
 
 export const meta = (host: AhpHost, session: string): Any =>

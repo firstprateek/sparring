@@ -51,6 +51,7 @@ export default defineConfig({
       input: {
         index: resolve(import.meta.dirname, "index.html"),
         room: resolve(import.meta.dirname, "room.html"),
+        publish: resolve(import.meta.dirname, "publish.html"),
       },
     },
   },

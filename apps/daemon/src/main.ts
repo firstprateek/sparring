@@ -12,6 +12,7 @@ import { openDb } from "./db.ts";
 import { demoLaunch } from "./demo-agent.ts";
 import { spendCode } from "./login-codes.ts";
 import { listenMcp } from "./mcp-socket.ts";
+import { Publisher, readPublishSettings } from "./publish.ts";
 import { restHandler } from "./rest.ts";
 import { restGuard } from "./rest-guard.ts";
 import { migrate } from "./schema.ts";
@@ -63,6 +64,22 @@ const host = new AhpHost({
 });
 await coach.start();
 coach.startSweep();
+// Publishing: the job runner over the site clone in ~/.sparring/site. A job a dead daemon left is failed here.
+const publisher = new Publisher({
+  articles,
+  db,
+  home,
+  settings: () => readPublishSettings(home),
+  corpus: (slug) => coach.corpus(slug),
+  say: (row, text, bad) => {
+    if (row.chat) coach.line(row, row.chat, text, bad ? "refused" : "divider");
+    else articles.setLastLine(row.id, text);
+  },
+  changed: (id) => coach.pushMeta(id),
+  log,
+});
+await publisher.recover().catch((e) => log(`publish: ${e instanceof Error ? e.message : e}`));
+publisher.startPrWatch();
 const mcp = await listenMcp(sock, tools, log);
 // Pings every 25 s, a client silent for 90 s is closed (the host's idleCloseMs), Bun's own idle timeout is 60 s.
 const transport = new AhpTransport(host, {
@@ -75,7 +92,7 @@ transport.start();
 
 const rest = restGuard(
   { token: config.token, hosts: config.hosts, spendCode: (code) => spendCode(home, code) },
-  restHandler(articles, coach),
+  restHandler(articles, coach, publisher),
 );
 const web = serveWebFrom(join(import.meta.dir, "../../web/dist"));
 
@@ -118,6 +135,7 @@ async function shutdown(signal: string): Promise<void> {
     server.stop();
     transport.stop();
     await articles.flush();
+    await Promise.race([publisher.idle(), new Promise((r) => setTimeout(r, 3000))]);
     await coach.shutdown();
     await mcp.close();
     host.close();

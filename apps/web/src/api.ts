@@ -1,6 +1,7 @@
 // The REST calls the web client makes. Every non-GET sends JSON, as the REST guard requires. Every call goes to
 // the daemon named in config.ts and carries the login cookie; a 401 tells the login form to show.
 import type { Note } from "@sparring/protocol/notes";
+import type { PostMeta, Preflight } from "@sparring/protocol/publish";
 import { apiUrl, crossOrigin } from "./config.ts";
 import type { Resume } from "./letter.ts";
 
@@ -115,6 +116,14 @@ export const api = {
     ),
   /** The page from before the coach's draft. */
   shelf: (slug: string) => call<{ text: string; commit: string }>("GET", `/api/articles/${enc(slug)}/shelf`),
+  /** The publish sheet's fields. A key left out keeps what is stored. */
+  saveMeta: (slug: string, meta: Partial<PostMeta>) =>
+    call<{ meta: PostMeta; commit: string | null }>("PUT", `/api/articles/${enc(slug)}/meta`, meta),
+  /** The preflight: everything the publish sheet shows. Commits the page and fetches the site; no build. */
+  preflight: (slug: string) => call<Preflight>("GET", `/api/articles/${enc(slug)}/publish`),
+  /** Starts the publish job on the commit the sheet showed. 409 carries a fresh preflight. */
+  publish: (slug: string, body: { article_commit: string; origin_sha: string; ticked: string[] }) =>
+    call<{ publish_id: number }>("POST", `/api/articles/${enc(slug)}/publish`, body),
   stash: (slug: string, file: FileName, text: string) =>
     call<{ commit: string }>("POST", `/api/articles/${enc(slug)}/stash`, { file, text }),
 };

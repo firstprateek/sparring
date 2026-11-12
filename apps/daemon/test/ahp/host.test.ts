@@ -891,7 +891,7 @@ describe("Sparring's additions", () => {
       "/publish",
     ]);
     const quiet = all.items.find((i: Any) => i.insertText === "/quiet");
-    expect(quiet.attachment._meta).toEqual({ "sparring.hint": "no coach for this article" });
+    expect(quiet.attachment._meta).toEqual({ "sparring.hint": "no notes until /quiet again, /pass or /critique" });
     const st = await a.call("completions", { channel: chat, kind: "slash", text: "see /st", offset: 7 });
     expect(st.items).toHaveLength(1);
     expect(st.items[0]).toMatchObject({ insertText: "/strict", rangeStart: 4, rangeEnd: 7 });

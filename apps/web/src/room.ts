@@ -619,6 +619,12 @@ let quiet: boolean | undefined;
 /** The passes that are not stage names: a note from one, or a pass result in the letter, is a pass that ran. */
 const PASS_NAMES: ReadonlySet<string> = new Set(PASSES);
 
+/** The named pass a result line is about (`filler · 2 notes`, `nothing in this pass · filler`), or "". */
+function letterPass(text: string): string {
+  const parts = text.split(" · ");
+  return [parts[0], parts[parts.length - 1]].find((w) => w !== undefined && PASS_NAMES.has(w)) ?? "";
+}
+
 function updateGuide(): void {
   if (!loaded) return;
   const words = (f: FileName) => wordCount(leaves.get(f)?.text ?? "");
@@ -632,7 +638,9 @@ function updateGuide(): void {
     tells: tellsSeen,
     passes:
       notes.filter((n) => PASS_NAMES.has(n.pass)).length +
-      (currentMeta()?.letter ?? []).filter((l) => l.kind === "passDone" || l.kind === "passEmpty").length,
+      (currentMeta()?.letter ?? []).filter(
+        (l) => (l.kind === "passDone" || l.kind === "passEmpty") && letterPass(l.text) !== "",
+      ).length,
     ...seen,
   });
 }

@@ -742,6 +742,8 @@ A failed A or B row stops the build. If B3 fails, the coach moves to its own mac
 
 **10. First article out (2 to 3 evenings).** Fix what the first real article breaks. *Done when:* the PR is merged, and pass latency and token numbers are in `docs/adapters.md`.
 
+*As run so far (November 2026):* steps 1 to 9 are built and live. A scripted run walked the guide's 16 steps from an idea to the publish sheet in a browser, with the demo coach, and fixed what it broke (a critique result counted as a polish pass; the notes head drawn over the conversation in a short window). Still the owner's, and the real end of this step: `site_repo`, `publish.git_*`, the site clone and its domain; `backup_remote`; rows M2 and M3; a real article with the `claude` coach, whose pass latency and token numbers go in `docs/adapters.md`.
+
 The total is 28 to 33 evenings. There is a plain editor for one article after step 1 (about evening 5), a real phone interview after step 3 (about evening 14) and the full coached loop after step 4 (about evening 18).
 
 ### Later

@@ -143,6 +143,7 @@
   font-weight: 400;
 }
 .coach {
+  overflow: hidden;
   border-left: 1px solid var(--rule);
   background: var(--subtle);
   display: flex;
@@ -211,10 +212,10 @@
   }
 }
 .turns {
-  flex: 1 0 auto;
-  /* The conversation keeps room for a few lines however many notes and letter lines sit above it. */
-  height: 0;
-  min-height: 9rem;
+  /* The conversation asks for a few lines however many notes and letter lines sit above it, and gives some
+     back when the panel is short (a small window with the guide open), so nothing overlaps. */
+  flex: 1 1 9rem;
+  min-height: 4.5rem;
   overflow: auto;
   padding: 16px;
   display: flex;
@@ -572,8 +573,10 @@
 .notes {
   display: flex;
   flex-direction: column;
-  flex: 0 1 auto;
-  min-height: 0;
+  flex: 0 2 auto;
+  /* Never shorter than its own head line, and never drawn over what follows. */
+  min-height: 2.75rem;
+  overflow: hidden;
   max-height: 46%;
   border-bottom: 1px solid var(--rule);
   background: var(--bg);
@@ -1243,5 +1246,29 @@
   .tells-foot:has(.pasted-btn:disabled) > .pasted-sep,
   .tells-foot .pasted-btn:disabled {
     display: none;
+  }
+}
+/* A short wide window (a laptop with the app not full height): the guide card is capped the same way, so the
+   coach panel keeps room for its composer. */
+@media (min-width: 761px) and (max-height: 720px) {
+  .sp .guide:not(.small) {
+    box-sizing: border-box;
+    max-height: min(30dvh, 190px);
+  }
+  .sp .guide .g-body {
+    flex: 0 1 auto;
+    min-height: 2.8em;
+    overflow: auto;
+    padding-bottom: 14px;
+    mask-image: linear-gradient(to bottom, var(--text) calc(100% - 14px), transparent);
+  }
+  .sp .guide .g-head,
+  .sp .guide .g-title,
+  .sp .guide .g-nav {
+    flex: none;
+  }
+  .coach .letter {
+    flex: 0 1000 auto;
+    min-height: 0;
   }
 }

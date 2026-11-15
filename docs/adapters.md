@@ -55,3 +55,12 @@ The probe prints a scratch folder; its `transcript.jsonl` holds every message, w
 Rows M2 and M3 are not part of this probe.
 
 To move the pin, install the new version, run both phases, and keep the report.
+
+## Rows M2 and M3 (publishing), run 2026-11-15 on the Mac mini
+
+- **M2, a launchd job reaches the site remote:** pass. `git ls-remote` over ssh (`BatchMode=yes`) from a
+  `launchctl submit` job printed `refs/heads/main` and `exit 0`. The clone stays on ssh.
+- **M3, the site keeps raw HTML:** yes. A post with `<script>alert(1)</script>` built with the script intact
+  (Astro 7, Sätteri). Sparring's own refusal of raw HTML in a post is therefore the only guard; keep it.
+- **First real publish:** a throwaway post went sheet → `post/publish-pipeline-test` → PR → CI → merge → GitHub
+  Pages, then was removed on `main`. The daemon saw the merge and set `published_at`. Re-run M2 after a host move.

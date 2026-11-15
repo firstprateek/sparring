@@ -162,3 +162,7 @@ To try the mocks, open `mocks/index.html` in a browser. They are static pages wi
 ## Background
 
 - Bryan Cantrill, [Your intellectual fly is open](https://bcantrill.dtrace.org/2025/12/05/your-intellectual-fly-is-open/)
+
+## License
+
+[GNU AGPL v3.0](LICENSE) © 2026 Prateek Joshi. You may use, modify and share this software, but if you run a modified version as a network service you must make its source available to its users.

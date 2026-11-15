@@ -248,13 +248,19 @@ fn bundle() -> Option<PathBuf> {
     ok.then_some(app)
 }
 
-/// True when a file can be made next to the bundle, so the plugin can swap it without asking for a password.
+/// True when the plugin can swap the bundle without asking for a password: a file can be made next to it, and the
+/// bundle folder itself is writable (moving a folder to another parent needs write access to the folder, so a copy
+/// installed by another account fails there even when /Applications is writable). Nothing is written inside the
+/// bundle, which would break its signature.
 fn writable(bundle: &std::path::Path) -> bool {
+    use std::os::unix::ffi::OsStrExt;
     let Some(dir) = bundle.parent() else { return false };
     let probe = dir.join(format!(".sparring-write-test-{}", std::process::id()));
     let ok = std::fs::write(&probe, b"").is_ok();
     let _ = std::fs::remove_file(&probe);
-    ok
+    let Ok(c) = std::ffi::CString::new(bundle.as_os_str().as_bytes()) else { return false };
+    // SAFETY: a valid NUL-terminated path; access() only reads it.
+    ok && unsafe { libc::access(c.as_ptr(), libc::W_OK) == 0 }
 }
 
 /// The plugin's manifest for `origin`: the loopback one names a loopback download, the other the tailnet one.

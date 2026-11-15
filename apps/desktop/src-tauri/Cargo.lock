@@ -3269,6 +3269,7 @@ dependencies = [
 name = "sparring-desktop"
 version = "0.2.0"
 dependencies = [
+ "libc",
  "objc2",
  "serde",
  "serde_json",

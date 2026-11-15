@@ -51,7 +51,8 @@ fn launcher_url(change: bool) -> Url {
 /// change it (Cmd+=, Cmd+-, Cmd+0).
 struct Zoom(Mutex<f64>);
 
-const ZOOM_STEPS: [f64; 12] = [0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5];
+/// The owner's choice (2026-11-14), the same in every one of their desktop apps.
+const ZOOM_STEPS: [f64; 5] = [0.8, 0.9, 1.0, 1.1, 1.2];
 
 fn zoom_file(app: &tauri::AppHandle) -> Option<PathBuf> {
     Some(app.path().app_config_dir().ok()?.join("zoom"))
@@ -61,17 +62,26 @@ fn saved_zoom(app: &tauri::AppHandle) -> f64 {
     zoom_file(app)
         .and_then(|f| std::fs::read_to_string(f).ok())
         .and_then(|t| t.trim().parse::<f64>().ok())
-        .filter(|z| (0.5..=2.5).contains(z))
+        .map(nearest_step)
         .unwrap_or(1.0)
+}
+
+fn step_index(now: f64) -> usize {
+    ZOOM_STEPS
+        .iter()
+        .enumerate()
+        .min_by(|a, b| (a.1 - now).abs().total_cmp(&(b.1 - now).abs()))
+        .map_or(2, |(i, _)| i)
+}
+
+/// A level saved by an older build, moved to the step closest to it.
+fn nearest_step(z: f64) -> f64 {
+    if z.is_finite() { ZOOM_STEPS[step_index(z)] } else { 1.0 }
 }
 
 /// One step up (`dir` 1), one step down (-1), or back to 1 (0).
 fn step_zoom(now: f64, dir: i8) -> f64 {
-    let at = ZOOM_STEPS
-        .iter()
-        .enumerate()
-        .min_by(|a, b| (a.1 - now).abs().total_cmp(&(b.1 - now).abs()))
-        .map_or(5, |(i, _)| i);
+    let at = step_index(now);
     match dir {
         0 => 1.0,
         d if d > 0 => ZOOM_STEPS[(at + 1).min(ZOOM_STEPS.len() - 1)],
@@ -447,4 +457,25 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("error while running Sparring");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zoom_steps_stop_at_the_ends() {
+        assert_eq!(step_zoom(1.0, 1), 1.1);
+        assert_eq!(step_zoom(1.2, 1), 1.2);
+        assert_eq!(step_zoom(0.8, -1), 0.8);
+        assert_eq!(step_zoom(1.2, 0), 1.0);
+    }
+
+    #[test]
+    fn a_saved_level_off_the_ladder_moves_to_the_nearest_step() {
+        assert_eq!(nearest_step(2.5), 1.2);
+        assert_eq!(nearest_step(0.5), 0.8);
+        assert_eq!(nearest_step(1.25), 1.2);
+        assert_eq!(nearest_step(f64::NAN), 1.0);
+    }
 }

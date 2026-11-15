@@ -81,12 +81,12 @@ describe("the head as a title bar", () => {
     expect(root.style.getPropertyValue("--head-zoom")).toBe("1.0000");
   });
 
-  it("stops the head growing past 1.3 when the page zooms further", () => {
+  it("keeps the head its plain size when the page zooms", () => {
     const root = document.createElement("div");
     applyChrome(root, { zoom: 2, full: false, lights: { y: 22, x: 76 } });
-    expect(root.style.getPropertyValue("--head-zoom")).toBe("0.6500");
-    expect(root.style.getPropertyValue("--menu-zoom")).toBe("1.5385");
-    expect(root.style.getPropertyValue("--lights-y")).toBe("16.92px");
+    expect(root.style.getPropertyValue("--head-zoom")).toBe("0.5000");
+    expect(root.style.getPropertyValue("--menu-zoom")).toBe("2.0000");
+    expect(root.style.getPropertyValue("--lights-y")).toBe("22.00px");
   });
 
   it("leaves no room for window buttons in full screen", () => {

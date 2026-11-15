@@ -24,23 +24,19 @@ export function inDesktopApp(): boolean {
   return "__SPARRING_TITLEBAR__" in window;
 }
 
-/** How far the head grows with the page's zoom. Past this it would be taller than the window buttons' line allows. */
-const HEAD_ZOOM_MAX = 1.3;
-
 /**
  * Sizes the head for the window buttons. The buttons do not zoom and the page does, so the head is scaled back
- * to at most `HEAD_ZOOM_MAX` of its plain size and its lengths are given in its own scaled units. A menu that
- * drops out of the head is scaled forward again, to the page's zoom.
+ * to its plain size at any zoom: it stays the title bar it was, with its middle on the buttons' line. A menu
+ * that drops out of the head is scaled forward again, to the page's zoom.
  */
 export function applyChrome(root: HTMLElement, c: Chrome | undefined): void {
   const zoom = c && c.zoom > 0 ? c.zoom : 1;
-  const head = Math.min(zoom, HEAD_ZOOM_MAX);
   root.classList.toggle("fullscreen", !!c?.full);
-  root.style.setProperty("--head-zoom", (head / zoom).toFixed(4));
-  root.style.setProperty("--menu-zoom", (zoom / head).toFixed(4));
+  root.style.setProperty("--head-zoom", (1 / zoom).toFixed(4));
+  root.style.setProperty("--menu-zoom", zoom.toFixed(4));
   if (c?.lights) {
-    root.style.setProperty("--lights-y", `${(c.lights.y / head).toFixed(2)}px`);
-    root.style.setProperty("--lights-x", `${((c.lights.x + 14) / head).toFixed(2)}px`);
+    root.style.setProperty("--lights-y", `${c.lights.y.toFixed(2)}px`);
+    root.style.setProperty("--lights-x", `${(c.lights.x + 14).toFixed(2)}px`);
   } else {
     root.style.removeProperty("--lights-y");
     root.style.removeProperty("--lights-x");

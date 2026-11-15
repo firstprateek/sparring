@@ -245,7 +245,7 @@ textarea:focus-visible {
   -webkit-user-select: none;
   cursor: default;
 }
-/* The head does not grow all the way with the page's zoom (desktop.ts), and a menu in it is put back. */
+/* The head keeps its plain size whatever the page's zoom (desktop.ts), and a menu in it is put back. */
 .in-app :is(header.bar, .head, .iv-head, .login-bar) {
   zoom: var(--head-zoom, 1);
 }

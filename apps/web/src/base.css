@@ -208,34 +208,68 @@ textarea:focus-visible {
   line-height: 1.5;
   color: var(--muted);
 }
-/* "sparring was updated · reload" (update.ts): pinned to the top, over the header, until reloaded or put off. */
+/* "new version · reload" (update.ts), or "· restart" from the desktop app: a small line at the right end of
+   the page's head. On a page with no head it is pinned to the top of the window instead. */
 .update {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 8px);
-  /* Centred by margins, not left: 50%, which would cap it at half the screen and wrap it on a phone. */
-  left: 16px;
-  right: 16px;
-  margin-inline: auto;
-  width: fit-content;
-  max-width: calc(100% - 32px);
-  box-sizing: border-box;
-  display: flex;
-  flex-wrap: wrap;
+  display: inline-flex;
   align-items: center;
-  gap: 6px 12px;
-  padding: 8px 12px;
+  gap: 8px;
+  flex: none;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 2px 2px 2px 10px;
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--accent);
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
-  z-index: 20;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
 }
-.update .t {
-  padding: 6px 2px;
+.update[hidden] {
+  display: none;
+}
+.update:not(.in-head) {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  right: 16px;
+  z-index: 20;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+}
+.update .btn {
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+.update .off {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: 12px / 1.4 var(--mono);
+  cursor: pointer;
+}
+.update .off:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.update .off:hover {
+  color: var(--text);
+}
+/* A phone's head has little room: the line is just its button (its title and aria-label say the rest). */
+@media (max-width: 600px) {
+  .update.in-head {
+    padding: 2px;
+  }
+  .update.in-head :is(.t, .off) {
+    display: none;
+  }
 }
 .update .err {
-  flex-basis: 100%;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.update .err:empty {
+  display: none;
 }
 
 /* In the desktop app a page's head is the window's title bar (src/desktop.ts): it can be dragged, its words are

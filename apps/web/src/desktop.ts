@@ -7,6 +7,8 @@
 // changes): the zoom, and where the window buttons are in points. The head takes its height and its left
 // padding from that, so its own buttons sit on the same line as the window's at any zoom.
 
+import { newVersionLine, placeInHead } from "./update.ts";
+
 const HEADS = "header.bar, .head, .iv-head, .login-bar";
 const LIVE = "button, a, input, textarea, select, .menu, .imenu";
 
@@ -120,26 +122,30 @@ function appNote(text: string, buttons: HTMLButtonElement[] = [], ms = 0): HTMLE
   return note;
 }
 
-/** "the app was updated · restart": the new build is installed and runs from the next launch. */
+/** "new version · restart", in the head like the page's own "new version · reload" (update.ts): the new build
+ *  is installed and runs from the next launch. */
 function offerRestart(): void {
-  if (document.querySelector(".app-note.restart")) return;
-  const why = document.createElement("span");
-  why.className = "err";
-  const go = button("btn primary", "restart", () => {
-    void (async () => {
-      go.disabled = true;
-      const wait = await beforeRestart().catch(() => null);
-      go.disabled = false;
-      if (wait) why.textContent = `not yet · ${wait}`;
-      else askApp("restart");
-    })();
-  });
-  const note = appNote("the Sparring app was updated · restart to use the new one", [
-    go,
-    button("hb", "later", () => note.remove()),
-  ]);
-  note.classList.add("restart");
-  note.append(why);
+  if (document.querySelector(".update.restart")) return;
+  const line = newVersionLine(
+    "restart",
+    () => {
+      void (async () => {
+        line.go.disabled = true;
+        const wait = await beforeRestart().catch(() => null);
+        line.go.disabled = false;
+        if (wait) {
+          line.why.textContent = `not yet · ${wait}`;
+          line.why.title = wait;
+        } else askApp("restart");
+      })();
+    },
+    () => line.el.remove(),
+  );
+  line.el.classList.add("restart");
+  line.el.title = "the Sparring app was updated · restart to use the new one";
+  // One "new version" at a time: the restart loads the new pages too.
+  for (const reload of document.querySelectorAll<HTMLElement>(".update:not(.restart)")) reload.hidden = true;
+  placeInHead(line.el);
 }
 
 export function wireDesktop(): void {

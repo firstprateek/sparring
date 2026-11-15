@@ -46,6 +46,41 @@ describe("the update line", () => {
     expect(newer.bar.hidden).toBe(false);
   });
 
+  it("sits at the right end of the page's head, inside head-right when there is one", async () => {
+    setPageBuild("aaa");
+    document.body.innerHTML = `<div class="sp"><header class="bar"><span class="brand"></span><span class="head-right"><button id="theme"></button></span></header></div>`;
+    const w = new UpdateWatch({ fetcher: serving({ build: "bbb" }) });
+    await w.check();
+    expect(w.bar.parentElement?.className).toBe("head-right");
+    expect(w.bar.previousElementSibling?.id).toBe("theme");
+    expect(w.bar.classList.contains("in-head")).toBe(true);
+    expect(w.bar.textContent).toContain("new version");
+    expect(w.bar.querySelector("button.primary")?.textContent).toBe("reload");
+  });
+
+  it("uses the visible head, and is pinned to the top on a page without one", async () => {
+    setPageBuild("aaa");
+    document.body.innerHTML = `<div class="sp" hidden><header class="head"></header></div><div class="iv"><header class="iv-head"></header></div>`;
+    const w = new UpdateWatch({ fetcher: serving({ build: "bbb" }) });
+    await w.check();
+    expect(w.bar.parentElement?.className).toBe("iv-head");
+    document.body.replaceChildren();
+    const bare = new UpdateWatch({ fetcher: serving({ build: "bbb" }) });
+    await bare.check();
+    expect(bare.bar.parentElement).toBe(document.body);
+    expect(bare.bar.classList.contains("in-head")).toBe(false);
+  });
+
+  it("stays hidden while the desktop app offers its restart", async () => {
+    setPageBuild("aaa");
+    const restart = document.createElement("div");
+    restart.className = "update restart";
+    document.body.append(restart);
+    const w = new UpdateWatch({ fetcher: serving({ build: "bbb" }) });
+    await w.check();
+    expect(w.bar.hidden).toBe(true);
+  });
+
   it("never checks on a page without a build id", async () => {
     const fetcher = serving({ build: "bbb" });
     await new UpdateWatch({ fetcher }).check();
@@ -58,7 +93,7 @@ describe("the update line", () => {
     const fetcher = vi.fn(async () => Response.json({ build: served })) as unknown as typeof fetch;
     const w = new UpdateWatch({ fetcher });
     await w.check();
-    const later = [...w.bar.querySelectorAll("button")].find((b) => b.textContent === "later");
+    const later = w.bar.querySelector<HTMLButtonElement>('button[aria-label="later"]');
     later?.click();
     expect(w.bar.hidden).toBe(true);
     await w.check();

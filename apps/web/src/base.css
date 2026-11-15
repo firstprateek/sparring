@@ -269,6 +269,48 @@ textarea:focus-visible {
   overscroll-behavior: none;
 }
 
+/* The name with its mark: two chevrons facing each other, the writer's and the coach's. */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  white-space: nowrap;
+}
+.mark {
+  width: 20px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke-width: 92;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mark .a {
+  stroke: currentColor;
+}
+.mark .b {
+  stroke: var(--accent);
+}
+/* An older build of the desktop app: says so once, at the foot. */
+.old-app {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  padding: 8px 16px;
+  background: var(--subtle);
+  border-top: 1px solid var(--rule);
+  color: var(--text);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+
 /* The list of keyboard shortcuts (keys.ts). */
 .keys-back {
   position: fixed;

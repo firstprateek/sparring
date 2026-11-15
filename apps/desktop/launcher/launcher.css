@@ -42,6 +42,24 @@ body {
   cursor: default;
   border-bottom: 1px solid var(--line);
 }
+.bar {
+  gap: 8px;
+}
+.mark {
+  width: 20px;
+  height: 16px;
+  fill: none;
+  stroke-width: 92;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.mark .a {
+  stroke: currentColor;
+}
+.mark .b {
+  stroke: var(--accent);
+}
 main {
   max-width: 560px;
   margin: 18vh auto 0;

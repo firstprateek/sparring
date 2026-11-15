@@ -51,7 +51,10 @@ function build(onDone: () => void): HTMLElement {
   const head = document.createElement("header");
   head.className = "login-bar mono";
   const name = document.createElement("span");
-  name.textContent = "sparring";
+  name.className = "brand";
+  name.innerHTML =
+    '<svg class="mark" viewBox="-320 -260 640 520" aria-hidden="true"><path class="a" d="M-250 -190-60 0-250 190"/><path class="b" d="M250 -190 60 0 250 190"/></svg>';
+  name.append("sparring");
   head.append(name);
   wrap.append(head, form);
   return wrap;

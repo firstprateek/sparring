@@ -158,6 +158,9 @@ fn set_zoom(app: &tauri::AppHandle, dir: i8) {
         *z = step_zoom(*z, dir);
         *z
     };
+    if std::env::var_os("SPARRING_DEBUG_CHROME").is_some() {
+        eprintln!("zoom -> {next} file={:?}", zoom_file(app));
+    }
     if let Some(file) = zoom_file(app) {
         if let Some(dir) = file.parent() {
             let _ = std::fs::create_dir_all(dir);
@@ -209,6 +212,9 @@ fn main() {
             let zoom_reset = MenuItem::with_id(app, "zoom-reset", "Actual Size", true, Some("CmdOrCtrl+0"))?;
             for item in menu.items()? {
                 if let MenuItemKind::Submenu(sub) = item {
+                    if std::env::var_os("SPARRING_DEBUG_CHROME").is_some() {
+                        eprintln!("menu {:?}", sub.text());
+                    }
                     if sub.text().is_ok_and(|t| t == "View") {
                         sub.append(&PredefinedMenuItem::separator(app)?)?;
                         sub.append(&zoom_reset)?;
@@ -218,6 +224,14 @@ fn main() {
                 }
             }
             app.set_menu(menu)?;
+            if std::env::var_os("SPARRING_DEBUG_ZOOM").is_some() {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    let h = handle.clone();
+                    let _ = handle.run_on_main_thread(move || set_zoom(&h, 1));
+                });
+            }
             Ok(())
         })
         .on_menu_event(|app, event| {

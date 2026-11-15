@@ -53,6 +53,24 @@ export function wireDesktop(): void {
   const chrome = () => applyChrome(root, (window as { __SPARRING_CHROME__?: Chrome }).__SPARRING_CHROME__);
   chrome();
   addEventListener("sparring-chrome", chrome);
+  // A build from before the app said where its window buttons are: the head cannot line up with them, and it
+  // has no zoom. Say so, once per launch of the page.
+  setTimeout(() => {
+    if ("__SPARRING_CHROME__" in window || document.querySelector(".old-app")) return;
+    const note = document.createElement("div");
+    note.className = "old-app mono";
+    note.setAttribute("role", "status");
+    const text = document.createElement("span");
+    text.textContent =
+      "this copy of the Sparring app is an older build · zoom and the title bar need the new one";
+    const ok = document.createElement("button");
+    ok.type = "button";
+    ok.className = "hb";
+    ok.textContent = "ok";
+    ok.addEventListener("click", () => note.remove());
+    note.append(text, ok);
+    document.body.append(note);
+  }, 4000);
   addEventListener(
     "mousedown",
     (e) => {

@@ -4,8 +4,7 @@
 // Elsewhere, build with SPARRING_DAEMON_URL set to the daemon's tailnet address and log in once with the token.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -13,6 +12,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::menu::{Menu, MenuItem, MenuItemKind, PredefinedMenuItem};
 use tauri::{Manager, Url, WebviewWindow, WindowEvent};
+use tauri_plugin_updater::UpdaterExt;
 
 #[derive(Serialize)]
 struct LocalDaemon {
@@ -185,14 +185,17 @@ fn set_zoom(app: &tauri::AppHandle, dir: i8) {
 
 // ───────────────────────────── updates ─────────────────────────────
 //
-// The daemon serves the newest build of this app next to its pages: `/app/latest.json` names it and
-// `/app/Sparring.zip` is it (`pnpm app:release` puts them there). The app asks when a page loads, at most every
-// half hour, and from Sparring > Check for Updates. A newer build is downloaded, checked against the hash in
-// `latest.json`, and put in this app's place; it runs from the next launch, and the page offers a restart.
-// Only the daemon this build was made for, or the one on this machine, is ever asked.
-
-/// When this build was made (`SPARRING_APP_BUILD`, UTC digits). A build without it never updates itself.
-const APP_BUILD: Option<&str> = option_env!("SPARRING_APP_BUILD");
+// The daemon serves the newest build of this app next to its pages (`pnpm app:release` puts them in
+// apps/web/public/app). Tauri's updater plugin reads `/app/updater.json` (`updater-local.json` on the host, whose
+// download address is loopback), downloads the build it names, checks it against the public key in
+// tauri.conf.json (only the host's key, `~/.sparring/desktop-updater.key`, makes a build it accepts, and the
+// signature must name the announced version, so an older signed build can't be pushed back), and puts it in this
+// app's place; it runs from the next launch, and the page offers a restart. The app asks when a page loads, at
+// most every half hour, and from Sparring > Check for Updates. Only the daemon this build was made for, or the
+// one on this machine, is ever asked.
+//
+// `/app/latest.json` and `/app/Sparring.zip` are still published for copies from before this updater: they
+// install the new build with their own checksum swap, and from then on update this way.
 
 #[derive(Default)]
 struct Updates {
@@ -237,11 +240,6 @@ fn push_update(window: &WebviewWindow) {
     }
 }
 
-fn run(cmd: &str, args: &[&str]) -> Option<String> {
-    let out = Command::new(cmd).args(args).output().ok()?;
-    out.status.success().then(|| String::from_utf8_lossy(&out.stdout).into_owned())
-}
-
 /// This app's bundle (`…/Sparring.app`), when it is an installed one: not a build folder, and replaceable.
 fn bundle() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?.canonicalize().ok()?;
@@ -250,36 +248,20 @@ fn bundle() -> Option<PathBuf> {
     ok.then_some(app)
 }
 
-/// Downloads the build `latest.json` names and puts it in this app's place. Err is why not, in words.
-fn install(origin: &str, sha256: &str, app: &Path) -> Result<(), String> {
-    let parent = app.parent().ok_or("the app has no folder")?;
-    let stage = parent.join(format!(".sparring-update-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&stage);
-    std::fs::create_dir_all(&stage).map_err(|e| format!("cannot write next to the app · {e}"))?;
-    let done = (|| {
-        let zip = stage.join("Sparring.zip");
-        let zip_s = zip.to_string_lossy().into_owned();
-        run("/usr/bin/curl", &["-fsS", "--max-time", "600", "-o", &zip_s, &format!("{origin}/app/Sparring.zip")])
-            .ok_or("the download failed")?;
-        let sum = run("/usr/bin/shasum", &["-a", "256", &zip_s]).ok_or("could not check the download")?;
-        if sum.split_whitespace().next() != Some(sha256) {
-            return Err("the download does not match its checksum".to_string());
-        }
-        run("/usr/bin/ditto", &["-x", "-k", &zip_s, &stage.to_string_lossy()]).ok_or("could not unpack it")?;
-        let fresh = stage.join("Sparring.app");
-        if !fresh.join("Contents/MacOS").is_dir() {
-            return Err("the download is not the app".to_string());
-        }
-        let old = stage.join("old.app");
-        std::fs::rename(app, &old).map_err(|e| format!("cannot replace the app · {e}"))?;
-        if let Err(e) = std::fs::rename(&fresh, app) {
-            let _ = std::fs::rename(&old, app);
-            return Err(format!("cannot replace the app · {e}"));
-        }
-        Ok(())
-    })();
-    let _ = std::fs::remove_dir_all(&stage);
-    done
+/// True when a file can be made next to the bundle, so the plugin can swap it without asking for a password.
+fn writable(bundle: &std::path::Path) -> bool {
+    let Some(dir) = bundle.parent() else { return false };
+    let probe = dir.join(format!(".sparring-write-test-{}", std::process::id()));
+    let ok = std::fs::write(&probe, b"").is_ok();
+    let _ = std::fs::remove_file(&probe);
+    ok
+}
+
+/// The plugin's manifest for `origin`: the loopback one names a loopback download, the other the tailnet one.
+fn manifest_url(origin: &str) -> Option<Url> {
+    let url = Url::parse(origin).ok()?;
+    let local = matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"));
+    Url::parse(&format!("{origin}/app/{}", if local { "updater-local.json" } else { "updater.json" })).ok()
 }
 
 /// Asks the daemon at `origin` for a newer build and installs it. `loud` says what happened either way.
@@ -293,30 +275,57 @@ fn check_update(app: tauri::AppHandle, origin: String, loud: bool) {
         *last = Some(Instant::now());
     }
     if state.busy.swap(true, Ordering::SeqCst) {
+        if loud {
+            note(&app, "already checking for an update…");
+        }
         return;
     }
-    std::thread::spawn(move || {
-        let said = (|| -> Result<Option<String>, String> {
-            let mine = APP_BUILD.filter(|b| !b.is_empty()).ok_or("this build does not update itself")?;
-            let target = bundle().ok_or("this copy runs from a build folder, so it is left alone")?;
+    tauri::async_runtime::spawn(async move {
+        let said: Result<Option<String>, String> = async {
+            let Some(target) = bundle().filter(|_| !cfg!(debug_assertions)) else {
+                return Err("this copy runs from a build folder, so it is left alone".into());
+            };
+            // In a folder this account can't write to, the plugin would ask for an administrator password; only
+            // when asked from the menu, never out of the blue on a page load.
+            if !loud && !writable(&target) {
+                return Err("the app's folder is not writable".into());
+            }
             if app.state::<Updates>().ready.lock().is_ok_and(|r| r.is_some()) {
                 return Ok(None);
             }
-            let text = run("/usr/bin/curl", &["-fsS", "--max-time", "15", &format!("{origin}/app/latest.json")])
-                .ok_or("could not ask the daemon for updates")?;
-            let latest: serde_json::Value =
-                serde_json::from_str(&text).map_err(|_| "the daemon has no app build to offer".to_string())?;
-            let build = latest.get("build").and_then(|b| b.as_str()).ok_or("the daemon has no app build to offer")?;
-            let sha = latest.get("sha256").and_then(|b| b.as_str()).ok_or("the daemon's app build has no checksum")?;
-            if !build.bytes().all(|b| b.is_ascii_digit()) || build <= mine {
-                return Ok(Some(format!("the Sparring app is up to date · build {mine}")));
+            let endpoint = manifest_url(&origin).ok_or("the daemon's address is not one")?;
+            let updater = app
+                .updater_builder()
+                .endpoints(vec![endpoint])
+                .map_err(|e| e.to_string())?
+                .timeout(Duration::from_secs(15))
+                .build()
+                .map_err(|e| e.to_string())?;
+            let found = updater.check().await.map_err(|e| match e {
+                // Before the first plugin release the address answers with the app's page, not a manifest.
+                tauri_plugin_updater::Error::Reqwest(ref r) if r.is_decode() => {
+                    "the daemon has no app build to offer".to_string()
+                }
+                e => format!("could not ask the daemon · {e}"),
+            })?;
+            match found {
+                None => Ok(Some(format!("the Sparring app is up to date · {}", app.package_info().version))),
+                Some(mut update) => {
+                    // The plugin sets no limit on the download itself; a laptop asleep mid-download would keep
+                    // `busy` set and drop every later check.
+                    update.timeout = Some(Duration::from_secs(600));
+                    update
+                        .download_and_install(|_, _| {}, || {})
+                        .await
+                        .map_err(|e| format!("could not install {} · {e}", update.version))?;
+                    if let Ok(mut ready) = app.state::<Updates>().ready.lock() {
+                        *ready = Some(update.version.clone());
+                    }
+                    Ok(None)
+                }
             }
-            install(&origin, sha, &target)?;
-            if let Ok(mut ready) = app.state::<Updates>().ready.lock() {
-                *ready = Some(build.to_string());
-            }
-            Ok(None)
-        })();
+        }
+        .await;
         app.state::<Updates>().busy.store(false, Ordering::SeqCst);
         if std::env::var_os("SPARRING_DEBUG_CHROME").is_some() {
             eprintln!("update check at {origin}: {said:?}");
@@ -356,6 +365,7 @@ fn page_asks(app: &tauri::AppHandle, url: &Url) -> bool {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // The window has no system title bar (tauri.conf.json): each page's head is the title bar. This mark
         // tells the daemon's pages so, on every page load; an older build of this app does not set it, and
         // there the pages keep their plain head (apps/web/src/desktop.ts).

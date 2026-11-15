@@ -47,6 +47,7 @@ import { provOf, renderQuietBlock, revealStep, tagText } from "./drafted.ts";
 import { Guide } from "./guide.ts";
 import { DRAFTED_HELP, DRAFTING_HELP, LEAF_HELP, stageHelp } from "./help.ts";
 import { InterviewScreen, interviewDone, PHONE_QUERY } from "./interview.ts";
+import { Keys, mod } from "./keys.ts";
 import { Leaf } from "./leaf.ts";
 import { letterRows, resumeRows, stripRow, tickerText } from "./letter.ts";
 import { renderTurns, Transcript } from "./log.ts";
@@ -1261,6 +1262,64 @@ document.addEventListener("keydown", (e) => {
     els.logBtn.focus();
   }
 });
+/** The block of the page the caret was in last, so Cmd+J comes back to it. */
+let lastBlock: HTMLTextAreaElement | null = null;
+els.paras.addEventListener("focusin", (e) => {
+  if (e.target instanceof HTMLTextAreaElement) lastBlock = e.target;
+});
+function focusPage(): void {
+  const at = lastBlock?.isConnected ? lastBlock : [...els.paras.querySelectorAll("textarea")].at(-1);
+  at?.focus();
+}
+function swapFocus(): void {
+  const coach = document.querySelector(".coach");
+  if (coach?.contains(document.activeElement)) focusPage();
+  else document.getElementById("composer")?.focus();
+}
+const leafKey = (n: number, name: FileName) => ({
+  keys: `Mod+${n}`,
+  what: `the ${name} page`,
+  when: mod(String(n)),
+  run: () => showLeaf(name),
+});
+new Keys(
+  [
+    {
+      title: "this article",
+      items: [
+        leafKey(1, "dump"),
+        leafKey(2, "brief"),
+        leafKey(3, "article"),
+        { keys: "Mod+J", what: "jump between your page and the coach", when: mod("j"), run: swapFocus },
+        {
+          keys: "Mod+.",
+          what: "open the stage menu",
+          when: mod("."),
+          run: () => document.getElementById("stage-btn")?.click(),
+        },
+        {
+          keys: "Mod+[",
+          what: "back to the articles",
+          when: mod("["),
+          run: () => {
+            location.href = "/";
+          },
+        },
+        { keys: "Mod+S", what: "save a version of the page" },
+      ],
+    },
+    {
+      title: "talking to the coach",
+      items: [
+        { keys: "Enter", what: "send" },
+        { keys: "Shift+Enter", what: "new line" },
+        { keys: "/", what: "list the commands · ↑ ↓ choose · Tab completes" },
+      ],
+    },
+  ],
+  document.getElementById("keys-btn"),
+);
+
 /** Before an update's reload: saves what can be saved, and refuses while something would be lost. */
 async function readyToReload(): Promise<string | null> {
   await Promise.all([...leaves.values()].filter((l) => l.dirty).map((l) => l.saveNow(false)));

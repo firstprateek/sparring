@@ -245,6 +245,87 @@ textarea:focus-visible {
   -webkit-user-select: none;
   cursor: default;
 }
+/* The head does not grow all the way with the page's zoom (desktop.ts), and a menu in it is put back. */
+.in-app :is(header.bar, .head, .iv-head, .login-bar) {
+  zoom: var(--head-zoom, 1);
+}
+.in-app :is(.head, .iv-head) :is(.menu, .imenu) {
+  zoom: var(--menu-zoom, 1);
+}
+/* The head is as tall as twice the distance to the middle of the window buttons, so what is in it sits on
+   their line. */
 .in-app.mac:not(.fullscreen) :is(header.bar, .head, .iv-head, .login-bar) {
-  padding-left: 84px;
+  height: auto;
+  min-height: calc(2 * var(--lights-y, 22px));
+  padding-top: 0;
+  padding-left: var(--lights-x, 90px);
+}
+.in-app.mac .head .back {
+  padding-block: 4px;
+}
+/* A window, not a web page: the whole page does not slide or bounce when a scroll runs past its end. */
+.in-app,
+.in-app body {
+  overscroll-behavior: none;
+}
+
+/* The list of keyboard shortcuts (keys.ts). */
+.keys-back {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: max(56px, 8vh) 16px 16px;
+  background: color-mix(in srgb, var(--text) 28%, transparent);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.keys-panel {
+  width: min(560px, 100%);
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 14px 18px 18px;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.25);
+}
+.keys-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.keys-panel h3 {
+  font: inherit;
+  margin: 16px 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--rule);
+}
+.keys-panel dl {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
+  gap: 7px 18px;
+  margin: 0;
+  align-items: baseline;
+}
+.keys-panel dt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.keys-panel dd {
+  margin: 0;
+  color: var(--muted);
+}
+.keys-panel kbd {
+  font: inherit;
+  white-space: nowrap;
+  padding: 1px 6px;
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--subtle);
 }

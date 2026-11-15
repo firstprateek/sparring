@@ -33,7 +33,10 @@ body {
 }
 .bar {
   /* The window has no title bar of its own: this is it. The left room is for the three window buttons. */
-  padding: 12px 20px 12px 84px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px 0 90px;
   user-select: none;
   -webkit-user-select: none;
   cursor: default;

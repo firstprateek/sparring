@@ -14,6 +14,7 @@ import { jobRunning, type Preflight } from "@sparring/protocol/publish";
 import { ahp, useAhp } from "./ahp/hub.ts";
 import { ApiError, api } from "./api.ts";
 import { Guide } from "./guide.ts";
+import { Keys, mod } from "./keys.ts";
 import { ensureLogin } from "./login.ts";
 import { PublishSheet, renderPost } from "./publish-view.ts";
 import { ArticleList, metaOf } from "./session.ts";
@@ -192,3 +193,28 @@ new UpdateWatch({
   beforeReload: async () => (jobRunning(current?.publish) ? "a publish is running" : null),
 }).start();
 main().catch((e) => sheet.fail(`the sheet did not open · ${e instanceof Error ? e.message : String(e)}`));
+
+new Keys(
+  [
+    {
+      title: "publish",
+      items: [
+        {
+          keys: "Mod+[",
+          what: "back to the articles",
+          when: mod("["),
+          run: () => {
+            location.href = "/";
+          },
+        },
+        {
+          keys: "Mod+E",
+          what: "back to the article, to edit it",
+          when: mod("e"),
+          run: () => document.getElementById("room-link")?.click(),
+        },
+      ],
+    },
+  ],
+  document.getElementById("keys-btn"),
+);

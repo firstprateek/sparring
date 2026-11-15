@@ -15,6 +15,7 @@ import { BackupFoot } from "./backup.ts";
 import { daemonHost } from "./config.ts";
 import { Guide } from "./guide.ts";
 import { inboxRows, wireSlugField } from "./inbox.ts";
+import { Keys } from "./keys.ts";
 import { ensureLogin } from "./login.ts";
 import { headLine, rowSub, rowTail } from "./rows.ts";
 import { ArticleList, metaOf } from "./session.ts";
@@ -249,10 +250,11 @@ document.addEventListener("keydown", (e) => {
   if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
   const rows = [...els.rows.querySelectorAll<HTMLAnchorElement>("a.row")];
   const at = rows.indexOf(document.activeElement as HTMLAnchorElement);
-  if (e.key === "j" || e.key === "k") {
+  const down = e.key === "j" || e.key === "ArrowDown";
+  if (down || e.key === "k" || e.key === "ArrowUp") {
     if (rows.length === 0) return;
     e.preventDefault();
-    const next = at < 0 ? (e.key === "j" ? 0 : rows.length - 1) : at + (e.key === "j" ? 1 : -1);
+    const next = at < 0 ? (down ? 0 : rows.length - 1) : at + (down ? 1 : -1);
     rows[Math.max(0, Math.min(rows.length - 1, next))]?.focus();
   } else if (e.key === "Enter" && at >= 0) {
     e.preventDefault();
@@ -263,8 +265,32 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "i") {
     e.preventDefault();
     els.idea.focus();
+  } else if (e.key === "g") {
+    e.preventDefault();
+    document.getElementById("guide-btn")?.click();
+  } else if (e.key === "t") {
+    e.preventDefault();
+    document.getElementById("theme")?.click();
   }
 });
+
+new Keys(
+  [
+    {
+      title: "articles",
+      items: [
+        { keys: "j  ↓", what: "next article" },
+        { keys: "k  ↑", what: "previous article" },
+        { keys: "Enter", what: "open the article that has the focus" },
+        { keys: "n", what: "new article" },
+        { keys: "i", what: "write down an idea" },
+        { keys: "g", what: "show or hide the guide" },
+        { keys: "t", what: "change the theme: auto, light, dark" },
+      ],
+    },
+  ],
+  document.getElementById("keys-btn"),
+);
 
 // ───────────────────────────── start ─────────────────────────────
 

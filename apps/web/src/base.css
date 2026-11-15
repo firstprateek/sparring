@@ -294,8 +294,8 @@ textarea:focus-visible {
 .mark .b {
   stroke: var(--accent);
 }
-/* An older build of the desktop app: says so once, at the foot. */
-.old-app {
+/* A line from the desktop app, at the foot: it was updated, it is an older build, there is no update. */
+.app-note {
   position: fixed;
   left: 0;
   right: 0;
@@ -306,9 +306,33 @@ textarea:focus-visible {
   border-top: 1px solid var(--rule);
   color: var(--text);
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   align-items: center;
   justify-content: center;
+}
+.app-note .err {
+  color: var(--bad);
+}
+/* The zoom level, for a few seconds after it changes. */
+.zoom-pill {
+  position: fixed;
+  right: 16px;
+  bottom: 48px;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 12px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.18);
+  font-size: 13px;
+}
+.zoom-pill span:only-child {
+  padding-right: 4px;
 }
 
 /* The list of keyboard shortcuts (keys.ts). */

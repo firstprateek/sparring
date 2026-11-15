@@ -13,6 +13,8 @@ const LIVE = "button, a, input, textarea, select, .menu, .imenu";
 export interface Chrome {
   zoom: number;
   full: boolean;
+  /** True in a build that does what a page asks by a visit to `/__app/<name>` (zoom-reset, restart). */
+  hooks?: boolean;
   /** The middle of the window buttons from the top of the window, and their right edge; null when hidden. */
   lights: { y: number; x: number } | null;
 }
@@ -45,31 +47,132 @@ export function applyChrome(root: HTMLElement, c: Chrome | undefined): void {
   }
 }
 
+/** Asks the app for something. The app refuses the visit and does the thing, so the page stays where it is. */
+function askApp(name: string): void {
+  location.href = `/__app/${name}`;
+}
+
+/** Runs before a restart; a string is why the app must not restart yet. The Room saves its pages here. */
+let beforeRestart: () => Promise<string | null> = async () => null;
+export function setBeforeRestart(fn: () => Promise<string | null>): void {
+  beforeRestart = fn;
+}
+
+function button(cls: string, text: string, on: () => void): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = cls;
+  b.textContent = text;
+  b.addEventListener("click", on);
+  return b;
+}
+
+/**
+ * The zoom, at the bottom right for a few seconds after it changes: the level, and a reset when it is not 100%.
+ * It stays while the pointer is on it.
+ */
+export class ZoomPill {
+  readonly el: HTMLElement;
+  private last: number | null = null;
+  private timer: ReturnType<typeof setTimeout> | undefined;
+
+  constructor(
+    private readonly reset: () => void,
+    private readonly ms = 2500,
+  ) {
+    this.el = document.createElement("div");
+    this.el.className = "zoom-pill mono";
+    this.el.setAttribute("role", "status");
+    this.el.hidden = true;
+    this.el.addEventListener("mouseenter", () => clearTimeout(this.timer));
+    this.el.addEventListener("mouseleave", () => this.hideSoon());
+    document.body.append(this.el);
+  }
+
+  /** The zoom as the app reports it. The first report only sets the level; a change shows the pill. */
+  set(zoom: number, canReset: boolean): void {
+    const was = this.last;
+    this.last = zoom;
+    if (was === null || was === zoom) return;
+    const level = document.createElement("span");
+    level.textContent = `${Math.round(zoom * 100)}%`;
+    this.el.replaceChildren(level);
+    if (canReset && zoom !== 1) this.el.append(button("hb", "reset", this.reset));
+    this.el.hidden = false;
+    this.hideSoon();
+  }
+
+  private hideSoon(): void {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      this.el.hidden = true;
+    }, this.ms);
+  }
+}
+
+/** One line at the foot of the window, with buttons; `ms` takes it away again by itself. */
+function appNote(text: string, buttons: HTMLButtonElement[] = [], ms = 0): HTMLElement {
+  for (const old of document.querySelectorAll(".app-note")) old.remove();
+  const note = document.createElement("div");
+  note.className = "app-note mono";
+  note.setAttribute("role", "status");
+  const line = document.createElement("span");
+  line.textContent = text;
+  note.append(line, ...buttons);
+  document.body.append(note);
+  if (ms > 0) setTimeout(() => note.remove(), ms);
+  return note;
+}
+
+/** "the app was updated · restart": the new build is installed and runs from the next launch. */
+function offerRestart(): void {
+  if (document.querySelector(".app-note.restart")) return;
+  const why = document.createElement("span");
+  why.className = "err";
+  const go = button("btn primary", "restart", () => {
+    void (async () => {
+      go.disabled = true;
+      const wait = await beforeRestart().catch(() => null);
+      go.disabled = false;
+      if (wait) why.textContent = `not yet · ${wait}`;
+      else askApp("restart");
+    })();
+  });
+  const note = appNote("the Sparring app was updated · restart to use the new one", [
+    go,
+    button("hb", "later", () => note.remove()),
+  ]);
+  note.classList.add("restart");
+  note.append(why);
+}
+
 export function wireDesktop(): void {
   if (!inDesktopApp()) return;
   const root = document.documentElement;
   root.classList.add("in-app");
   if (/Mac/.test(navigator.userAgent)) root.classList.add("mac");
-  const chrome = () => applyChrome(root, (window as { __SPARRING_CHROME__?: Chrome }).__SPARRING_CHROME__);
+  const w = window as { __SPARRING_CHROME__?: Chrome; __SPARRING_APP_UPDATE__?: unknown };
+  const pill = new ZoomPill(() => askApp("zoom-reset"));
+  const chrome = () => {
+    applyChrome(root, w.__SPARRING_CHROME__);
+    if (w.__SPARRING_CHROME__) pill.set(w.__SPARRING_CHROME__.zoom, !!w.__SPARRING_CHROME__.hooks);
+  };
   chrome();
   addEventListener("sparring-chrome", chrome);
+  if (w.__SPARRING_APP_UPDATE__) offerRestart();
+  addEventListener("sparring-app-update", offerRestart);
+  addEventListener("sparring-app-note", (e) => {
+    const text = (e as CustomEvent<unknown>).detail;
+    if (typeof text === "string" && text) appNote(text, [], 6000);
+  });
   // A build from before the app said where its window buttons are: the head cannot line up with them, and it
   // has no zoom. Say so, once per launch of the page.
   setTimeout(() => {
-    if ("__SPARRING_CHROME__" in window || document.querySelector(".old-app")) return;
-    const note = document.createElement("div");
-    note.className = "old-app mono";
-    note.setAttribute("role", "status");
-    const text = document.createElement("span");
-    text.textContent =
-      "this copy of the Sparring app is an older build · zoom and the title bar need the new one";
-    const ok = document.createElement("button");
-    ok.type = "button";
-    ok.className = "hb";
-    ok.textContent = "ok";
-    ok.addEventListener("click", () => note.remove());
-    note.append(text, ok);
-    document.body.append(note);
+    if ("__SPARRING_CHROME__" in window || document.querySelector(".app-note")) return;
+    const note = appNote(
+      "this copy of the Sparring app is an older build · zoom and the title bar need the new one",
+      [button("hb", "ok", () => note.remove())],
+    );
   }, 4000);
   addEventListener(
     "mousedown",

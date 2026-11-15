@@ -7,3 +7,6 @@ dist/
 # Tauri
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
+
+# Desktop app builds the daemon serves (pnpm app:release)
+apps/web/public/app/

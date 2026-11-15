@@ -19,6 +19,7 @@
     "login-code": "bun tools/login-code.ts",
     "service": "bun tools/service.ts",
     "ship": "bun tools/ship.ts",
+    "app:release": "bun tools/app-release.ts",
     "backup": "bun tools/backup.ts"
   },
   "devDependencies": {

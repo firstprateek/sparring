@@ -43,6 +43,7 @@ import { ahp, useAhp } from "./ahp/hub.ts";
 import { ApiError, api, type BriefNote, type FileName, type Snapshot } from "./api.ts";
 import { adoptBrief, briefNotesOf, quoteMarks, renderQuotes } from "./brief.ts";
 import { Composer } from "./composer.ts";
+import { setBeforeRestart } from "./desktop.ts";
 import { provOf, renderQuietBlock, revealStep, tagText } from "./drafted.ts";
 import { Guide } from "./guide.ts";
 import { DRAFTED_HELP, DRAFTING_HELP, LEAF_HELP, stageHelp } from "./help.ts";
@@ -1329,6 +1330,7 @@ async function readyToReload(): Promise<string | null> {
   return null;
 }
 new UpdateWatch({ beforeReload: readyToReload }).start();
+setBeforeRestart(readyToReload);
 
 window.addEventListener("pagehide", () => {
   for (const l of leaves.values()) if (l.dirty) void l.saveNow(false);

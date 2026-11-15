@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { applyChrome } from "../src/desktop.ts";
+import { applyChrome, ZoomPill } from "../src/desktop.ts";
 import { type KeyGroup, Keys, keyLabel, mod } from "../src/keys.ts";
 
 const press = (key: string, init: KeyboardEventInit = {}, target: EventTarget = document.body) => {
@@ -94,5 +94,32 @@ describe("the head as a title bar", () => {
     applyChrome(root, { zoom: 1, full: true, lights: null });
     expect(root.style.getPropertyValue("--lights-y")).toBe("");
     expect(root.classList.contains("fullscreen")).toBe(true);
+  });
+});
+
+describe("the zoom pill", () => {
+  it("stays hidden on the first report, shows a change, and offers a reset away from 100%", () => {
+    vi.useFakeTimers();
+    const reset = vi.fn();
+    const pill = new ZoomPill(reset, 2500);
+    pill.set(1, true);
+    expect(pill.el.hidden).toBe(true);
+    pill.set(1.1, true);
+    expect(pill.el.hidden).toBe(false);
+    expect(pill.el.textContent).toBe("110%reset");
+    pill.el.querySelector("button")?.click();
+    expect(reset).toHaveBeenCalledOnce();
+    pill.set(1, true);
+    expect(pill.el.textContent).toBe("100%");
+    vi.advanceTimersByTime(2600);
+    expect(pill.el.hidden).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("has no reset in a build that cannot be asked", () => {
+    const pill = new ZoomPill(() => {});
+    pill.set(1, false);
+    pill.set(1.25, false);
+    expect(pill.el.textContent).toBe("125%");
   });
 });

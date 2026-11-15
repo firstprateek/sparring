@@ -262,6 +262,10 @@ textarea:focus-visible {
   .update.in-head :is(.t, .off) {
     display: none;
   }
+  .update.in-head .btn {
+    min-height: 28px;
+    padding-inline: 12px;
+  }
 }
 .update .err {
   max-width: 24ch;

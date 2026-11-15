@@ -60,10 +60,21 @@ describe("the update line", () => {
 
   it("uses the visible head, and is pinned to the top on a page without one", async () => {
     setPageBuild("aaa");
-    document.body.innerHTML = `<div class="sp" hidden><header class="head"></header></div><div class="iv"><header class="iv-head"></header></div>`;
+    document.body.innerHTML = `<div class="sp"><header class="head"></header></div><div class="iv"><header class="iv-head"></header></div>`;
+    document.documentElement.classList.add("iv-on");
     const w = new UpdateWatch({ fetcher: serving({ build: "bbb" }) });
     await w.check();
     expect(w.bar.parentElement?.className).toBe("iv-head");
+    document.documentElement.classList.remove("iv-on");
+    // The interview hides the room by a class on <html>, not by `hidden`; the line follows the switch.
+    document.body.innerHTML = `<div class="sp" id="room"><header class="head"></header></div><div class="iv" id="iv"><header class="iv-head"></header></div>`;
+    const v = new UpdateWatch({ fetcher: serving({ build: "bbb" }) });
+    await v.check();
+    expect(v.bar.parentElement?.className).toBe("head");
+    document.documentElement.classList.add("iv-on");
+    await vi.waitFor(() => expect(v.bar.parentElement?.className).toBe("iv-head"));
+    document.documentElement.classList.remove("iv-on");
+    await vi.waitFor(() => expect(v.bar.parentElement?.className).toBe("head"));
     document.body.replaceChildren();
     const bare = new UpdateWatch({ fetcher: serving({ build: "bbb" }) });
     await bare.check();

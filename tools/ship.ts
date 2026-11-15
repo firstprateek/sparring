@@ -8,7 +8,7 @@
 //   5. build the web client
 //   6. restart the launchd service and wait until it answers with the new build
 //
-// Open pages then show "sparring was updated · reload" within a minute (apps/web/src/update.ts).
+// Open pages then show "new version · reload" in their head within a minute (apps/web/src/update.ts).
 import { spawnSync } from "node:child_process";
 import { builtBuild, LOG, logTail, REPO, servicePid, TARGET, waitForDaemon } from "./service.ts";
 

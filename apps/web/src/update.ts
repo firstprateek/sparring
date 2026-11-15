@@ -25,19 +25,31 @@ export async function servedBuild(fetcher: typeof fetch = fetch): Promise<string
   }
 }
 
-/** The page's visible head, where a "new version" line goes: inside `.head-right` when it has one. */
+/** The page's visible head, where a "new version" line goes: inside `.head-right` when it has one. The room's
+ *  interview hides the room with `html.iv-on` (interview.css), not with `hidden`, so that class picks its head. */
 export function headSlot(doc: Document = document): HTMLElement | null {
-  const heads = [...doc.querySelectorAll<HTMLElement>(".sp > header, .iv > header")];
-  const head = heads.find((h) => !h.closest("[hidden]")) ?? heads[0];
+  const interview = doc.documentElement.classList.contains("iv-on");
+  const heads = [...doc.querySelectorAll<HTMLElement>(".sp > header, .iv > header")].filter(
+    (h) => !h.closest("[hidden]") && (h.closest(".iv") ? interview : !interview),
+  );
+  const head = heads[0] ?? doc.querySelector<HTMLElement>(".sp > header");
   return head ? (head.querySelector<HTMLElement>(".head-right") ?? head) : null;
 }
 
-/** Puts a "new version" line in the head (or, on a page without one, pinned to the top of the window). */
+const following = new WeakSet<Document>();
+
+/** Puts a "new version" line in the head (or, on a page without one, pinned to the top of the window), and
+ *  keeps every such line in the visible head when the room switches to the interview and back. */
 export function placeInHead(el: HTMLElement, doc: Document = document): void {
   const slot = headSlot(doc);
   el.classList.toggle("in-head", !!slot);
   const into = slot ?? doc.body;
   if (el.parentElement !== into) into.append(el);
+  if (following.has(doc) || typeof MutationObserver === "undefined") return;
+  following.add(doc);
+  new MutationObserver(() => {
+    for (const line of doc.querySelectorAll<HTMLElement>(".update")) placeInHead(line, doc);
+  }).observe(doc.documentElement, { attributes: true, attributeFilter: ["class"] });
 }
 
 /** A "new version" line: the words, the button, and × to put it off. Its `why` says why it must wait. */
